@@ -1,0 +1,4 @@
+# Formatting-only commits, skipped by `git blame` so it points at the change
+# that actually wrote a line. GitHub's blame view reads this file on its own;
+# locally, run once per clone:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs

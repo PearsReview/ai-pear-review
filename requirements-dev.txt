@@ -1,0 +1,16 @@
+# Dev/test-only dependencies — not needed to run the app itself (see
+# requirements.txt for that): the test suites and the static checkers.
+# Playwright's own browser binaries still need a one-time
+# `python -m playwright install chromium` after installing these, and only
+# qa_agent/ uses them — `pytest tests/` and `ruff check` do not.
+pytest>=8.0,<10.0
+pytest-playwright>=0.5,<1.0
+
+# Static checking. Ruff is capped at the next MINOR, not the next major:
+# it is pre-1.0 and each minor adds lint rules, so an uncapped upgrade
+# fails CI on code nobody touched. Same reasoning as requirements.txt's
+# major caps, one version component along.
+ruff>=0.16,<0.17
+# Scope and settings live in pyproject.toml's [tool.mypy]; CI runs it over
+# app/services/ and app/providers/ with the app's real dependencies present.
+mypy>=2.0,<3.0

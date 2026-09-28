@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AI Pear Review</title>
+  <!-- No web fonts: the page makes no request off this machine. style.css
+       uses Inter if it's installed locally, else the system UI font. -->
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- Icon sprite (Lucide, ISC-licensed, fetched as static SVG — inlined
+       once here rather than an emoji per button, so every icon shares one
+       consistent stroke-based style and inherits currentColor for the
+       theme automatically, instead of platform-specific emoji glyphs that
+       carry their own fixed colors and rendering quirks. Referenced via
+       <svg class="icon"><use href="#icon-NAME"/></svg> — see .icon in
+       style.css for the shared stroke/size treatment. -->
+  <svg style="display:none">
+    <symbol id="icon-x" viewBox="0 0 24 24">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24">
+      <path d="M20 6 9 17l-5-5" />
+    </symbol>
+    <symbol id="icon-pencil" viewBox="0 0 24 24">
+      <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+      <path d="m15 5 4 4" />
+    </symbol>
+    <symbol id="icon-zap" viewBox="0 0 24 24">
+      <path d="M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z" />
+    </symbol>
+    <symbol id="icon-clipboard-check" viewBox="0 0 24 24">
+      <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <path d="m9 14 2 2 4-4" />
+    </symbol>
+    <symbol id="icon-wrench" viewBox="0 0 24 24">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />
+    </symbol>
+    <symbol id="icon-mic" viewBox="0 0 24 24">
+      <path d="M12 19v3" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <rect x="9" y="2" width="6" height="13" rx="3" />
+    </symbol>
+    <symbol id="icon-refresh-cw" viewBox="0 0 24 24">
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24">
+      <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+      <circle cx="12" cy="12" r="3" />
+    </symbol>
+    <symbol id="icon-chevron-left" viewBox="0 0 24 24">
+      <path d="m15 18-6-6 6-6" />
+    </symbol>
+    <symbol id="icon-chevron-right" viewBox="0 0 24 24">
+      <path d="m9 18 6-6-6-6" />
+    </symbol>
+    <symbol id="icon-corner-down-right" viewBox="0 0 24 24">
+      <path d="m15 10 5 5-5 5" />
+      <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+    </symbol>
+    <symbol id="icon-square" viewBox="0 0 24 24">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+    </symbol>
+    <symbol id="icon-square-check" viewBox="0 0 24 24">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="m9 12 2 2 4-4" />
+    </symbol>
+    <!-- Review all: a checklist, so it reads differently from Mark as
+         reviewed's single box even when the toolbar is icon-only. -->
+    <symbol id="icon-list-boxes" viewBox="0 0 24 24">
+      <rect width="6" height="6" x="3" y="4" rx="1" />
+      <rect width="6" height="6" x="3" y="14" rx="1" />
+      <path d="M13 7h8" />
+      <path d="M13 17h8" />
+    </symbol>
+    <symbol id="icon-list-checked" viewBox="0 0 24 24">
+      <rect width="6" height="6" x="3" y="4" rx="1" />
+      <rect width="6" height="6" x="3" y="14" rx="1" />
+      <path d="m4.5 7 1.2 1.2 2.3-2.3" />
+      <path d="m4.5 17 1.2 1.2 2.3-2.3" />
+      <path d="M13 7h8" />
+      <path d="M13 17h8" />
+    </symbol>
+    <symbol id="icon-rotate-cw" viewBox="0 0 24 24">
+      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+    </symbol>
+    <symbol id="icon-map-pin" viewBox="0 0 24 24">
+      <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+      <circle cx="12" cy="10" r="3" />
+    </symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+    </symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24">
+      <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+    </symbol>
+    <symbol id="icon-monitor" viewBox="0 0 24 24">
+      <rect width="20" height="14" x="2" y="3" rx="2" />
+      <line x1="8" x2="16" y1="21" y2="21" />
+      <line x1="12" x2="12" y1="17" y2="21" />
+    </symbol>
+    <symbol id="icon-volume-2" viewBox="0 0 24 24">
+      <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+      <path d="M16 9a5 5 0 0 1 0 6" />
+      <path d="M19.364 18.364a9 9 0 0 0 0-12.728" />
+    </symbol>
+    <symbol id="icon-folder" viewBox="0 0 24 24">
+      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+    </symbol>
+    <symbol id="icon-circle-stop" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </symbol>
+    <symbol id="icon-pause" viewBox="0 0 24 24">
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+      <rect x="6" y="4" width="4" height="16" rx="1" />
+    </symbol>
+    <symbol id="icon-play" viewBox="0 0 24 24">
+      <polygon points="6 3 20 12 6 21 6 3" />
+    </symbol>
+    <symbol id="icon-message-square" viewBox="0 0 24 24">
+      <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" />
+    </symbol>
+    <symbol id="icon-book-open" viewBox="0 0 24 24">
+      <path d="M12 7v14" />
+      <path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
+    </symbol>
+    <symbol id="icon-message-square-plus" viewBox="0 0 24 24">
+      <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" />
+      <path d="M12 8v6" />
+      <path d="M9 11h6" />
+    </symbol>
+    <symbol id="icon-flag" viewBox="0 0 24 24">
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" x2="4" y1="22" y2="15" />
+    </symbol>
+    <symbol id="icon-rows" viewBox="0 0 24 24">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M3 12h18" />
+    </symbol>
+    <symbol id="icon-columns" viewBox="0 0 24 24">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M12 3v18" />
+    </symbol>
+    <symbol id="icon-help-circle" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <path d="M12 17h.01" />
+    </symbol>
+  </svg>
+
+  <header>
+    <h1>AI Pear Review</h1>
+    <div class="header-right">
+      <div id="status-bar"></div>
+      <button id="tour-btn" type="button" title="Take a guided tour of the app" aria-label="Take a guided tour of the app"><svg class="icon"><use href="#icon-help-circle"></use></svg></button>
+      <button id="model-settings-btn" type="button" aria-expanded="false" title="Model settings — provider, model, context size" aria-label="Model settings"><svg class="icon"><use href="#icon-settings"></use></svg></button>
+      <button id="theme-toggle-btn" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"><svg class="icon"><use id="theme-toggle-icon" href="#icon-monitor"></use></svg></button>
+    </div>
+  </header>
+
+  <!-- Model settings. Saved to .review/ui_settings.json and layered over
+       app/config.yaml at startup (see app/services/settings_store.py) —
+       config.yaml itself is never rewritten, so its explanatory comments
+       survive. Applies on the next connection, not the current one: this
+       session's ConversationClient was built at connect time, and swapping
+       it mid-conversation would leave the in-flight history pointing at a
+       different model. -->
+  <div id="model-settings-panel" class="model-settings hidden" role="region" aria-label="Model settings">
+    <h3 class="model-settings-subheading">Narration &amp; chat</h3>
+    <p class="model-settings-hint">
+      The model that narrates each hunk and answers your replies. Act Now doesn't use these — see Coding agent below.
+    </p>
+    <div class="model-settings-row">
+      <label for="setting-provider">Provider</label>
+      <select id="setting-provider">
+        <option value="ollama">ollama (local)</option>
+        <option value="anthropic">anthropic (API)</option>
+      </select>
+    </div>
+    <div class="model-settings-row">
+      <label for="setting-model">Model</label>
+      <select id="setting-model"></select>
+    </div>
+    <div class="model-settings-row" id="setting-num-ctx-row">
+      <label for="setting-num-ctx">Context size</label>
+      <input id="setting-num-ctx" type="number" min="512" step="512" />
+      <span class="model-settings-hint">tokens. Bigger fits more, but costs roughly linear time per call — it raises the ceiling, it doesn't speed anything up. Ollama only.</span>
+    </div>
+    <div class="model-settings-row" id="setting-max-tokens-row">
+      <label for="setting-max-tokens">Max reply tokens</label>
+      <input id="setting-max-tokens" type="number" min="32" step="32" />
+      <span class="model-settings-hint">Saved per provider. Claude models spend this budget on their own reasoning as well as the reply, so they need more than a local model does — too low and answers stop mid-sentence.</span>
+    </div>
+    <div class="model-settings-row">
+      <label for="setting-timeout">Timeout</label>
+      <input id="setting-timeout" type="number" min="5" step="5" />
+      <span class="model-settings-hint">seconds per call</span>
+    </div>
+    <h3 class="model-settings-subheading">Text-to-speech</h3>
+    <div class="model-settings-row">
+      <label for="setting-tts-endpoint">TTS endpoint</label>
+      <input id="setting-tts-endpoint" type="text" spellcheck="false" placeholder="http://localhost:8000/speech" />
+      <span class="model-settings-hint">
+        Where narration/reply/tour audio is synthesised — the TTS service you point this at, self-hosted or remote, not this app.
+        Applies immediately, no reload needed. The TTS pill in the header (top right) shows whether it's reachable.
+      </span>
+    </div>
+    <div class="model-settings-row">
+      <label for="setting-tts-token">TTS API token</label>
+      <input id="setting-tts-token" type="password" spellcheck="false" autocomplete="off" />
+      <span class="model-settings-hint">
+        Optional — only needed if your TTS endpoint requires one. Sent as an Authorization: Bearer header.
+        Never shown back once saved; leave blank to keep the current token, or type a new one to replace it.
+      </span>
+    </div>
+    <h3 class="model-settings-subheading">Speech-to-text</h3>
+    <div class="model-settings-row">
+      <label for="setting-stt-endpoint">STT endpoint</label>
+      <input id="setting-stt-endpoint" type="text" spellcheck="false" placeholder="http://localhost:8000/transcribe" />
+      <span class="model-settings-hint">
+        Where the mic button's recording is transcribed. Applies immediately, no reload needed.
+        The STT pill in the header shows whether it's reachable.
+      </span>
+    </div>
+    <div class="model-settings-row">
+      <label for="setting-stt-token">STT API token</label>
+      <input id="setting-stt-token" type="password" spellcheck="false" autocomplete="off" />
+      <span class="model-settings-hint">
+        Optional — only needed if your STT endpoint requires one. Sent as an Authorization: Bearer header.
+        Never shown back once saved; leave blank to keep the current token, or type a new one to replace it.
+      </span>
+    </div>
+    <h3 class="model-settings-subheading">Coding agent</h3>
+    <div class="model-settings-row">
+      <label for="setting-harness-agent">Act Now agent</label>
+      <select id="setting-harness-agent">
+        <option value="none">none (Act Now off)</option>
+        <option value="cline">Cline</option>
+      </select>
+      <span class="model-settings-hint">
+        Act Now hands the change to this agent, which works in a copy of the repo — you preview the result before
+        anything is written. Cline: <code>npm i -g cline</code>, then <code>cline auth</code>. Applies immediately.
+      </span>
+    </div>
+    <div class="model-settings-row" id="setting-harness-model-row">
+      <span class="model-settings-label">Agent model</span>
+      <code id="setting-harness-model"></code>
+      <span class="model-settings-hint">
+        <span id="setting-harness-model-source"></span> — used by Act Now and Look deeper. Change it in Cline
+        (<code>cline auth</code>), then reload. Its timeout and context size are Cline's own, not the fields above.
+      </span>
+      <span id="setting-harness-note" class="harness-model-note"></span>
+    </div>
+    <div class="model-settings-actions">
+      <button id="setting-save-btn" type="button" title="Save this setting">Save</button>
+      <span id="setting-status" class="model-settings-hint" aria-live="polite"></span>
+    </div>
+    <!-- Freshness of the .context/ prep files the .claude/ skills write.
+         Lives here rather than in a banner on purpose: missing or stale
+         prep costs nothing and degrades nothing (narration just runs
+         without it), so nagging every session would be noise. This is
+         where someone looks when they wonder why narration seems thin. -->
+    <div class="context-files" id="context-files">
+      <h3>Review context</h3>
+      <p class="model-settings-hint">
+        Optional background the narration uses, written by Claude Code skills outside this app.
+      </p>
+      <ul id="context-files-list"></ul>
+    </div>
+  </div>
+
+  <main class="layout">
+    <nav id="file-sidebar" class="file-sidebar collapsed">
+      <button id="file-sidebar-tab" type="button" class="edge-tab" aria-controls="file-sidebar" aria-expanded="false" aria-label="Expand file explorer" title="Show or hide the file explorer"><svg class="icon"><use id="file-sidebar-tab-icon" href="#icon-chevron-right"></use></svg></button>
+      <div id="file-list" class="file-list">
+        <div class="file-list-header">
+          <div id="files-menu-label" class="file-list-heading">Files</div>
+          <button id="explore-all-files-btn" type="button" class="icon-btn" aria-pressed="false" title="Show all files — browse and ask about code that hasn't changed" aria-label="Show all files — browse and ask about code that hasn't changed">
+            <svg class="icon"><use href="#icon-folder"></use></svg>
+          </button>
+        </div>
+        <input id="file-filter-input" type="text" placeholder="Filter files..." />
+        <div id="file-list-items" class="file-list-items"></div>
+      </div>
+    </nav>
+
+    <!-- The review toolbar sits above the code pane, not across the whole
+         page, so the file sidebar and chat pane run full height from the
+         header down (see .center-column in style.css). -->
+    <div class="center-column">
+      <!-- One bar for everything about "where am I and what can I do":
+           review navigation/actions on the left, the file/hunk label and
+           the diff view controls on the right. Every button is an icon plus
+           a .btn-label; when .center-column gets narrow (small window, or
+           both side panels open) the labels hide and the buttons go
+           icon-only — see the @container rules on .toolbar in style.css. -->
+      <div class="toolbar">
+        <div class="controls">
+          <button id="prev-btn" title="Previous hunk"><svg class="icon"><use href="#icon-chevron-left"></use></svg><span class="btn-label">Prev</span></button>
+          <button id="next-btn" title="Next hunk"><span class="btn-label">Next</span><svg class="icon"><use href="#icon-chevron-right"></use></svg></button>
+          <!-- Only shown with automatic explanations off (see explain.js). -->
+          <button id="explain-btn" type="button" class="hidden" title="Explain this change" aria-label="Explain this change"><svg class="icon"><use href="#icon-book-open"></use></svg><span class="btn-label">Explain</span></button>
+          <!-- Hidden until Step Into covers more than Python and JavaScript (see
+               README, Known limitations). Everything behind it still works:
+               remove class="hidden" to bring it back. -->
+          <button id="step-into-btn" class="hidden" disabled title="Select a function/variable name in the code first"><svg class="icon"><use href="#icon-corner-down-right"></use></svg><span class="btn-label">Step Into</span></button>
+          <button id="back-btn" class="hidden" title="Back to hunk"><svg class="icon"><use href="#icon-chevron-left"></use></svg><span class="btn-label">Back to hunk</span></button>
+          <button id="reviewed-btn" class="hidden" aria-pressed="false" title="Mark this hunk as reviewed"><svg class="icon"><use id="reviewed-btn-icon" href="#icon-square"></use></svg><span id="reviewed-btn-label" class="btn-label">Mark as reviewed</span></button>
+          <button id="review-all-toggle" class="review-all-toggle hidden" type="button" aria-pressed="false" title="Mark every hunk in every file as reviewed"><svg class="icon"><use id="review-all-icon" href="#icon-list-boxes"></use></svg><span class="btn-label">Review all</span></button>
+          <button id="start-review-btn" class="hidden" type="button" title="Start Review"><svg class="icon"><use href="#icon-play"></use></svg><span class="btn-label">Start Review</span></button>
+          <button id="end-review-btn" class="hidden" type="button" title="End Review"><svg class="icon"><use href="#icon-flag"></use></svg><span class="btn-label">End Review</span></button>
+          <!-- Review-level actions, beside End Review rather than in the chat
+               panel: comments are made in the code view, and the chat panel can
+               be collapsed. Shown while comments are queued (updateReviewQueueUI)
+               and once a plan exists (showReviewPlanRow), both in comments.js. -->
+          <div id="review-queue-row" class="review-queue-row hidden">
+            <span id="review-queue-count"></span>
+            <button id="finish-review-btn" title="Build a plan from everything queued, for your coding agent to apply"><svg class="icon"><use href="#icon-clipboard-check"></use></svg><span class="btn-label">Create plan</span></button>
+          </div>
+          <button id="view-plan-btn" type="button" class="hidden" title="Open the last review plan in the preview"><svg class="icon"><use href="#icon-book-open"></use></svg><span class="btn-label">View review plan</span></button>
+        </div>
+        <div class="toolbar-view">
+          <!-- Shown only while browsing a hunk after the review has ended
+               (see onPresenting/reviewEnded in review-flow.js and
+               present_current_hunk's docstring in server.py) — the way back
+               to the wrap-up screen, since Prev/Next/a file click now stay
+               live in that state instead of being silently dead. -->
+          <button id="back-to-summary-btn" type="button" class="back-to-summary-btn hidden" title="Review summary"><svg class="icon"><use href="#icon-chevron-left"></use></svg><span class="btn-label">Review summary</span></button>
+          <div id="view-mode-toggle" class="view-mode-toggle" role="group" aria-label="Diff view mode">
+            <button id="view-merged-btn" class="view-mode-btn active" data-mode="merged" aria-pressed="true" title="Merged view: old and new lines in one column"><svg class="icon"><use href="#icon-rows"></use></svg><span class="btn-label">Merged</span></button>
+            <button id="view-split-btn" class="view-mode-btn" data-mode="split" aria-pressed="false" title="Split view: old on the left, new on the right"><svg class="icon"><use href="#icon-columns"></use></svg><span class="btn-label">Split</span></button>
+          </div>
+          <button id="refresh-diff-btn" class="icon-btn" title="Refresh Diff — re-reads the diff after you've applied a change externally" aria-label="Refresh Diff — re-reads the diff after you've applied a change externally"><svg class="icon"><use href="#icon-refresh-cw"></use></svg></button>
+          <div id="review-progress" aria-live="polite"></div>
+        </div>
+      </div>
+      <!-- Which file and hunk is on screen, on its own line under the
+           buttons so a long path has the full width to itself. -->
+      <div class="toolbar-meta">
+        <div id="hunk-meta" aria-live="polite"></div>
+      </div>
+
+      <section id="code-pane" class="code-pane">
+        <!-- Pinned together at the top of the scrolling pane (see .code-pane-top
+             in style.css), so the Act Now Apply/Discard bar stays in view when
+             a preview scrolls to its change. -->
+        <div class="code-pane-top">
+        <div id="act-now-confirm-row" class="act-now-confirm-row hidden">
+          <div class="act-now-confirm-info">
+            <span class="act-now-confirm-title"><svg class="icon"><use href="#icon-zap"></use></svg> <span id="act-now-confirm-label">Proposed change — review before applying</span></span>
+            <!-- The agent's own account of what it did, and (when it touched
+                 more than one file) a button per file to preview each before
+                 applying them all together. -->
+            <span id="act-now-summary" class="act-now-summary"></span>
+            <span id="act-now-files" class="act-now-files" role="group" aria-label="Files in this change"></span>
+            <!-- A follow-up for the agent: it re-runs on top of this proposal
+                 and the preview is replaced (see handle_refine_act_now). -->
+            <input id="act-now-refine-input" class="act-now-refine-input" type="text" autocomplete="off"
+                   placeholder="Not quite? Say what to change, then Refine" aria-label="What to change about the proposed change">
+          </div>
+          <div>
+            <button id="act-now-apply-btn" title="Write the previewed change to your files"><svg class="icon"><use href="#icon-check"></use></svg> Apply this change</button>
+            <button id="act-now-refine-btn" disabled title="Ask the agent to adjust this proposal"><svg class="icon"><use href="#icon-refresh-cw"></use></svg> Refine</button>
+            <button id="act-now-discard-btn" title="Drop this proposal; nothing is written"><svg class="icon"><use href="#icon-x"></use></svg> Discard</button>
+          </div>
+        </div>
+        <div id="md-preview-bar" class="md-preview-bar hidden">
+          <span id="md-preview-summary"></span>
+          <div class="md-preview-actions">
+            <!-- Only on a review plan (.review/review_*.md); see updateMdCopyButtons. -->
+            <button id="md-copy-instruction-btn" class="hidden" title="Copy what to give your coding agent"><svg class="icon"><use href="#icon-clipboard-check"></use></svg> Copy instruction</button>
+            <button id="md-copy-plan-btn" class="hidden" title="Copy the whole plan"><svg class="icon"><use href="#icon-clipboard-check"></use></svg> Copy plan</button>
+            <button id="md-follow-btn" aria-pressed="true" title="Keep the block being read scrolled into view"><svg class="icon"><use href="#icon-map-pin"></use></svg> Follow</button>
+            <button id="md-clear-selection-btn" title="Clear the selected blocks"><svg class="icon"><use href="#icon-x"></use></svg> Clear</button>
+            <button id="md-read-selection-btn" disabled title="Read only the selected blocks aloud"><svg class="icon"><use href="#icon-volume-2"></use></svg> Read selection</button>
+            <button id="md-read-all-btn" title="Read the whole file aloud"><svg class="icon"><use href="#icon-volume-2"></use></svg> Read all</button>
+            <button id="md-pause-btn" class="hidden" title="Pause reading"><svg class="icon"><use href="#icon-pause"></use></svg> Pause</button>
+            <button id="md-stop-btn" class="hidden" title="Stop reading"><svg class="icon"><use href="#icon-circle-stop"></use></svg> Stop</button>
+          </div>
+        </div>
+        </div>
+        <div id="code-view"></div>
+      </section>
+    </div>
+
+    <aside id="chat-pane" class="chat-pane">
+      <button id="chat-pane-tab" type="button" class="edge-tab" aria-controls="chat-pane" aria-expanded="true" aria-label="Collapse chat" title="Show or hide the chat"><svg class="icon"><use id="chat-pane-tab-icon" href="#icon-chevron-right"></use></svg></button>
+      <div id="chat-pane-content" class="chat-pane-content">
+        <div id="chat-tabs" class="chat-tabs" role="group" aria-label="Chat view">
+          <button type="button" class="chat-tab active" data-tab="overall" title="Overall chat — every turn, across every hunk and explored file" aria-label="Overall chat"><svg class="icon"><use href="#icon-message-square"></use></svg></button>
+          <button type="button" class="chat-tab" data-tab="file" title="File chat — only turns about the file currently on screen" aria-label="File chat"><svg class="icon"><use href="#icon-book-open"></use></svg></button>
+        </div>
+        <div id="transcript"></div>
+        <!-- Composer: everything below the scrolling transcript. margin-top:
+             auto (see .chat-composer in style.css) pins this whole group to
+             the bottom of the pane regardless of how much — or how little —
+             is in the transcript above it, rather than relying solely on
+             #transcript's own flex-grow to push it down. -->
+        <div class="chat-composer">
+          <div id="error-banner" class="hidden" role="alert" aria-live="assertive"></div>
+          <div id="marked-lines-chip" class="marked-lines-chip hidden">
+            <span id="marked-lines-text"></span>
+            <button id="clear-marks-btn" title="Clear marked lines" aria-label="Clear marked lines"><svg class="icon"><use href="#icon-x"></use></svg></button>
+          </div>
+          <!-- Static, hardcoded suggested-prompt chips (see PROMPT_SUGGESTIONS/
+               renderPromptSuggestions in interactions.js) — context-dependent
+               (file/hunk/selection), no LLM call. Clicking a chip inserts its
+               text into #text-input; it never sends on its own. -->
+          <div id="prompt-suggestions-row" class="prompt-suggestions-row hidden"></div>
+          <!-- Full-width, auto-growing (see the #text-input "input" listener
+               in interactions.js) rather than a single-line <input> — the mic sits
+               inside the box itself (bottom-right corner) instead of beside
+               it as a separate control. -->
+          <div class="composer-input-wrap">
+            <textarea id="text-input" rows="1" placeholder="Type your reply..."></textarea>
+            <button id="mic-btn" type="button" class="composer-mic-btn" title="Push to talk" aria-label="Push to talk"><svg class="icon"><use href="#icon-mic"></use></svg></button>
+          </div>
+          <!-- Everything else lives in this row underneath the input box —
+               icon-only throughout (title/aria-label carry the meaning),
+               Send pushed to the far right via margin-left: auto in CSS. -->
+          <div class="composer-actions-row">
+            <button id="interrupt-btn" type="button" class="icon-btn" title="Cancel the in-flight response" aria-label="Cancel the in-flight response"><svg class="icon"><use href="#icon-circle-stop"></use></svg></button>
+            <button id="act-now-btn" type="button" class="icon-btn" aria-pressed="false" title="Act Now — your next message applies as an immediate small change (you'll get a preview to confirm first)" aria-label="Act Now"><svg class="icon"><use href="#icon-zap"></use></svg></button>
+            <button id="voice-settings-btn" type="button" class="icon-btn" aria-expanded="false" title="Chat preferences — voice, and when changes are explained" aria-label="Chat preferences"><svg class="icon"><use href="#icon-settings"></use></svg></button>
+            <button id="send-btn" type="button" class="composer-send-btn" title="Send" aria-label="Send"><svg class="icon"><use href="#icon-chevron-right"></use></svg></button>
+          </div>
+          <fieldset id="voice-prefs-panel" class="voice-prefs hidden" title="Chat preferences">
+            <legend class="sr-only">Chat preferences</legend>
+            <div class="voice-pref-group">
+              <span class="voice-pref-label"><svg class="icon"><use href="#icon-mic"></use></svg> Mic</span>
+              <label><input type="radio" name="stt-pref" value="on" checked /> On</label>
+              <label><input type="radio" name="stt-pref" value="off" /> Off</label>
+            </div>
+            <div class="voice-pref-group">
+              <span class="voice-pref-label"><svg class="icon"><use href="#icon-volume-2"></use></svg> Speech</span>
+              <label><input type="radio" name="tts-pref" value="on" checked /> On</label>
+              <label><input type="radio" name="tts-pref" value="off" /> Off</label>
+            </div>
+            <div class="voice-pref-group" title="When I ask (the default): moving to a change doesn't explain it; use the Explain button next to Next. Automatically: every change is explained as you move to it.">
+              <span class="voice-pref-label"><svg class="icon"><use href="#icon-book-open"></use></svg> Explain changes</span>
+              <label><input type="radio" name="narrate-pref" value="auto" /> Automatically</label>
+              <label><input type="radio" name="narrate-pref" value="request" checked /> When I ask</label>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <audio id="tts-audio" hidden></audio>
+
+  <!-- Guided tour (see static/js/tour.js).
+       #tour-highlight is a single positioned box whose own box-shadow
+       paints the entire dimmed backdrop (a 9999px spread that fills the
+       viewport minus the box's own rect) — no separate backdrop element,
+       so there's nothing else that could ever cover the spotlighted
+       target. Starts hidden; JS moves/resizes it per step and never
+       removes it from the DOM, since every step reuses the same node. -->
+  <div id="tour-highlight" class="tour-highlight hidden" aria-hidden="true"></div>
+  <div id="tour-card" class="tour-card hidden" role="dialog" aria-modal="true" aria-labelledby="tour-card-title">
+    <div class="tour-card-progress" id="tour-card-progress" aria-hidden="true"></div>
+    <h2 id="tour-card-title"></h2>
+    <p id="tour-card-body"></p>
+    <div class="tour-card-actions">
+      <div class="tour-card-actions-left">
+        <button id="tour-skip-btn" type="button" class="tour-skip-btn" title="Close the tour (Esc)">Skip tour</button>
+        <!-- Hidden by JS at startup when the browser has no
+             speechSynthesis (see static/js/tour.js) —
+             starts unpressed/off: hearing something requires a real
+             click, same "nothing happens until you ask" rule the rest of
+             this app follows, and it sidesteps browsers that block
+             speech synthesis without a user gesture in the call stack
+             (the tour itself can open on a timer, with no such gesture). -->
+        <button id="tour-speak-btn" type="button" class="tour-speak-btn" aria-pressed="false" title="Read this step aloud" aria-label="Read this step aloud"><svg class="icon"><use href="#icon-volume-2"></use></svg></button>
+      </div>
+      <div class="tour-card-nav">
+        <button id="tour-back-btn" type="button" title="Previous step (Left arrow)"><svg class="icon"><use href="#icon-chevron-left"></use></svg> Back</button>
+        <button id="tour-next-btn" type="button" title="Next step (Right arrow)">Next <svg class="icon"><use href="#icon-chevron-right"></use></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/js/main.js"></script>
+  <!-- Create plan / End Review hand-off; see static/js/handoff.js. -->
+  <dialog id="handoff-dialog" class="handoff-dialog" aria-labelledby="handoff-title">
+    <h2 id="handoff-title">Create review plan</h2>
+    <p id="handoff-intro" class="handoff-intro"></p>
+    <label class="handoff-label" for="handoff-note">Overall note <span class="handoff-optional">(optional)</span></label>
+    <textarea id="handoff-note" rows="3" placeholder="Anything that isn't about one particular line"></textarea>
+    <fieldset class="handoff-choice">
+      <legend>Hand off as</legend>
+      <label><input type="radio" name="handoff-as" value="file" checked /> Plan file only <span class="handoff-hint">.review/review_&lt;time&gt;.md</span></label>
+      <label><input type="radio" name="handoff-as" value="skill" /> Plan file + agent skill <span class="handoff-hint">run /apply-review in Claude Code or Cline</span></label>
+    </fieldset>
+    <div class="handoff-actions">
+      <button type="button" id="handoff-cancel-btn" title="Close without creating a plan">Cancel</button>
+      <button type="button" id="handoff-end-only-btn" class="hidden" title="End the review and keep the comments queued">End without plan</button>
+      <button type="button" id="handoff-create-btn" class="handoff-create" title="Save the plan and open it">Create plan</button>
+    </div>
+  </dialog>
+</body>
+</html>

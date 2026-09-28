@@ -1,0 +1,223 @@
+# AI Pear Review - config
+# Keys are read from environment variables, never put secrets in this file.
+#
+# THE TIMINGS IN THIS FILE. Several defaults below are justified with
+# numbers — chars per second, how long a cold model load took, how long a
+# call ran. Every one was observed on a single CPU-only development
+# machine, on one occasion, and none of it is a benchmark. They are here to
+# record why a default is the value it is, so the next person can tell a
+# considered number from an arbitrary one. They are not predictions about
+# your hardware: yours may be several times faster or slower, and the right
+# value for you may differ accordingly. See docs/configuration.md,
+# "Performance and hardware".
+
+server:
+  host: 127.0.0.1
+  port: 8765
+  # Repo to review the diff of (working tree vs HEAD — staged + unstaged).
+  # "." means the current working directory the script is launched from.
+  repo_path: "."
+
+# The live conversational persona (present_hunk/respond_to_reviewer).
+# provider: ollama talks to a local Ollama server — no API key, no cloud
+# call, $0 marginal cost. Set provider: anthropic (and set
+# ANTHROPIC_API_KEY / .env) to use Claude directly instead. Each
+# provider's own settings live under its own key below (ollama: / anthropic:)
+# so switching `provider` can never accidentally send one provider's model
+# name to the other's API — that used to be possible with a single flat
+# `model` key shared by both: flipping provider without also remembering
+# to change `model` sent the Ollama model string straight to the Messages
+# API and 404'd. Ollama itself
+# (server, models) is installed separately from this app — see README.md.
+#
+# prompt_tier: auto | small | frontier — which prompt set to use (see
+# app/prompts/). "auto" (default) lets the provider decide: anthropic ->
+# frontier; ollama asks the server how big the configured model is (60B+
+# parameters -> frontier, else small; falls back to the model name if the
+# server can't be asked). Set explicitly to override either.
+#
+# Any model Ollama serves can go in ollama.model below — the adapter checks
+# it's a chat model, caps num_ctx at its native context, and turns off
+# reasoning on thinking models (see app/providers/ollama.py).
+conversation:
+  provider: ollama
+  prompt_tier: auto
+  max_tokens: 300
+  # How long one narration or reply call may run. A call that outruns this
+  # is ABANDONED, not waited out — on hardware slower than the machine this
+  # was set on, that shows up as a hunk which never narrates rather than one
+  # that narrates late, so raise it if that's what you're seeing. Both the
+  # briefing and the narration for a hunk get this budget separately.
+  timeout_seconds: 60
+  ollama:
+    base_url: http://127.0.0.1:11434
+    model: qwen2.5-coder:7b-instruct-q4_K_M
+    # Context window in tokens. MUST be set explicitly: Ollama's own
+    # default is 2048 regardless of what the model supports, and it
+    # truncates from the FRONT — silently, with no error and nothing in
+    # the response to say it happened. That end is the worst one to lose:
+    # the system prompt and the oldest history go first, and the oldest
+    # history is where the hunk's diff lives (see _hunk_prompt), so a
+    # conversation that runs long quietly stops being about the code.
+    # Measured on this project's own default model, which advertises
+    # 32768: a ~16k-token prompt had exactly 2050 tokens processed and the
+    # model answered from the surviving tail.
+    #
+    # Bigger is not free. Prompt processing cost rises with the number of
+    # tokens, and on a CPU-only machine it was the dominant cost — so
+    # raising this raises the ceiling, it does not make anything faster.
+    # How much it costs you depends on your hardware; pick what it can
+    # afford, and expect to have to try it; the app budgets what it sends against this
+    # number rather than assuming it can fill it (see fit_history_to_budget
+    # in app/web/context.py). Adjustable per checkout from the UI's settings panel,
+    # which writes .review/ui_settings.json rather than editing this file.
+    num_ctx: 8192
+  anthropic:
+    model: claude-sonnet-5
+    api_key_env: ANTHROPIC_API_KEY
+    # Overrides the shared max_tokens above for this provider only. 300 is
+    # sized for a local model's spoken turn; current Claude models think by
+    # default and that reasoning spends the SAME budget, so 300 returned
+    # replies cut off mid-sentence (stop_reason=max_tokens) and sometimes no
+    # text at all — measured on claude-sonnet-5 against this app's own hunks.
+    #
+    # claude-haiku-4-5 is the cheaper option ($1/$5 per Mtok against Sonnet's
+    # $2/$10, 200K context). It is NOT a drop-in: it has no adaptive thinking
+    # and rejects output_config.effort, so don't add an effort setting here
+    # without gating it on the model.
+    max_tokens: 1024
+
+# One-shot-per-hunk investigation, so `conversation` above has more to go
+# on than the raw diff alone. The running app never calls the Claude Code
+# CLI itself (see docs/architecture.md — automating
+# its subscription auth is a live, unresolved ToS question). Deep,
+# tool-assisted investigation (Read/Grep/git log/blame) only happens via a
+# human's own interactive session — the prep-review Skill — which writes
+# its findings to the .briefing/ cache this reads from. When nothing's
+# cached, a lighter briefing is generated on demand using the same
+# connection as `conversation` above — nothing to configure here for that
+# (no separate provider/model/API key/CLI path).
+briefing:
+  # Max tokens for the on-demand generated briefing's JSON response
+  # (intent/alternatives_considered/risk_notes/confidence) — kept separate
+  # from conversation.max_tokens since a structured JSON reply needs more
+  # room than a short conversational turn.
+  max_tokens: 600
+
+# The coding agent Act Now runs through (app/services/harness_service.py),
+# spoken to over the Agent Client Protocol. Act Now is disabled until one is
+# chosen here or in the settings panel. The agent brings its own model and
+# credentials — for Cline, `npm i -g cline` then `cline auth` (and see the
+# env block below). It works in a temporary copy of the repo: nothing
+# touches your working tree until you confirm the preview.
+#
+# Don't start the agent with auto-approve: commands are refused here, but an
+# auto-approving agent runs them without asking, and a command isn't
+# confined to the copy.
+harness:
+  agent: none  # none | cline
+  # A backstop on one whole Act Now turn, so a stuck agent can't hang the
+  # review — not a setting for the agent's own model calls (those use the
+  # agent's own timeout). A turn is several model calls, so keep this well
+  # above the agent's per-call timeout.
+  timeout_seconds: 600
+  cline:
+    command: ["cline", "--acp"]
+    # Act Now and Look deeper run on whatever you set up in Cline — change the
+    # model with `cline auth`, not here. Request timeout, context window and
+    # base URL are Cline's own settings too.
+    #
+    # Cline's ACP mode (how this app runs it) does NOT read those saved
+    # settings itself. Measured on Cline core 4.1.17: with no CLINE_*
+    # variables a session refuses to start ("Authentication required"); with a
+    # provider but no CLINE_MODEL it silently takes that provider's first model
+    # instead of the saved one; and it needs CLINE_API_KEY for every provider,
+    # even keyless Ollama. So the app reads Cline's settings file
+    # (~/.cline/data/settings/providers.json) and passes provider, model and
+    # key to the agent process — see harness_service.resolve_agent_env.
+    #
+    # Pick a model that emits proper tool calls: qwen2.5-coder 7B wrote its
+    # edits as plain text (no edit ever happened); qwen3:8b produced correct
+    # editor calls. Look deeper was tested with claude-sonnet-5; smaller models
+    # work but explore a codebase less well (the settings panel says so).
+    #
+    # env: passed to the agent on top of this app's environment, and wins over
+    # Cline's saved settings — uncomment to pin a provider/model for this app
+    # only. Never put a real key in this file; set CLINE_API_KEY in .env.
+    # env:
+    #   CLINE_PROVIDER: ollama
+    #   CLINE_MODEL: qwen3:8b
+
+# TEST-ONLY. Dumps every LLM call's full system prompt, message list and
+# response to capture_dir as one JSON file per call, so qa_agent's judges
+# can record exactly what the model was given alongside each finding (see
+# qa_agent/llm_capture.py). Deliberately off by default and NOT meant to
+# be left on: these files contain whole file contents and whole
+# conversations, and nothing ever prunes them. qa_agent enables it only in
+# the throwaway copy of app/ it runs its tests from (see conftest.py's
+# app_server fixture), where the dumps land in pytest's own tmp dir and
+# are discarded with the session — the real app's runs write nothing.
+# capture_dir is relative to the server process's working directory, same
+# convention as .briefing_debug/ (see app/utils/debug_files.py).
+debug:
+  capture_llm_calls: false
+  capture_dir: ".llm_calls"
+
+stt:
+  # token: optional — this file's top comment says never put secrets here,
+  # and that still holds. Leave it unset (the self-hosted default needs no
+  # auth); set it from the settings panel instead, which writes it to
+  # .review/ui_settings.json — gitignored, per-checkout, same as the rest
+  # of that file — never here.
+  endpoint: http://localhost:8000/transcribe
+  method: POST
+  # Tested against a self-hosted faster-whisper service:
+  # multipart/form-data with an UploadFile field named "file" in,
+  # {"text": ..., "language": ..., "duration_sec": ...} JSON out.
+  request_format: multipart
+  response_field: text
+  # 30s, not 15s: a faster-whisper service typically loads its model lazily
+  # on the first request, and on the development machine that cold load,
+  # contending with a concurrent Ollama inference call, ran past 15s. The
+  # headroom is the point; the number itself is one machine's.
+  timeout_seconds: 30
+
+tts:
+  # token: same as stt.token above — optional, set from the settings panel,
+  # never here.
+  endpoint: http://localhost:8000/speech
+  method: POST
+  # Tested against a self-hosted kokoro-onnx service:
+  # {"text": "..."} JSON in, raw audio/wav bytes out.
+  request_format: json
+  # 60s: at the throughput recorded under max_chars below, a max_chars-sized
+  # chunk took roughly 8s, so most of this is margin for the one-off model
+  # load on the service's first call after it starts. Sized for margin
+  # rather than fitted to the measurement.
+  timeout_seconds: 60
+  # audio format returned by the endpoint, so the browser knows how to play it
+  mime_type: audio/wav
+  # Max size of a single TTS request. Applies to EVERY call — narration,
+  # reviewer replies, and reading a .md file aloud — not just file reading
+  # the way the old max_chunk_chars key did. Anything longer is split at
+  # sentence/word boundaries and played back as consecutive clips; nothing
+  # is ever truncated.
+  #
+  # Both limits apply, whichever is hit first. Comment either one out (or
+  # set it to 0) for no limit of that kind.
+  #
+  # Measured on the text as written, BEFORE identifier/filename expansion
+  # (config.yaml -> "config dot yaml", see speech_text.py), which can
+  # inflate it by a few percent — so leave a little headroom.
+  #
+  # Against one self-hosted endpoint (kokoro-onnx fp32, CPU-only) the rate
+  # came out near 25 chars/sec and scaled linearly with length (61 chars ->
+  # 2.4s, 244 -> 10s, 793 -> 30s). On that machine 800 would have fit the
+  # timeout fine; this is deliberately smaller anyway, and for a reason that
+  # holds whatever your throughput is. Chunks are synthesized and played
+  # consecutively, so chunk size sets time-to-first-audio — the latency the
+  # reviewer actually feels — and 200 chars lands near one sentence, so the
+  # split falls on natural prosody boundaries rather than mid-thought.
+  # Tune it if your own endpoint is much faster or slower.
+  max_chars: 200
+  # max_words: 200
