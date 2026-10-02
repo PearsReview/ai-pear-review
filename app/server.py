@@ -222,3 +222,4 @@ async def websocket_endpoint(ws: WebSocket) -> None:
             await dispatch(ws, session, msg.get("type"), msg.get("payload", {}))
     except WebSocketDisconnect:
         cancel_current(session)
+        session.recorder.cancel()

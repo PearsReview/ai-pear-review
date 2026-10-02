@@ -9,6 +9,7 @@ from ..services.briefing_service import Briefing
 from ..services.conversation_service import ConversationClient
 from ..services.diff_service import Hunk
 from ..services.harness_service import ActNowRequest, ProposedChange
+from ..services.recorder import Recorder
 
 
 class Session:
@@ -92,6 +93,10 @@ class Session:
         # across a reconnect or a full app restart, not just this
         # connection.
         self.review_ended = False
+        # Server-side microphone capture for clients that can't record
+        # themselves ("start_recording"/"stop_recording"). Idle until used;
+        # cancelled when the socket closes.
+        self.recorder = Recorder()
 
     @property
     def current_hunk(self) -> Hunk | None:

@@ -7,6 +7,7 @@ from . import (  # noqa: F401 — registers handlers
     comments,
     explore,
     narration,
+    recording,
     research,
     review_flow,
     settings,

@@ -51,6 +51,16 @@ def _looks_like_hallucination(text: str) -> bool:
     return text.strip().lower().rstrip(".!") in _HALLUCINATION_PHRASES
 
 
+def _audio_upload(audio_bytes: bytes) -> tuple[str, bytes, str]:
+    """(filename, bytes, mime type) for the multipart upload, labelled with
+    what the audio really is. Browsers' MediaRecorder produces WebM/Opus
+    (or Ogg on Firefox), never WAV; the server-side recorder
+    (recorder.py) produces WAV."""
+    if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+        return ("audio.wav", audio_bytes, "audio/wav")
+    return ("audio.webm", audio_bytes, "audio/webm")
+
+
 class STTClient:
     def __init__(self, config: dict) -> None:
         self.endpoint = config["endpoint"]
@@ -78,10 +88,7 @@ class STTClient:
                 resp = requests.request(
                     self.method,
                     self.endpoint,
-                    # Browsers' MediaRecorder produces WebM/Opus (or Ogg on
-                    # Firefox), never WAV — label it accurately rather than
-                    # claim a format it isn't.
-                    files={"file": ("audio.webm", audio_bytes, "audio/webm")},
+                    files={"file": _audio_upload(audio_bytes)},
                     headers=self._auth_headers(),
                     timeout=self.timeout,
                 )

@@ -26,6 +26,11 @@ dev = [
     "ruff>=0.16,<0.17",
     "mypy>=2.0,<3.0",
 ]
+# Server-side microphone capture, used only by the VS Code extension (see
+# app/services/recorder.py). The web app records in the browser instead.
+recording = [
+    "sounddevice>=0.4,<1.0",
+]
 
 # The app runs from a checkout (`python run.py`), so nothing here needs to
 # be installable. These two keys exist only so a build tool pointed at this

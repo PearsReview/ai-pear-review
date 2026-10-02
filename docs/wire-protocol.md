@@ -56,8 +56,12 @@ this table and the registry disagree.
 | `explain_hunk` | `index` | `narration.handle_explain_hunk` | yes | yes |
 | `set_narration_prefs` | `auto_narrate` | `narration.handle_set_narration_prefs` | — | — |
 | `speak_text` | `text` | `voice.handle_speak_text` | yes | yes |
+| `start_recording` | — | `recording.handle_start_recording` | — | — |
+| `stop_recording` | — | `recording.handle_stop_recording` | — | — |
 
 `stop` is the wire name for the button the UI labels **Interrupt**.
+
+`start_recording` and `stop_recording` are sent only by the VS Code extension, which can't record in its webview; the browser records itself.
 
 ## Python → Browser
 
@@ -86,6 +90,8 @@ this table and the registry disagree.
 | `act_now_cleared` | `handlers/act_now.py` |
 | `agent_stopped` | `handlers/research.py`, `handlers/act_now.py` via `web/runtime.py`'s `send_agent_stopped` (a Look deeper, Act Now or refine run cancelled before it answered; `kind` says which) |
 | `settings` | `handlers/settings.py` |
+| `recording_state` | `handlers/recording.py` (`recording`) |
+| `recording_result` | `handlers/recording.py` (`audio_base64`, `mime_type`, `duration_seconds`) |
 | `context_too_large` | `handlers/narration.py`, `handlers/explore.py` |
 | `service_status` | many — any handler that learns a service is up or down |
 | `notice` | many — non-fatal, informational |

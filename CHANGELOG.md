@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- `start_recording` / `stop_recording`: server-side microphone capture
+  for clients that can't record themselves (the VS Code extension). Needs
+  the optional `recording` extra (`sounddevice`). The browser UI is
+  unchanged.
+- STT uploads are labelled `audio/wav` when the audio is WAV.
+
 ## 0.0.1 — beta
 
 First public release. Everything below is new.

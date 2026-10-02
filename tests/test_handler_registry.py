@@ -19,6 +19,10 @@ from app.web.speech import try_speak
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
+# Sent by the VS Code extension only: its webview can't open the microphone,
+# so the server records for it (app/handlers/recording.py).
+NON_BROWSER_MESSAGES = {"start_recording", "stop_recording"}
+
 
 def _frontend_js() -> str:
     """Every frontend .js file's text. Globs rather than naming one file:
@@ -47,7 +51,8 @@ def _hunks(n: int) -> list[Hunk]:
 def test_every_frontend_message_has_a_handler():
     sent = set(re.findall(r'\bsend\("([a-z_]+)"', _frontend_js()))
     assert sent, 'found no send("...") calls — has the frontend\'s send() changed shape?'
-    assert sent == set(HANDLERS)
+    assert sent | NON_BROWSER_MESSAGES == set(HANDLERS)
+    assert not sent & NON_BROWSER_MESSAGES
 
 
 def test_unknown_and_malformed_types_get_an_error_not_a_crash(tmp_path):
