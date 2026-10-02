@@ -22,14 +22,19 @@ async def send_review_progress(ws: WebSocket, session: Session) -> None:
     first-appearance order, so the UI can show the scope of the whole
     review rather than just the hunk on screen. Cheap to carry here, since
     reviewed_count per file needs recomputing on the same events as the
-    overall count anyway."""
+    overall count anyway.
+
+    Each file entry also lists its hunks ({"index", "header", "reviewed"}),
+    for a client that shows hunks individually (the VS Code extension's
+    tree); the browser UI reads only the counts."""
     files: dict[str, dict] = {}
     for i, hunk in enumerate(session.hunks):
         entry = files.setdefault(
             hunk.file_path,
-            {"file_path": hunk.file_path, "hunk_count": 0, "reviewed_count": 0, "first_index": i},
+            {"file_path": hunk.file_path, "hunk_count": 0, "reviewed_count": 0, "first_index": i, "hunks": []},
         )
         entry["hunk_count"] += 1
+        entry["hunks"].append({"index": i, "header": hunk.header, "reviewed": i in session.reviewed})
         if i in session.reviewed:
             entry["reviewed_count"] += 1
 

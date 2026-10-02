@@ -80,7 +80,7 @@ this table and the registry disagree.
 | `all_files` | `handlers/explore.py` |
 | `file_explore` | `handlers/explore.py` |
 | `definition` | `handlers/explore.py` |
-| `review_progress` | `web/progress.py` |
+| `review_progress` | `web/progress.py` (`files[]` each with `hunks[]`: `index`, `header`, `reviewed`) |
 | `review_comments_sync` | `app/server.py` (connect-time hydration) |
 | `review_comment_queued` | `handlers/comments.py` |
 | `review_comment_updated` | `handlers/comments.py` |

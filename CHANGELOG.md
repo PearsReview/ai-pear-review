@@ -7,6 +7,8 @@
   the optional `recording` extra (`sounddevice`). The browser UI is
   unchanged.
 - STT uploads are labelled `audio/wav` when the audio is WAV.
+- `review_progress` file entries also list their hunks (`index`, `header`,
+  `reviewed`), for clients that show hunks individually.
 
 ## 0.0.1 — beta
 
