@@ -77,6 +77,12 @@
         "command": "pearReview.jumpToHunk",
         "title": "Go to Change",
         "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.interrupt",
+        "title": "Interrupt",
+        "category": "Pear Review",
+        "icon": "$(debug-stop)"
       }
     ],
     "keybindings": [

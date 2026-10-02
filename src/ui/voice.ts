@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
 import { log, showError } from "../log.ts";
+import type { SelectionContext } from "./selection.ts";
 
 export interface Voice {
   readonly recording: boolean;
@@ -12,7 +13,10 @@ export interface Voice {
 // Press-to-start / press-to-stop: VS Code has no key-up event, so a held key can't
 // be push-to-talk. The server records (webviews can't open the microphone) and hands
 // the clip back; it goes out as an ordinary voiced `reply`, as the browser's does.
-export function register(backend: Backend): { voice: Voice; disposables: vscode.Disposable[] } {
+export function register(
+  backend: Backend,
+  selection: SelectionContext,
+): { voice: Voice; disposables: vscode.Disposable[] } {
   let recording = false;
   const changes = new vscode.EventEmitter<boolean>();
   const indicator = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 49);
@@ -56,7 +60,9 @@ export function register(backend: Backend): { voice: Voice; disposables: vscode.
       backend.on("recording_result", ({ audio_base64, duration_seconds }) => {
         log(`Voice: got ${duration_seconds}s of audio, sending it as a reply`);
         try {
-          backend.send("reply", { audio_base64 });
+          const marked_lines = selection.markedLines();
+          backend.send("reply", marked_lines ? { audio_base64, marked_lines } : { audio_base64 });
+          selection.clear();
         } catch (err) {
           showError(err instanceof Error ? err.message : String(err));
         }

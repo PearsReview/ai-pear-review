@@ -46,6 +46,7 @@ export function register(context: vscode.ExtensionContext, backend: Backend, voi
       if (typeof index === "number") send(() => backend.send("jump_to_hunk", { index }));
     }),
     vscode.commands.registerCommand("pearReview.toggleReviewed", () => send(() => backend.send("toggle_reviewed", {}))),
+    vscode.commands.registerCommand("pearReview.interrupt", () => send(() => backend.send("stop", {}))),
     vscode.commands.registerCommand("pearReview.refresh", () => send(() => backend.send("refresh_diff", {}))),
     vscode.commands.registerCommand("pearReview.explain", () => {
       if (currentIndex === undefined) {

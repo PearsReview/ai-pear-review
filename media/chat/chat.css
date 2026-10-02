@@ -11,6 +11,10 @@ body {
   font-size: var(--vscode-font-size);
 }
 
+[hidden] {
+  display: none !important;
+}
+
 #hunk {
   padding: 8px 0 4px;
   color: var(--vscode-descriptionForeground);
@@ -32,25 +36,45 @@ body {
   padding: 8px 0;
 }
 
+/* --- turns ------------------------------------------------------------------- */
+
 .turn {
   margin: 0 0 10px;
   padding: 6px 8px;
   border-radius: 4px;
-  white-space: pre-wrap;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
-.turn.reviewer {
+.turn .role {
+  margin-bottom: 2px;
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.turn-body {
+  white-space: pre-wrap;
+}
+
+.turn-body:has(.turn-block) {
+  white-space: normal;
+}
+
+.turn.presenter,
+.turn.deeper {
   background: var(--vscode-editor-background);
 }
 
-.turn.human {
+.turn.deeper {
+  border-left: 3px solid var(--vscode-editorWarning-foreground);
+}
+
+.turn.reviewer {
   margin-left: 16px;
   background: var(--vscode-input-background);
 }
 
-.turn.system,
-.turn.thinking {
+.turn.system {
   color: var(--vscode-descriptionForeground);
   font-style: italic;
 }
@@ -59,12 +83,160 @@ body {
   color: var(--vscode-errorForeground);
 }
 
+.turn.thinking {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.turn.deeper-pending {
+  border-left: 3px solid var(--vscode-editorWarning-foreground);
+  font-style: normal;
+}
+
+.turn-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.related {
+  margin-top: 6px;
+  font-size: 0.9em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.hunk-divider {
+  display: block;
+  width: 100%;
+  margin: 12px 0 8px;
+  padding: 2px 0;
+  border: none;
+  border-top: 1px solid var(--vscode-panel-border);
+  background: none;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.85em;
+  text-align: left;
+}
+
+.hunk-divider:hover {
+  color: var(--vscode-textLink-foreground);
+  background: none;
+}
+
+/* --- markdown blocks (classes from blocks.js) ------------------------------- */
+
+.turn-block {
+  margin: 4px 0;
+}
+
+.turn-block:first-child {
+  margin-top: 0;
+}
+
+.md-heading {
+  font-weight: 700;
+}
+
+.md-heading.md-level-1 {
+  font-size: 1.3em;
+}
+
+.md-heading.md-level-2 {
+  font-size: 1.15em;
+}
+
+.md-list-item {
+  padding-left: 1em;
+}
+
+.md-list-item:not(:has(.md-list-marker))::before {
+  content: "•";
+  margin-right: 0.4em;
+}
+
+.md-list-marker {
+  margin-right: 0.4em;
+}
+
+.md-quote {
+  padding-left: 8px;
+  border-left: 3px solid var(--vscode-textBlockQuote-border);
+  color: var(--vscode-descriptionForeground);
+}
+
+.md-rule {
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.md-code-block {
+  margin: 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background);
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+  white-space: pre;
+}
+
+.md-span.md-code {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background);
+  font-family: var(--vscode-editor-font-family);
+}
+
+.md-bold {
+  font-weight: 700;
+}
+
+.md-italic {
+  font-style: italic;
+}
+
+.md-link {
+  color: var(--vscode-textLink-foreground);
+}
+
+.md-table-row {
+  display: flex;
+  gap: 12px;
+}
+
+.md-header-row {
+  font-weight: 700;
+}
+
+.md-cell {
+  flex: 1;
+}
+
+/* --- composer -------------------------------------------------------------- */
+
+#context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
 #composer {
   display: flex;
   gap: 4px;
   align-items: flex-end;
   padding: 6px 0 8px;
   border-top: 1px solid var(--vscode-panel-border);
+}
+
+#context:not([hidden]) + #composer {
+  border-top: none;
 }
 
 #input {
@@ -76,27 +248,65 @@ body {
   font: inherit;
 }
 
+#audio-blocked {
+  padding: 4px 0;
+}
+
+/* --- buttons --------------------------------------------------------------- */
+
 button {
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
   border: none;
   padding: 4px 10px;
   cursor: pointer;
+  font: inherit;
 }
 
-button:hover {
+button:hover:not(:disabled) {
   background: var(--vscode-button-hoverBackground);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.secondary {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+button.small {
+  padding: 2px 8px;
+  font-size: 0.9em;
+}
+
+button.icon,
+button.link {
+  padding: 0 4px;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+}
+
+button.icon:hover:not(:disabled),
+button.link:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+button.chip {
+  margin: 2px 4px 0 0;
+  padding: 1px 6px;
+  border-radius: 8px;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  font-size: 0.9em;
 }
 
 #mic.recording {
   background: var(--vscode-statusBarItem-errorBackground);
-}
-
-#audio-blocked {
-  padding: 4px 0;
-}
-
-body[data-backend="stopped"] #toolbar button:not([data-command="startReview"]),
-body[data-backend="stopped"] #composer button {
-  opacity: 0.5;
 }

@@ -8,6 +8,16 @@ type Empty = Record<string, never>;
 type Unknown = Record<string, unknown>;
 type Voiced = { text: string } | { audio_base64: string };
 
+// A line the reviewer selected as context for a question (app/web/context.py's
+// "marked_lines"). The line text comes from the client.
+export interface MarkedLine {
+  file_path: string;
+  old_lineno: number | null;
+  new_lineno: number | null;
+  text: string;
+  kind: "context" | "add" | "del";
+}
+
 export interface ClientPayloads {
   next: Empty;
   prev: Empty;
@@ -20,12 +30,12 @@ export interface ClientPayloads {
   toggle_reviewed: Empty;
   toggle_reviewed_all: Empty;
   refresh_diff: Empty;
-  reply: Voiced & { marked_lines?: unknown };
-  request_change: Voiced & { marked_lines?: unknown; severity?: string };
+  reply: Voiced & { marked_lines?: MarkedLine[] };
+  request_change: Voiced & { marked_lines?: MarkedLine[]; severity?: string };
   edit_change_request: { id: number; instruction: string; severity?: string };
   remove_review_comment: { id: number };
   finish_review: { note?: string; as_skill?: boolean };
-  act_now: Voiced & { marked_lines?: unknown };
+  act_now: Voiced & { marked_lines?: MarkedLine[] };
   refine_act_now: { text: string };
   confirm_act_now: Empty;
   step_into: { text: string };
@@ -72,9 +82,56 @@ export interface Presenting {
   narration_available?: boolean;
 }
 
+// A rendered markdown block of a reply (markdown_speech.block_to_payload).
+export interface Span {
+  text: string;
+  style: string;
+  href?: string;
+}
+
+export interface Block {
+  kind: string;
+  level: number;
+  spans: Span[];
+  code_text?: string;
+  code_lang?: string | null;
+  ordered?: boolean;
+  marker?: string | null;
+  cells?: string[];
+  is_header?: boolean;
+}
+
+export interface RelatedHunk {
+  index: number;
+  file_path: string;
+  relation: string;
+  note?: string | null;
+}
+
+// narration, human_turn and reviewer_turn. A turn about a hunk carries which one;
+// a persona reply carries its render-ready blocks and the text to speak.
 export interface Turn {
   text: string;
   spoken?: string;
+  blocks?: Block[];
+  related?: RelatedHunk[];
+  index?: number;
+  total?: number;
+  file_path?: string;
+  // Only on narration: false is degraded mode's placeholder text, not the persona.
+  narration_available?: boolean;
+}
+
+export interface DeeperTurn extends Turn {
+  agent: string;
+  provider?: string | null;
+  model?: string | null;
+}
+
+export interface ActNowStatus {
+  available: boolean;
+  detail: string;
+  agent?: string;
 }
 
 export interface AudioChunk {
@@ -112,6 +169,8 @@ export interface ServiceStatus {
   tts?: boolean;
   llm?: boolean;
   briefing?: boolean;
+  // Look deeper runs on the same coding agent as Act Now.
+  act_now?: ActNowStatus;
 }
 
 export interface ServerPayloads {
@@ -119,7 +178,7 @@ export interface ServerPayloads {
   narration: Turn;
   human_turn: Turn;
   reviewer_turn: Turn;
-  deeper_turn: Unknown;
+  deeper_turn: DeeperTurn;
   audio_chunk: AudioChunk;
   turn_audio_chunk: AudioChunk;
   tour_audio_chunk: Unknown;
@@ -136,7 +195,7 @@ export interface ServerPayloads {
   review_finished: Unknown;
   act_now_preview: Unknown;
   act_now_cleared: Unknown;
-  agent_stopped: Unknown;
+  agent_stopped: { kind: string; message: string };
   settings: Unknown;
   recording_state: { recording: boolean };
   recording_result: { audio_base64: string; mime_type: string; duration_seconds: number };
