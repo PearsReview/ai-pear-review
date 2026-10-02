@@ -252,6 +252,19 @@ body {
   padding: 4px 0;
 }
 
+#audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+#audio-status {
+  flex: 1;
+}
+
 /* --- buttons --------------------------------------------------------------- */
 
 button {

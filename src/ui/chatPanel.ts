@@ -167,6 +167,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
   </div>
   <main id="transcript" aria-live="polite"></main>
   <div id="audio-blocked" hidden><button id="enable-audio">Click to enable spoken replies</button></div>
+  <div id="audio-bar" hidden>
+    <span id="audio-status">Speaking…</span>
+    <button id="audio-pause" class="secondary small">Pause</button>
+    <button id="audio-stop" class="secondary small">Stop</button>
+  </div>
   <div id="context" hidden>
     <span id="context-label"></span>
     <button id="context-clear" class="icon" title="Don't send this selection" aria-label="Don't send this selection">×</button>

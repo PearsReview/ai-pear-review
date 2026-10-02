@@ -204,21 +204,33 @@
   }
 
   // --- audio: a turn's clips play back to back; chunk_index 0 starts a new turn ----
+  // The audio bar (Pause/Resume, Stop) shows while anything is being spoken.
 
   const player = new Audio();
   /** @type {string[]} */
   let queue = [];
-  let blocked = false;
+  let blocked = false; // autoplay refused until the panel has been clicked once
+  let active = false; // a turn is being spoken, playing or paused
+  let paused = false; // paused by the user
+
+  function updateAudioBar() {
+    $("audio-bar").hidden = !active;
+    $("audio-pause").textContent = paused ? "Resume" : "Pause";
+    $("audio-status").textContent = paused ? "Paused" : "Speaking…";
+  }
 
   function enqueue(payload) {
     if (payload.chunk_index === 0) {
-      queue.forEach((url) => URL.revokeObjectURL(url));
-      queue = [];
+      // A new turn replaces whatever was speaking, paused or not.
+      clearQueue();
       player.pause();
+      paused = false;
     }
     const bytes = Uint8Array.from(atob(payload.audio_base64), (c) => c.charCodeAt(0));
     queue.push(URL.createObjectURL(new Blob([bytes], { type: payload.mime_type })));
-    if (player.paused && !blocked) playNext();
+    active = true;
+    if (player.paused && !paused && !blocked) playNext();
+    updateAudioBar();
   }
 
   function playNext() {
@@ -226,7 +238,6 @@
     if (!url) return;
     player.src = url;
     player.play().catch((err) => {
-      // Autoplay is refused until the user has interacted with the panel once.
       if (err.name === "NotAllowedError") {
         queue.unshift(url);
         blocked = true;
@@ -235,18 +246,35 @@
     });
   }
 
+  function clearQueue() {
+    queue.forEach((url) => URL.revokeObjectURL(url));
+    queue = [];
+  }
+
+  function stopAudio() {
+    clearQueue();
+    player.pause();
+    active = false;
+    paused = false;
+    stopSpeaking();
+    updateAudioBar();
+  }
+
   player.addEventListener("ended", () => {
     URL.revokeObjectURL(player.src);
     if (queue.length) playNext();
-    else stopSpeaking();
+    else stopAudio();
   });
 
-  function stopAudio() {
-    queue.forEach((url) => URL.revokeObjectURL(url));
-    queue = [];
-    player.pause();
-    stopSpeaking();
-  }
+  $("audio-pause").addEventListener("click", () => {
+    paused = !paused;
+    if (paused) player.pause();
+    else if (player.src && !player.ended && player.currentTime > 0) void player.play();
+    else playNext();
+    updateAudioBar();
+  });
+
+  $("audio-stop").addEventListener("click", stopAudio);
 
   $("enable-audio").addEventListener("click", () => {
     $("audio-blocked").hidden = true;
