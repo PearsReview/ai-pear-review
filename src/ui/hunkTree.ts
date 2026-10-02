@@ -1,0 +1,114 @@
+import * as path from "node:path";
+import * as vscode from "vscode";
+
+import type { Backend } from "../backend/backend.ts";
+import type { ProgressFile, ProgressHunk, ReviewProgress } from "../backend/protocol.ts";
+import { hunkLabel } from "../review/hunks.ts";
+
+type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: ProgressHunk; file: ProgressFile };
+
+// Files → hunks, from review_progress (which the backend resends on every move and
+// every reviewed toggle), with the hunk on screen marked and revealed.
+export function register(backend: Backend): vscode.Disposable[] {
+  const provider = new HunkTreeProvider(() => backend.repoPath);
+  const view = vscode.window.createTreeView("pearReview.hunks", { treeDataProvider: provider });
+
+  // "presenting" comes just before the "review_progress" that rebuilds the nodes, so
+  // both reveal: the second one lands on the rebuilt node.
+  const revealCurrent = (): void => {
+    const node = provider.currentNode();
+    if (node && view.visible) void view.reveal(node, { select: true, focus: false });
+  };
+
+  return [
+    view,
+    provider,
+    backend.on("review_progress", (progress) => {
+      provider.setProgress(progress);
+      view.description = progress.total ? `${progress.reviewed_count}/${progress.total} reviewed` : undefined;
+      revealCurrent();
+    }),
+    backend.on("presenting", (p) => {
+      provider.setCurrent(p.done ? undefined : p.index);
+      revealCurrent();
+    }),
+    backend.onStateChange((state) => {
+      if (state === "stopped" || state === "error") {
+        provider.setProgress(undefined);
+        view.description = undefined;
+      }
+    }),
+  ];
+}
+
+class HunkTreeProvider implements vscode.TreeDataProvider<Node>, vscode.Disposable {
+  private readonly changes = new vscode.EventEmitter<void>();
+  readonly onDidChangeTreeData = this.changes.event;
+  private progress: ReviewProgress | undefined;
+  private current: number | undefined;
+  // Nodes are rebuilt per progress message; reveal() needs the instances the tree holds.
+  private files: Node[] = [];
+  private byIndex = new Map<number, Node>();
+
+  constructor(private readonly repoPath: () => string | undefined) {}
+
+  setProgress(progress: ReviewProgress | undefined): void {
+    this.progress = progress;
+    this.files = [];
+    this.byIndex.clear();
+    for (const file of progress?.files ?? []) {
+      this.files.push({ kind: "file", file });
+      for (const hunk of file.hunks) this.byIndex.set(hunk.index, { kind: "hunk", hunk, file });
+    }
+    this.changes.fire();
+  }
+
+  setCurrent(index: number | undefined): void {
+    this.current = index;
+    this.changes.fire();
+  }
+
+  currentNode(): Node | undefined {
+    return this.current === undefined ? undefined : this.byIndex.get(this.current);
+  }
+
+  getChildren(node?: Node): Node[] {
+    if (!node) return this.progress ? this.files : [];
+    if (node.kind === "file") return node.file.hunks.flatMap((h) => this.byIndex.get(h.index) ?? []);
+    return [];
+  }
+
+  getParent(node: Node): Node | undefined {
+    return node.kind === "hunk" ? this.files.find((f) => f.kind === "file" && f.file === node.file) : undefined;
+  }
+
+  getTreeItem(node: Node): vscode.TreeItem {
+    if (node.kind === "file") {
+      const { file } = node;
+      const item = new vscode.TreeItem(path.posix.basename(file.file_path), vscode.TreeItemCollapsibleState.Expanded);
+      item.id = `file:${file.file_path}`;
+      const dir = path.posix.dirname(file.file_path);
+      item.description = `${dir === "." ? "" : `${dir}  `}${file.reviewed_count}/${file.hunk_count}`;
+      const root = this.repoPath();
+      if (root) item.resourceUri = vscode.Uri.file(path.join(root, file.file_path));
+      item.contextValue = "file";
+      return item;
+    }
+    const { hunk } = node;
+    const isCurrent = hunk.index === this.current;
+    const item = new vscode.TreeItem(hunkLabel(hunk.header), vscode.TreeItemCollapsibleState.None);
+    item.id = `hunk:${hunk.index}`;
+    item.description = hunk.reviewed ? "reviewed" : undefined;
+    item.tooltip = hunk.header;
+    item.iconPath = hunk.reviewed
+      ? new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"))
+      : new vscode.ThemeIcon(isCurrent ? "arrow-right" : "circle-large-outline");
+    item.contextValue = isCurrent ? "hunk.current" : "hunk";
+    item.command = { command: "pearReview.jumpToHunk", title: "Go to change", arguments: [hunk.index] };
+    return item;
+  }
+
+  dispose(): void {
+    this.changes.dispose();
+  }
+}

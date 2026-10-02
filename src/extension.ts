@@ -4,6 +4,8 @@ import { PythonBackend } from "./backend/backend.ts";
 import { output } from "./log.ts";
 import * as chatPanel from "./ui/chatPanel.ts";
 import * as commands from "./ui/commands.ts";
+import * as diffView from "./ui/diffView.ts";
+import * as hunkTree from "./ui/hunkTree.ts";
 import * as statusBar from "./ui/statusBar.ts";
 import * as voice from "./ui/voice.ts";
 
@@ -18,6 +20,8 @@ export function activate(context: vscode.ExtensionContext): void {
     output,
     backend,
     ...statusBar.register(backend),
+    ...hunkTree.register(backend),
+    ...diffView.register(backend),
     ...recorder.disposables,
     ...chatPanel.register(context, backend, recorder.voice),
     ...commands.register(context, backend, recorder.voice),

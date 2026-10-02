@@ -1,8 +1,9 @@
 # AI Pear Review for VS Code
 
-> **Early development (0.0.x).** This is the voice spike: start a review, hear
-> the reviewer explain the current change, and answer by voice or text. The
-> hunk tree, diff view, comments, plan and Act Now come next.
+> **Early development (0.0.x).** Working so far: the Changes tree, the
+> native diff with the current change highlighted, Next/Prev, marking changes
+> reviewed, and the reviewer's explanations with replies by text or voice.
+> Inline comments, the review plan and Act Now come next.
 
 A VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
 It walks you through your uncommitted git changes one hunk at a time, with an AI
@@ -22,13 +23,16 @@ still works on its own.
 ## Using it
 
 1. Open a git repository that has uncommitted changes.
-2. Run **Pear Review: Start Review** from the Command Palette, or open the
-   Pear Review view and press **Start review**.
-3. The reviewer explains the current change.
-4. Reply by typing, or press **Ctrl+Alt+Space** (**Cmd+Alt+Space** on macOS)
-   to start recording and press it again to send. VS Code has no key-release
-   event, so push-to-talk is press-to-start, press-to-stop.
-5. Use **Next** and **Prev** to move between changes.
+2. Open the **Pear Review** view from the activity bar and press **Start
+   Review**, or run **Pear Review: Start Review** from the Command Palette.
+3. The **Changes** tree lists every changed file and its hunks. The current
+   hunk opens as a diff (HEAD ↔ working file) with its lines highlighted.
+   Click any hunk to jump to it; use the ↑/↓ buttons on the tree for
+   Prev/Next, and ✓ on the current hunk to mark it reviewed.
+4. The reviewer explains each change in the **Chat** view. Reply by typing,
+   or press **Ctrl+Alt+Space** (**Cmd+Alt+Space** on macOS) to start
+   recording and again to send. VS Code has no key-release event, so
+   push-to-talk is press-to-start, press-to-stop.
 
 To use the Anthropic API instead of a local model, run **Pear Review: Set
 Anthropic API Key**. The key is kept in VS Code's secret storage and passed

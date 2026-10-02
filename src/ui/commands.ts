@@ -1,13 +1,9 @@
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
+import { pickRepository } from "../git.ts";
 import { output, showError } from "../log.ts";
 import type { Voice } from "./voice.ts";
-
-// The slice of the built-in vscode.git extension's API this uses.
-interface GitApi {
-  repositories: { rootUri: vscode.Uri }[];
-}
 
 export function register(context: vscode.ExtensionContext, backend: Backend, voice: Voice): vscode.Disposable[] {
   let currentIndex: number | undefined;
@@ -46,6 +42,11 @@ export function register(context: vscode.ExtensionContext, backend: Backend, voi
     vscode.commands.registerCommand("pearReview.stopBackend", () => backend.stop()),
     vscode.commands.registerCommand("pearReview.next", () => send(() => backend.send("next", {}))),
     vscode.commands.registerCommand("pearReview.prev", () => send(() => backend.send("prev", {}))),
+    vscode.commands.registerCommand("pearReview.jumpToHunk", (index: unknown) => {
+      if (typeof index === "number") send(() => backend.send("jump_to_hunk", { index }));
+    }),
+    vscode.commands.registerCommand("pearReview.toggleReviewed", () => send(() => backend.send("toggle_reviewed", {}))),
+    vscode.commands.registerCommand("pearReview.refresh", () => send(() => backend.send("refresh_diff", {}))),
     vscode.commands.registerCommand("pearReview.explain", () => {
       if (currentIndex === undefined) {
         showError("No change is on screen to explain.");
@@ -67,17 +68,4 @@ export function register(context: vscode.ExtensionContext, backend: Backend, voi
       else await context.secrets.delete("pearReview.anthropicApiKey");
     }),
   ];
-}
-
-// The workspace's git repository; a quick pick when there are several.
-async function pickRepository(): Promise<string | undefined> {
-  const gitExtension = vscode.extensions.getExtension<{ getAPI(version: 1): GitApi }>("vscode.git");
-  const git = gitExtension ? (await gitExtension.activate()).getAPI(1) : undefined;
-  const roots = git?.repositories.map((r) => r.rootUri.fsPath) ?? [];
-  if (roots.length === 0) {
-    showError("Open a git repository to start a review.");
-    return undefined;
-  }
-  if (roots.length === 1) return roots[0];
-  return vscode.window.showQuickPick(roots, { placeHolder: "Which repository do you want to review?" });
 }

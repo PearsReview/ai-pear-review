@@ -46,12 +46,26 @@ export interface ClientPayloads {
   stop_recording: Empty;
 }
 
+// One line of a file's whole diff against HEAD (diff_service.Hunk.full_lines).
+export interface DiffLine {
+  kind: "context" | "add" | "del";
+  old_lineno: number | null;
+  new_lineno: number | null;
+  text: string;
+}
+
+// `done: true` carries only index/total (and the end-of-review fields); a real hunk
+// carries the rest.
 export interface Presenting {
   index: number;
   total: number;
   done: boolean;
   file_path?: string;
   header?: string;
+  full_lines?: DiffLine[];
+  // Inclusive index range into full_lines that this hunk's changed lines cover.
+  highlight_start?: number;
+  highlight_end?: number;
   review_started?: boolean;
   review_ended?: boolean;
   narrating?: boolean;
@@ -68,6 +82,29 @@ export interface AudioChunk {
   mime_type: string;
   chunk_index: number;
   chunk_count: number;
+}
+
+export interface ProgressHunk {
+  index: number;
+  header: string;
+  reviewed: boolean;
+}
+
+export interface ProgressFile {
+  file_path: string;
+  hunk_count: number;
+  reviewed_count: number;
+  first_index: number;
+  hunks: ProgressHunk[];
+}
+
+export interface ReviewProgress {
+  reviewed_count: number;
+  total: number;
+  current_reviewed: boolean;
+  files: ProgressFile[];
+  review_started: boolean;
+  review_ended: boolean;
 }
 
 export interface ServiceStatus {
@@ -91,7 +128,7 @@ export interface ServerPayloads {
   all_files: Unknown;
   file_explore: Unknown;
   definition: Unknown;
-  review_progress: Unknown;
+  review_progress: ReviewProgress;
   review_comments_sync: Unknown;
   review_comment_queued: Unknown;
   review_comment_updated: Unknown;

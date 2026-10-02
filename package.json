@@ -42,12 +42,14 @@
       {
         "command": "pearReview.next",
         "title": "Next Hunk",
-        "category": "Pear Review"
+        "category": "Pear Review",
+        "icon": "$(arrow-down)"
       },
       {
         "command": "pearReview.prev",
         "title": "Previous Hunk",
-        "category": "Pear Review"
+        "category": "Pear Review",
+        "icon": "$(arrow-up)"
       },
       {
         "command": "pearReview.showLog",
@@ -57,6 +59,23 @@
       {
         "command": "pearReview.setAnthropicApiKey",
         "title": "Set Anthropic API Key",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.toggleReviewed",
+        "title": "Mark Reviewed / Unreviewed",
+        "category": "Pear Review",
+        "icon": "$(check)"
+      },
+      {
+        "command": "pearReview.refresh",
+        "title": "Refresh Changes",
+        "category": "Pear Review",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pearReview.jumpToHunk",
+        "title": "Go to Change",
         "category": "Pear Review"
       }
     ],
@@ -79,6 +98,10 @@
     "views": {
       "pearReview": [
         {
+          "id": "pearReview.hunks",
+          "name": "Changes"
+        },
+        {
           "type": "webview",
           "id": "pearReview.chat",
           "name": "Chat"
@@ -94,6 +117,44 @@
           "markdownDescription": "Python 3.10+ interpreter for the review backend. Empty: the extension's own `.venv` if present, otherwise `python` on PATH."
         }
       }
+    },
+    "viewsWelcome": [
+      {
+        "view": "pearReview.hunks",
+        "contents": "Review your uncommitted changes one hunk at a time, with an AI reviewer you can talk to.\n[Start Review](command:pearReview.startReview)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pearReview.prev",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pearReview.next",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@2"
+        },
+        {
+          "command": "pearReview.refresh",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "pearReview.toggleReviewed",
+          "when": "view == pearReview.hunks && viewItem == hunk.current",
+          "group": "inline"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "pearReview.jumpToHunk",
+          "when": "false"
+        }
+      ]
     }
   },
   "scripts": {
