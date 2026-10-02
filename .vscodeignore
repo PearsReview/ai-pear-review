@@ -1,0 +1,15 @@
+src/**
+test/**
+.github/**
+.vscode/**
+.venv/**
+node_modules/**
+backend/tests/**
+backend/qa_agent/**
+backend/demo/**
+backend/static/**
+**/__pycache__/**
+**/*.ts
+tsconfig.json
+esbuild.mjs
+eslint.config.mjs

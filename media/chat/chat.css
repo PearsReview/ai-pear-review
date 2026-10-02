@@ -1,0 +1,102 @@
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  margin: 0;
+  padding: 0 8px;
+  box-sizing: border-box;
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+#hunk {
+  padding: 8px 0 4px;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family);
+  overflow-wrap: anywhere;
+}
+
+#toolbar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+#transcript {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.turn {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.turn.reviewer {
+  background: var(--vscode-editor-background);
+}
+
+.turn.human {
+  margin-left: 16px;
+  background: var(--vscode-input-background);
+}
+
+.turn.system,
+.turn.thinking {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.turn.error {
+  color: var(--vscode-errorForeground);
+}
+
+#composer {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  padding: 6px 0 8px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+#input {
+  flex: 1;
+  resize: vertical;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  font: inherit;
+}
+
+button {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border: none;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+#mic.recording {
+  background: var(--vscode-statusBarItem-errorBackground);
+}
+
+#audio-blocked {
+  padding: 4px 0;
+}
+
+body[data-backend="stopped"] #toolbar button:not([data-command="startReview"]),
+body[data-backend="stopped"] #composer button {
+  opacity: 0.5;
+}

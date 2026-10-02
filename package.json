@@ -1,0 +1,122 @@
+{
+  "name": "ai-pear-review",
+  "displayName": "AI Pear Review",
+  "description": "Walk through your uncommitted changes one hunk at a time with an AI reviewer you can talk to.",
+  "version": "0.0.1",
+  "publisher": "PearsReview",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "pearReview.startReview",
+        "title": "Start Review",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.stopBackend",
+        "title": "Stop Backend",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.toggleRecording",
+        "title": "Push to Talk (start/stop)",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.explain",
+        "title": "Explain This Change",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.next",
+        "title": "Next Hunk",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.prev",
+        "title": "Previous Hunk",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.showLog",
+        "title": "Show Log",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.setAnthropicApiKey",
+        "title": "Set Anthropic API Key",
+        "category": "Pear Review"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "pearReview.toggleRecording",
+        "key": "ctrl+alt+space",
+        "mac": "cmd+alt+space"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pearReview",
+          "title": "Pear Review",
+          "icon": "media/pear.svg"
+        }
+      ]
+    },
+    "views": {
+      "pearReview": [
+        {
+          "type": "webview",
+          "id": "pearReview.chat",
+          "name": "Chat"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Pear Review",
+      "properties": {
+        "pearReview.pythonPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Python 3.10+ interpreter for the review backend. Empty: the extension's own `.venv` if present, otherwise `python` on PATH."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "node --test \"test/unit/**/*.test.ts\"",
+    "vscode:prepublish": "node esbuild.mjs --production"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.95.0",
+    "@types/ws": "^8.5.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
