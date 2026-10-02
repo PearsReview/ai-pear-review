@@ -1,0 +1,97 @@
+[project]
+name = "ai-pear-review"
+version = "0.0.1"
+description = "A local web app that walks you through your own uncommitted git changes one hunk at a time, with an AI persona narrating each change."
+readme = "README.md"
+license = { file = "LICENSE" }
+# 3.10 for the `X | Y` annotations used throughout; developed against 3.13.
+requires-python = ">=3.10"
+# Kept in step with requirements.txt, which is what the README tells people
+# to install — this block is metadata for anyone reading the repo, not a
+# second source of truth to update separately.
+dependencies = [
+    "fastapi>=0.110,<1.0",
+    "uvicorn[standard]>=0.29,<1.0",
+    "pyyaml>=6.0,<7.0",
+    "requests>=2.31,<3.0",
+    "python-multipart>=0.0.9,<1.0",
+    "anthropic>=0.40,<2.0",
+    "python-dotenv>=1.0,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<10.0",
+    "pytest-playwright>=0.5,<1.0",
+    "ruff>=0.16,<0.17",
+    "mypy>=2.0,<3.0",
+]
+
+# The app runs from a checkout (`python run.py`), so nothing here needs to
+# be installable. These two keys exist only so a build tool pointed at this
+# directory doesn't guess: flat-layout auto-discovery fails on a root
+# holding several top-level modules.
+[tool.setuptools]
+packages = ["app"]
+py-modules = ["run", "install_skills"]
+
+[tool.ruff]
+# 120, not 100: measured over every .py file, p99 of code lines is 110 and
+# 483 lines run past 100 against 58 past 120. At 100, `ruff format` rewrapped
+# those into ~1,900 extra lines; at 120 the net growth is ~380.
+line-length = 120
+# NOT py313, though that's what this is developed against: the floor in
+# requires-python above is what CI proves on every push, and a `UP` rule
+# that rewrites something to 3.11+ syntax would pass here and fail there.
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "BLE", "UP", "SIM", "RUF"]
+ignore = [
+    # Long lines are prose in docstrings, which is this codebase's whole
+    # habit. line-length above still governs `ruff format`.
+    "E501",
+    # Typographic quotes and dashes in strings. They are deliberate here -
+    # narration text, spoken-form rules, user-facing messages - and
+    # flagging every one of them is the kind of false positive that teaches
+    # people to stop reading the linter's output (see docs/STYLE.md 1.1).
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # try/except/pass -> contextlib.suppress. A fair call in the abstract,
+    # but every site is process or socket teardown carrying its own comment,
+    # and rewriting that for style is risk without benefit.
+    "SIM105",
+    # `[first] + rest` -> `[first, *rest]`. Preference, not clarity.
+    "RUF005",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# BLE001 (blind `except Exception`) is on for app code, where swallowing an
+# unexpected error hides a bug. Test and harness code is the opposite case:
+# it is cleaning up, probing, or reporting, and the specific failure genuinely
+# does not matter - the point is to carry on.
+"tests/**" = ["BLE001"]
+"qa_agent/**" = ["BLE001"]
+".claude/**" = ["BLE001"]
+
+# Deliberately NOT selected:
+#   N    - pep8-naming. `visit_FunctionDef` and friends are the ast module's
+#          API, not our choice.
+
+[tool.mypy]
+# Scoped, not repo-wide. These two packages are the model-calling seam - the
+# place where a wrong type reaches an external API instead of a traceback -
+# and they are the layer test_layering.py already keeps free of web/session
+# knowledge, so they check standalone.
+files = ["app/services", "app/providers"]
+# The app's own dependencies ship types; nothing else here needs stubs.
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# `import app.*` in tests/ previously worked only because pytest was
+# invoked as `python -m pytest` from the repo root, which puts CWD on
+# sys.path — plain `pytest` failed with "No module named 'app'". Pinning
+# the root here makes both invocations equivalent and independent of how
+# (or from where) pytest is launched.
+pythonpath = ["."]

@@ -1,0 +1,2011 @@
+:root {
+  color-scheme: light dark;
+  /* "Ember" — warm modern dev-tool palette: near-black brown base + amber
+     accent, deliberately distinct from the cooler blacks and violet/red
+     accents common to this app's Linear/Raycast-family inspiration. The
+     amber was already introduced this session for review-queue/act-now —
+     promoted here to the app's primary signature color instead of a
+     secondary marking one. (Marks themselves moved off amber to --mark
+     below, once they and the hunk-highlight/accent were both amber and
+     read as one signal instead of two.) */
+  --bg: #faf7f2;
+  --bg-elevated: #ffffff;
+  --fg: #241f1a;
+  /* --muted/--border darkened from the original Ember values (#8a8074,
+     #e6ddd0) — those failed WCAG AA (muted text ~3.6:1 against #4.5:1
+     needed; border ~1.3:1 against the ~3:1 non-text-boundary guideline).
+     Verified via actual contrast computation, not eyeballed: #726858
+     clears ~5.1:1 on --bg / ~5.5:1 on --bg-elevated; #96856c clears
+     ~3.35:1 / ~3.58:1. Dark theme's own values already pass, untouched. */
+  --muted: #726858;
+  --border: #96856c;
+  --accent: #c9821a;
+  --presenter: #fdf1de;
+  --reviewer: #f3efe9;
+  --error: #c0392b;
+  --shadow-sm: 0 1px 3px rgba(36, 31, 26, 0.08);
+  --shadow-md: 0 8px 24px rgba(36, 31, 26, 0.12);
+  /* "Currently being read aloud" (markdown preview). Violet because the
+     other three signal hues are already spoken for — amber is the reviewing
+     hunk, blue is the marked range, green/red are add/del — and teal reads
+     too close to add-green in a document full of code blocks. Applied as a
+     background tint, not a left bar, so it composes with the mark-blue
+     selection bar instead of competing for the same slot. */
+  --reading: #7c5cd6;
+  /* "You marked this" — line/range marking for a review comment (mark-
+     gutter/mark-range in the diff view, md-select-gutter/md-in-range in
+     markdown preview). Used to be a second amber (#d29922) alongside
+     --accent's own amber, so "the hunk I'm reviewing" and "the range I
+     marked" read as the same color despite the intent (see .mark-gutter's
+     comment) that they be two separate signals. Blue instead — not used
+     anywhere else in the palette. Verified via contrast computation
+     (~4.9-5.2:1 on --bg/--bg-elevated), same standard as --muted/--border. */
+  --mark: #2f6fb0;
+  /* Pane layering. Light: the code pane is the brightest surface (white
+     "paper") and the side panels sit a shade darker around it. Dark flips
+     it — the code pane is the deepest surface and the side panels lift
+     above it — which is why these are role tokens rather than each pane
+     naming --bg/--bg-elevated directly. */
+  --side-bg: var(--bg);
+  --code-bg: var(--bg-elevated);
+  /* Shape scale — the previous flat, VS-Code-style design had none; used
+     throughout below for the "modern dev tool" feel instead of flat
+     1px-bordered boxes. Theme-independent, defined once. */
+  --radius-sm: 0.45rem;
+  --radius-md: 0.65rem;
+  --radius-lg: 1rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14110d;
+    --bg-elevated: #1c1815;
+    --fg: #f2ede6;
+    --muted: #a89e93;
+    --border: #2f2a24;
+    --accent: #e0a530;
+    --presenter: #241c12;
+    --reviewer: #211d18;
+    --error: #ff8a75;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.4);
+    --reading: #a78bfa;
+    --mark: #6cb6f0;
+    --side-bg: var(--bg-elevated);
+    --code-bg: var(--bg);
+  }
+}
+
+/* Manual theme toggle (see #theme-toggle-btn in app.js) — a [data-theme]
+   attribute selector always outranks the plain :root/media rules above, in
+   either direction, regardless of source order or actual OS preference, so
+   an explicit choice always wins over prefers-color-scheme. */
+:root[data-theme="light"] {
+  --bg: #faf7f2;
+  --bg-elevated: #ffffff;
+  --fg: #241f1a;
+  --muted: #726858;
+  --border: #96856c;
+  --accent: #c9821a;
+  --presenter: #fdf1de;
+  --reviewer: #f3efe9;
+  --error: #c0392b;
+  --shadow-sm: 0 1px 3px rgba(36, 31, 26, 0.08);
+  --shadow-md: 0 8px 24px rgba(36, 31, 26, 0.12);
+  --reading: #7c5cd6;
+  --mark: #2f6fb0;
+  --side-bg: var(--bg);
+  --code-bg: var(--bg-elevated);
+}
+:root[data-theme="dark"] {
+  --bg: #14110d;
+  --bg-elevated: #1c1815;
+  --fg: #f2ede6;
+  --muted: #a89e93;
+  --border: #2f2a24;
+  --accent: #e0a530;
+  --presenter: #241c12;
+  --reviewer: #211d18;
+  --error: #ff8a75;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.4);
+  --reading: #a78bfa;
+  --mark: #6cb6f0;
+  --side-bg: var(--bg-elevated);
+  --code-bg: var(--bg);
+}
+
+/* Thin overlay scrollbars — themed to match "Ember" instead of the raw OS
+   default, which looked especially out of place on the dark theme. Quiet
+   at rest (low-contrast, blends into the panel), amber on hover so it's
+   still obviously grabbable. Applied globally (`*`) rather than per-pane
+   selector: WebKit requires ::-webkit-scrollbar* to target an element
+   directly (it doesn't inherit from a parent rule), so this is the one
+   rule that reaches every scrollable pane — file sidebar, code view,
+   chat/transcript, popovers — without listing each container by hand. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border) 70%, var(--fg) 20%) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border) 70%, var(--fg) 20%);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+*::-webkit-scrollbar-corner { background: transparent; }
+
+* { box-sizing: border-box; }
+/* No focus indicator existed anywhere in this file before — mouse users
+   got a hover cue (box-shadow/border-color, see button:hover below) but
+   keyboard users got nothing at all for the exact same controls. One
+   broad rule covers every button/input/checkbox/radio/textarea in the
+   app; :focus-visible (not :focus) so it only shows for keyboard/
+   programmatic focus, not every mouse click. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-wrap: wrap; /* at narrow widths .header-right (5 status items + the theme toggle) doesn't fit beside the title on one line — without this it held its own width and pushed the whole page wider than the viewport instead of dropping to its own row */
+  justify-content: space-between;
+  align-items: center;
+  row-gap: 0.4rem;
+  position: relative;
+  z-index: 1;
+}
+h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+.header-right { display: flex; align-items: center; gap: 0.6rem; }
+#status-bar { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; row-gap: 0.3rem; gap: 0.75rem; }
+#status-bar .down { color: var(--error); display: inline-flex; align-items: center; gap: 0.2rem; }
+#theme-toggle-btn { padding: 0.3rem 0.5rem; line-height: 1; }
+#model-settings-btn { padding: 0.3rem 0.5rem; line-height: 1; }
+
+/* Model settings panel — drops below the header rather than floating over
+   the layout, so it can't cover the diff the reviewer is mid-way through
+   reading. Full-width row per setting: these are typed values (a model
+   name, a token count), not the icon-toggles the composer's own voice
+   prefs use, so they need labels and room. */
+.model-settings {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.model-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.model-settings-row label,
+.model-settings-row .model-settings-label {
+  min-width: 8.5rem;
+  color: var(--muted);
+}
+/* The panel's first heading has nothing above it to separate from. */
+.model-settings > .model-settings-subheading:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.model-settings-row input,
+.model-settings-row select {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  min-width: 12rem;
+}
+.model-settings-row input:disabled,
+.model-settings-row select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.model-settings-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  flex: 1;
+  min-width: 12rem;
+}
+.model-settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.2rem;
+}
+
+/* Freshness of the .context/ files the .claude/ skills write. Presented as
+   plain information, not a warning — the app works fine without any of it,
+   so nothing here is styled to look like something went wrong. */
+.model-settings-subheading {
+  margin: 0.3rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.context-files {
+  border-top: 1px solid var(--border);
+  padding-top: 0.6rem;
+  margin-top: 0.2rem;
+}
+.context-files h3 {
+  margin: 0 0 0.15rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.context-files ul {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.context-files li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.context-files strong {
+  min-width: 8.5rem;
+  font-weight: 500;
+}
+.context-files-state {
+  font-size: 0.75rem;
+}
+.context-files-state.fresh { color: var(--muted); }
+.context-files-state.stale,
+.context-files-state.missing { color: var(--fg); }
+.context-files-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+}
+
+/* The "this file is too big for the configured window" card (see
+   onContextTooLarge in app.js). Deliberately styled as a system turn
+   rather than an error banner: nothing failed — the app declined to send
+   a prompt it knew would be silently truncated, and is offering the two
+   routes that do work. */
+.context-too-large {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.75rem;
+}
+.context-too-large-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.context-too-large-hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  flex: 1;
+  min-width: 14rem;
+}
+
+/* Links from a narration to the hunks its briefing says it belongs with. */
+.related-hunks {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+.related-hunks-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.related-hunk {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--fg);
+  cursor: pointer;
+}
+.related-hunk:hover,
+.related-hunk:focus-visible {
+  border-color: var(--accent);
+}
+
+/* Middle column: the review toolbar stacked above the scrolling code pane.
+   Being a column of its own (rather than the toolbar spanning the page
+   above .layout) is what lets .file-sidebar and .chat-pane run full height
+   from the header down. The divider against .chat-pane lives here, not on
+   .code-pane, so it runs past the toolbar too. */
+.center-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--code-bg);
+  /* The toolbar's icon-only switch keys off this column's width, not the
+     window's — opening or collapsing a side panel changes it just as much. */
+  container: center / inline-size;
+}
+.toolbar {
+  flex-shrink: 0;
+  padding: 0.65rem 1rem; /* 1rem sides line up with .code-pane's own padding */
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap; /* last resort once even icon-only doesn't fit on one row */
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+/* Right half of the toolbar: the diff view controls (Merged/Split,
+   Refresh) and review progress. Which file/hunk is on screen sits on its
+   own line underneath, in .toolbar-meta. */
+.toolbar-view {
+  /* Grows into the leftover width, but never below what its controls need:
+     when the review buttons take the rest, this wraps to its own row rather
+     than shrinking to nothing and spilling over them. */
+  flex: 1 1 18rem;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* Icon-only toolbar when the middle column is narrow. The labels are
+   visually hidden rather than display: none, so each button keeps its
+   accessible name (and #reviewed-btn-label keeps working as the live
+   "Reviewed" / "Mark as reviewed" name); every button also has a title
+   for the hover tooltip. */
+@container center (max-width: 1200px) {
+  .toolbar .btn-label {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .toolbar .controls > button,
+  .toolbar .review-queue-row > button,
+  .toolbar-view > button,
+  .toolbar .view-mode-btn { padding: 0.45rem 0.55rem; }
+}
+.controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+#review-progress { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+.icon-btn { padding: 0.2rem 0.45rem; font-size: 0.85rem; line-height: 1.2; border-radius: var(--radius-sm); }
+/* Review all: a toggle button like Mark as reviewed, set apart by a
+   vertical divider and extra spacing — "Mark as reviewed" affects one hunk,
+   this affects every hunk in every file, and they used to sit adjacent with
+   zero separation despite the very different blast radius. */
+.review-all-toggle {
+  position: relative;
+  margin-left: 0.85rem;
+}
+.review-all-toggle::before {
+  content: "";
+  position: absolute;
+  left: -0.7rem;
+  top: 15%;
+  height: 70%;
+  border-left: 1px solid var(--border);
+}
+
+/* Start Review (see updateStartReviewBtn in app.js) — filled accent so it
+   reads as the one action worth pressing before the review's live,
+   distinct from the plain bordered buttons around it in .controls. Hidden
+   by default (see index.html) and only shown pre-start; disappears again
+   the moment it's clicked, never to reappear for this connection. */
+#start-review-btn {
+  margin-left: 0.4rem;
+  background: var(--accent);
+  color: #1a1206;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+#start-review-btn:hover { box-shadow: var(--shadow-md); }
+
+/* End Review (see updateEndReviewBtn in app.js) — an outline in --error
+   rather than a filled button: it's a deliberate, hard-to-reverse action
+   (freezes narration/replies and the review-mark controls for the rest of
+   this connection — see present_current_hunk's review_ended gate), so it
+   needs to read as "different and weighty," not as another primary CTA
+   competing with Start Review's own filled treatment. Hidden by default,
+   shown only while the review is live, gone again once clicked. */
+#end-review-btn {
+  margin-left: 0.4rem;
+  color: var(--error);
+  border-color: var(--error);
+  font-weight: 600;
+}
+#end-review-btn:hover { background: color-mix(in srgb, var(--error) 12%, var(--bg-elevated)); box-shadow: var(--shadow-sm); }
+
+/* File explorer sidebar — first column of .layout, left of .code-pane.
+   Collapse/expand is a width+padding transition on the <nav> itself (see
+   .file-sidebar.collapsed and setupEdgeTab() in app.js) rather than a
+   display:none on an inner child — that's what makes it a smooth slide
+   instead of an abrupt jump, and the *only* thing animating here: earlier
+   this panel collapsed to width: 0 with #file-sidebar-tab living in a
+   separate absolutely-positioned sibling straddling the boundary — two
+   elements each resizing/repositioning independently, which is what read
+   as janky. #file-sidebar-tab is a plain child of this nav now (see
+   index.html), pinned to its own right edge via position: absolute below
+   — "the icon lives in the container it toggles" — so it rides along for
+   free as this single width transition runs, instead of needing a
+   transition of its own. The extra 2.25rem in both widths below is a
+   standing lane reserved for it: #file-list's own fixed-width content
+   never extends into it, and #file-sidebar-tab's own 0.25rem inset (see
+   below) keeps the button's far edge just as clear of the divider — so
+   it always sits in blank space on both sides, never over a filename or
+   (via .code-pane's own flex: 1 taking whatever this panel gives up) the
+   code pane beside it. overflow-x: hidden clips #file-list's fixed 220px
+   content as the nav narrows, instead of it reflow-wrapping mid-
+   animation. Collapsing hands most (not all — see .file-sidebar.collapsed)
+   of the space back to .code-pane the same way the old approach did
+   (nav's width is explicit, .code-pane is flex: 1).
+   background: var(--side-bg) here (and on .chat-pane, symmetrically)
+   layers the two side panels a shade apart from the code pane's
+   --code-bg — a real depth cue the old flat design didn't have. See
+   --side-bg in :root for which way round each theme layers them. */
+.file-sidebar {
+  position: relative; /* anchors #file-sidebar-tab's position: absolute below */
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  width: calc(220px + 0.75rem + 2.25rem); /* #file-list's own 220px + this panel's 0.75rem left padding + a 2.25rem lane on the right for #file-sidebar-tab (see below) */
+  padding: 0.375rem 2.25rem 0.75rem 0.75rem; /* half-height top: keeps the Files header row slim */
+  border-right: 1px solid var(--border);
+  background: var(--side-bg);
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Without this, a flex item that's itself a flex column with overflow
+     doesn't reliably stretch to the row's full cross-axis height — same
+     issue .layout's own min-height: 0 (above) exists to avoid for
+     .code-pane/.chat-pane. Missing it here is why the sidebar could end up
+     shorter than its siblings instead of matching their height. */
+  min-height: 0;
+  transition: width 0.2s ease, padding 0.2s ease;
+}
+/* Collapses down to just the button's own lane (never to 0) — the toggle
+   stays inside this panel rather than needing a floating home elsewhere
+   once nothing else is visible to anchor it against. */
+.file-sidebar.collapsed {
+  width: 2.25rem;
+  padding: 0.75rem 0.5rem;
+}
+/* Fades out on collapse instead of just getting clipped by overflow-x:
+   hidden as the panel narrows — clipping alone left filenames/buttons
+   legible mid-word inside that 2.25rem sliver (real content sitting in a
+   lane sized for the button, not for it) both at rest and, worse, sliced
+   further with every pixel during the width transition itself, which is
+   a large part of what made collapsing/expanding read as rough. Fading it
+   out (already inert via JS while collapsed, so this is purely visual)
+   means the panel narrows onto emptiness instead of onto a shrinking clip
+   of real UI, and reads as one coherent motion rather than content
+   getting chopped up mid-flight. */
+.file-sidebar.collapsed .file-list {
+  opacity: 0;
+}
+.file-list-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.file-list-header { display: flex; align-items: center; justify-content: space-between; }
+/* Slimmer than a normal .icon-btn so the header row stays thin. */
+.file-list-header .icon-btn { padding: 0.05rem 0.35rem; }
+/* The heading is hidden when nothing has changed (see renderFileList in
+   sidebar.js), which leaves the "All files" toggle as the only child —
+   space-between would then park it on the left. This keeps it where it
+   always sits, so the header does not visibly reshuffle. */
+.file-list-header > :last-child { margin-left: auto; }
+/* "All files" toggle (see the explore-all-files-btn listener in app.js) —
+   switches the sidebar between changed-files-only (default) and the
+   whole repo tree, for browsing/asking about code that hasn't changed.
+   Icon + tooltip, no label text — .active mirrors .file-preview-btn's own
+   "on" treatment elsewhere in this sidebar, so it reads the same way that
+   already does: colored border/icon, tinted background. */
+#explore-all-files-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+}
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 220px;
+  flex: 1;
+  min-height: 0;
+  transition: opacity 0.12s ease;
+}
+#file-filter-input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.8rem;
+}
+.file-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.file-pill {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-family: ui-monospace, "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: left;
+  width: 100%;
+}
+.file-pill:hover { background: var(--bg-elevated); }
+.file-pill.active {
+  background: var(--presenter);
+  font-weight: 600;
+  /* Left accent bar, VS Code "active tab" style — reads at a glance even
+     when scanning a long scrolled list, not just on close inspection. */
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.file-pill.active:hover { background: var(--presenter); box-shadow: inset 3px 0 0 var(--accent); }
+/* "All files" mode's entries with no diff hunks (see renderFileTreeNode
+   in app.js) — muted/italic so they read as "browse for context," visibly
+   different from a real changed-file pill even before reading the
+   (reviewed/hunk) counts a changed one has and this doesn't. */
+.file-pill-unchanged { color: var(--muted); font-style: italic; }
+.file-list-empty { font-size: 0.8rem; color: var(--muted); padding: 0.3rem; }
+
+/* Speaker icon appended to a .md file's pill (see makeSpeakFileButton) —
+   .file-pill is already display:flex; justify-content:space-between, so
+   this just needs to not get squeezed out by a long filename and to read
+   as a small secondary control, same recipe as .replay-btn elsewhere. */
+.file-speak-btn {
+  flex-shrink: 0;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.file-speak-btn:hover { border-color: var(--accent); color: var(--accent); }
+.file-speak-btn.reading { color: var(--accent); }
+
+/* Preview icon, sitting next to the speaker icon on the same .md pill —
+   same treatment so the pair reads as one group of secondary actions. */
+.file-preview-btn {
+  flex-shrink: 0;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.file-preview-btn:hover { border-color: var(--accent); color: var(--accent); }
+.file-preview-btn.active { color: var(--accent); border-color: var(--accent); }
+
+/* Edge tab that collapses/expands a side panel — shared appearance for
+   the file-sidebar and chat-pane tabs, which are otherwise symmetric. It
+   used to live in its own absolutely-positioned sibling element straddling
+   the panel/code-pane boundary (or, one iteration later, in a dedicated
+   flex-item "gutter" between them) — two elements with independent sizing
+   to keep in sync, which is what made collapse/expand read as janky, and
+   a home that had nothing to do with what the button controls. Now it's a
+   plain child of the panel it toggles (see index.html: #file-sidebar-tab
+   inside <nav id="file-sidebar">, #chat-pane-tab inside <aside
+   id="chat-pane">) — "the icon lives in the container it's relevant to" —
+   pinned via position: absolute to that panel's own edge (.file-sidebar/
+   .chat-pane both set position: relative to anchor it, and reserve a
+   standing lane in their own width/padding — see those rules — so the
+   button always has clear space and never sits over content or the code
+   pane beside it). With only the panel's own width transitioning, the tab
+   just rides along for free as part of that single reflow — nothing else
+   animates in parallel, which is what makes the motion smooth. Dim (not
+   fully invisible) at rest, brought to full opacity on :hover/
+   :focus-visible so keyboard users tabbing through the page still
+   discover and can activate it without ever hovering. A collapsed panel
+   with a rest-opacity-0 tab reads as "this control doesn't exist" rather
+   than "collapsed" — dim-at-rest keeps the toggle discoverable without
+   hunting for it; the hover/focus brightening is just extra affordance on
+   top, not the only way to see it. Opacity (not display/visibility) keeps
+   it in the accessibility tree throughout — screen reader users always
+   have it, sighted mouse users get the brighten-on-hover affordance too. */
+.edge-tab {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.edge-tab:hover,
+.edge-tab:focus-visible {
+  opacity: 1;
+}
+.edge-tab:hover { color: var(--accent); border-color: var(--accent); box-shadow: var(--shadow-md); }
+/* Pinned to each panel's own edge nearest .code-pane — the right edge for
+   the file sidebar (left of .code-pane), the left edge for the chat pane
+   (right of .code-pane). 0.25rem inset + this button's own 1.75rem width
+   = 2rem, a quarter-rem short of each panel's 2.25rem reserved lane (see
+   .file-sidebar/.chat-pane widths) — so the button clears both the
+   divider on one side and the real content on the other, with a hair of
+   breathing room left over on each, in both the collapsed and expanded
+   state alike. */
+#file-sidebar-tab { right: 0.25rem; }
+#chat-pane-tab { left: 0.25rem; }
+
+.file-folder-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.76rem;
+  color: var(--muted);
+  padding: 0.2rem 0.3rem;
+  font-family: ui-monospace, "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  /* Now a real <button> (was a plain <div>) so collapse/expand is
+     keyboard-reachable and Enter/Space-activatable, not just clickable —
+     reset the global button rule's border/background/sizing back to the
+     flat tree-row look this had before. */
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.file-folder-label:hover { background: var(--bg-elevated); box-shadow: none; color: var(--fg); }
+/* Points right collapsed, rotates down expanded — same "twist to reveal"
+   convention as #file-sidebar-tab-icon/#chat-pane-tab-icon's own chevrons
+   elsewhere in this sidebar. */
+.file-folder-chevron { transition: transform 0.15s ease; flex-shrink: 0; }
+.file-folder-chevron.expanded { transform: rotate(90deg); }
+/* Wraps one folder's own files + subfolders so the whole subtree can be
+   hidden as a unit on collapse (see renderFileTreeNode in app.js) — .hidden
+   (global) does the actual display:none. */
+.file-folder-children { display: contents; }
+.file-folder-children.hidden { display: none; }
+#reviewed-btn.reviewed,
+#review-all-toggle.reviewed {
+  background: color-mix(in srgb, #2ea043 20%, var(--bg));
+  border-color: #2ea043;
+  color: #2ea043;
+}
+
+.layout {
+  flex: 1;
+  display: flex;
+  min-height: 0; /* let the panes scroll internally instead of the page */
+}
+
+/* Middle: the file, VS Code diff-view style */
+.code-pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  /* Top padding removed — see .code-pane-top's own padding-top below for
+     why: a scrolling container's padding sits *inside* its clipped
+     scrollport (that's how "padding" works on an overflow: auto box), so
+     a scrolled-past line's last sliver could still paint there, above a
+     top: 0 sticky child anchored to this padding's inner edge. Left/right/
+     bottom padding is unaffected by that — nothing sticks to those edges —
+     and still gives the header card/diff lines real breathing room
+     against both dividers (.file-sidebar's border-right on the left,
+     .center-column's border-right against .chat-pane on the right) instead of
+     running flush against them. */
+  padding: 0 1rem 1rem 1rem;
+  min-height: 0; /* scroll inside .center-column instead of stretching it */
+  background: var(--code-bg);
+}
+/* Everything pinned above the diff: the Act Now Apply/Discard bar and the
+   Markdown preview bar. (The file/hunk label and Merged/Split used to be a
+   card here too; they now live in .toolbar, above this scrolling pane.)
+   position: sticky floats it at the top of .code-pane's own scroll
+   container instead of scrolling away with everything else: .code-pane
+   (not #code-view) is the scrolling element, and renderCodeView's
+   scrollIntoView({block: "center"}) routinely lands the highlighted line
+   well down the file — without this, that scroll carried these bars out
+   of view along with everything above the highlighted line: no cue for
+   which file/hunk was on screen, and an Act Now preview whose Apply/Discard
+   buttons had scrolled away. One sticky wrapper rather than each bar
+   sticking at top: 0 on its own, which stacked them over one another.
+   z-index lifts it above #code-view's own content, which otherwise paints
+   over a sticky element positioned earlier in the DOM as that content
+   scrolls up underneath it. The opaque background covers the whole
+   wrapper, including the 1rem band above the header — which is why that
+   gap is this element's own padding-top rather than .code-pane's (verified
+   live: with the gap as the ancestor's padding, a scrolled line's last
+   sliver was visible poking through it, above the "stuck" header, at some
+   scroll positions). */
+.code-pane-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-top: 1rem;
+  background: var(--code-bg); /* must match .code-pane's, or the band shows */
+  /* Keeps the last bar's margin-bottom inside the wrapper, so the gap above
+     the diff is opaque too instead of a strip that code scrolls through. */
+  display: flow-root;
+}
+.back-to-summary-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+/* The file/hunk label's own line, directly under the toolbar buttons. */
+.toolbar-meta {
+  flex-shrink: 0;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+#hunk-meta {
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Merged/Split: two ordinary toolbar buttons, the one in use shown the way
+   the toolbar's other "on" buttons are — an accent outline and tint. */
+.view-mode-toggle {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+.view-mode-btn.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+}
+/* Refresh sits beside them and is always icon-only, so it takes the
+   toolbar's icon-only size rather than .icon-btn's compact one. */
+.toolbar #refresh-diff-btn { padding: 0.45rem 0.55rem; font-size: inherit; }
+#code-view {
+  font-family: ui-monospace, "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+}
+/* Shown instead of leaving #code-view as a blank box (see
+   showEmptyCodeView in app.js) — "all reviewed" or "nothing to show"
+   should read as complete, not broken. */
+.code-view-empty {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-family: "Inter", system-ui, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.code-line {
+  display: grid;
+  /* Column order: mark-gutter dot, old/new line numbers, the +/- marker,
+     the "+" comment button, then the text itself — the comment button
+     sits immediately to the left of the code it would comment on (not
+     out at the row's far-left edge next to the mark dot) while still
+     living in the gutter rather than floating over the text. */
+  grid-template-columns: 1.15rem 3rem 3rem 1.2rem 1.15rem 1fr;
+  column-gap: 0.15rem;
+  white-space: pre;
+  /* Without this, .mark-gutter's dot sits flush against the row's left
+     edge — exactly where .highlight (amber)/.mark-range (blue) draw their
+     inset left border — and reads as half-swallowed by it (same issue .md-
+     select-gutter had in the markdown preview; see .md-block). Split view
+     cancels this and insets via .split-half instead, per-half. */
+  padding-left: 0.35rem;
+}
+.code-line .lineno {
+  color: var(--muted);
+  text-align: right;
+  padding: 0 0.5rem;
+  user-select: none;
+  opacity: 0.7;
+}
+.code-line .marker { text-align: center; user-select: none; }
+.code-line .text { padding-right: 1rem; }
+.code-line.add { background: color-mix(in srgb, #2ea043 16%, var(--bg)); }
+.code-line.add .marker { color: #2ea043; }
+.code-line.del { background: color-mix(in srgb, #f85149 16%, var(--bg)); }
+.code-line.del .marker { color: #f85149; }
+.code-line.highlight { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* Eclipse-style "breakpoint" marker gutter — double-click a line to toggle
+   (see codeViewEl's dblclick listener / toggleLineMark in app.js). A
+   dedicated slim column rather than reusing .marker, so it's visible
+   alongside the existing add/del +/- marker rather than competing with it.
+   mark-range uses --mark (blue, not var(--accent)) specifically so "the
+   hunk I'm reviewing" (var(--accent) elsewhere) and "the range I marked
+   for a question" read as two different signals, not the same color doing
+   double duty — see --mark's own comment above. */
+.mark-gutter {
+  /* Reset default <button> chrome — this used to be a <span>; now a real
+     button so it's Tab-reachable and Enter/Space-activatable, but should
+     look exactly the same as it did before. */
+  appearance: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  font: inherit;
+  text-align: center;
+  user-select: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  /* Hidden at rest, same hover-reveal idiom as .line-comment-add below —
+     a hover tooltip alone doesn't tell you a line is double-click-able
+     until you've already waited on it; a faint dot on hover does. Also
+     revealed on keyboard focus, not just mouse hover, so tabbing to it
+     doesn't land on something invisible. */
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.code-line:hover .mark-gutter,
+.split-half:hover .mark-gutter,
+.mark-gutter:focus-visible {
+  opacity: 0.5;
+}
+/* Actually marked — solid --mark blue, always visible regardless of hover,
+   same look this had before the hover-reveal state was added. */
+.mark-gutter.marked {
+  opacity: 1;
+  color: var(--mark);
+}
+/* box-shadow only (no background) — same restraint .highlight above already
+   uses, so it doesn't fight with the add/del background tint on the same row. */
+.code-line.mark-range { box-shadow: inset 3px 0 0 var(--mark); }
+
+/* Hover-reveal "+" that opens the inline comment composer for that line —
+   see lineCommentAddButtonHtml/openComposerForLine in app.js. Sits as the
+   last gutter column, immediately left of the code text itself (GitHub's
+   own version of this sits at the far-left edge instead, before the line
+   numbers — moved here so it reads as attached to the code it comments
+   on rather than to the row's outer edge). Present in the DOM on every
+   line unconditionally; only :hover on the row/half actually reveals it,
+   so there's no per-line JS listener overhead for something that's
+   rarely used on any given line. */
+.line-comment-add {
+  opacity: 0;
+  pointer-events: none;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.code-line:hover .line-comment-add,
+.split-half:hover .line-comment-add,
+.line-comment-add:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+button.line-comment-add:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-elevated); }
+
+/* Comments are a review action like "Mark as reviewed" — locked until the
+   review has started (see codeViewEl.classList.toggle("comments-locked",
+   ...) in app.js's onPresenting). The #code-view id gives this more
+   specificity than the .code-line:hover/.split-half:hover reveal rules
+   above without needing !important, and display:none (not just
+   opacity/pointer-events) means a hidden button can't be focused or
+   clicked at all — the click-delegation handler in app.js never needs
+   its own gate check. */
+#code-view.comments-locked .line-comment-add { display: none; }
+
+/* Split (side-by-side) diff view — old file on the left, new on the right.
+   Each row is two independent "halves" rather than one 6-column grid, so a
+   half with no counterpart line (a pure addition/deletion) tints its whole
+   gutter+text width, not just the text cell — same look as GitHub's split
+   view. See buildSplitRows/renderSplitCodeView in app.js. */
+/* padding-left: 0 cancels the base .code-line inset above — this row is
+   a flex wrapper around two .split-half grids in split mode, not itself
+   the grid, so it insets via .split-half's own padding-left instead. */
+.code-line.split { display: flex; white-space: normal; padding-left: 0; }
+.split-half {
+  display: grid;
+  /* Same column order as .code-line above: mark-gutter dot, line number,
+     the +/- marker, the "+" comment button (right next to the text it
+     would comment on), then the text. */
+  grid-template-columns: 1.15rem 3rem 1.2rem 1.15rem 1fr;
+  column-gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+  /* Same .mark-gutter/border clearance as .code-line above — only strictly
+     needed on the left half (mark-range's border sits at the whole split
+     row's left edge), but applied to both for a consistent look. */
+  padding-left: 0.35rem;
+}
+/* mark-range is applied at the outer .code-line.split row, not per-half —
+   see .code-line.mark-range above, which matches regardless of the .split
+   class also being present, so the whole row gets one consistent --mark
+   edge rather than each half separately. */
+.split-half .lineno {
+  color: var(--muted);
+  text-align: right;
+  padding: 0 0.5rem;
+  user-select: none;
+  opacity: 0.7;
+}
+.split-half .marker { text-align: center; user-select: none; }
+.split-half .text {
+  padding-right: 1rem;
+  min-width: 0;
+  /* pre-wrap (not plain pre) so a long line wraps inside its own half
+     instead of overflowing past the column boundary into the other side —
+     a CSS grid item doesn't clip overflowing content by default, so
+     unwrapped text visually bleeds across the divider. overflow-wrap
+     covers unbroken tokens (long strings/URLs) that have no space to
+     break on even with wrapping enabled. Still preserves indentation like
+     plain pre does, just also wraps when a line doesn't fit. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.split-half.split-old { border-right: 1px solid var(--border); }
+.split-half.split-old.del-row { background: color-mix(in srgb, #f85149 16%, var(--bg)); }
+.split-half.split-old.del-row .marker { color: #f85149; }
+.split-half.split-new.add-row { background: color-mix(in srgb, #2ea043 16%, var(--bg)); }
+.split-half.split-new.add-row .marker { color: #2ea043; }
+.split-half.blank-row { opacity: 0.5; }
+
+/* Right: the conversation, chat-panel style. Elevated background,
+   symmetric with .file-sidebar — the two side panels sit a shade apart
+   from the main code pane's base background. Only this outer box's
+   width/padding animate on collapse (see .chat-pane.collapsed) — the only
+   thing moving is this one element; #chat-pane-tab is a plain child of it
+   (see index.html), pinned via position: absolute to its own left edge
+   (mirroring #file-sidebar-tab — see the shared .edge-tab comment), so it
+   rides along for free rather than needing an animation of its own. The
+   2.25rem left padding below is its standing lane: .chat-pane-content
+   never extends into it, so the button always sits in blank space, never
+   over the transcript or (via .code-pane's own flex: 1 taking whatever
+   this panel gives up) the code pane beside it. .chat-pane-content below
+   keeps a fixed inner width so the reply-row's flex-wrap never has to
+   recompute mid-transition — it's just progressively clipped by
+   overflow-x: hidden as the outer box narrows. flex-shrink: 0 +
+   .code-pane's flex: 1 hands the freed space back to the code pane on
+   collapse, mirroring how .file-sidebar already does this. */
+.chat-pane {
+  position: relative; /* anchors #chat-pane-tab's position: absolute below */
+  width: calc(285px + 2.25rem); /* 25% narrower than the original 380px, giving the code pane more room */
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1rem 1rem 2.25rem; /* left side now reserved for #chat-pane-tab's lane (see above) — used to be 0, flush against .code-pane's own removed right padding */
+  min-height: 0;
+  background: var(--side-bg);
+  overflow-x: hidden;
+  /* overflow-y: hidden (not the default "visible") is required here, not
+     just cosmetic: per spec, an element with one overflow axis non-visible
+     and the other left as "visible" has that other axis silently computed
+     as "auto" instead — so overflow-x: hidden above would otherwise have
+     given this pane its own implicit scrollbar/scroll container behavior.
+     We don't want .chat-pane itself to scroll at all — only #transcript
+     should — so this axis is pinned to hidden explicitly instead of left
+     to that implicit conversion. */
+  overflow-y: hidden;
+  transition: width 0.2s ease, padding 0.2s ease;
+}
+/* Collapses down to just the button's own lane (never to 0) — the toggle
+   stays inside this panel rather than needing a floating home elsewhere
+   once nothing else is visible to anchor it against. Mirrors
+   .file-sidebar.collapsed. */
+.chat-pane.collapsed {
+  width: 2.25rem;
+  padding: 1rem 0.5rem;
+}
+/* Fades out on collapse rather than being left merely clipped by
+   overflow-x: hidden — same reasoning and same effect as .file-sidebar's
+   own .file-list fade above: without this, transcript text/buttons
+   stayed legible (and got sliced further mid-transition) inside the
+   2.25rem sliver that's really only sized for the button. */
+.chat-pane.collapsed .chat-pane-content {
+  opacity: 0;
+}
+.chat-pane-content {
+  width: 269px; /* 285px - (1rem right padding + 0 extra left padding beyond the tab's own 2.25rem lane) — matches .chat-pane's own current padding */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: opacity 0.12s ease;
+}
+/* Segmented toggle-button group — one bordered pill, buttons divided by a
+   hairline instead of each having their own border, filled accent for
+   whichever is active. */
+.chat-tabs {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+}
+.chat-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.6rem;
+  border: none;
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.chat-tab:not(:last-child) { border-right: 1px solid var(--border); }
+.chat-tab.active { background: var(--accent); color: #1a1206; }
+.chat-tab:hover { border-color: var(--border); }
+.chat-hidden { display: none !important; }
+#transcript {
+  flex: 1;
+  /* Without this, a flex item's automatic minimum size defaults to its
+     content's natural height (min-height: auto) rather than 0 — the classic
+     flexbox-with-overflow footgun. min-height: 0 is what lets this
+     genuinely shrink to the space actually available and hand scrolling
+     off to its own overflow-y: auto, instead of the flex algorithm sizing
+     it (and therefore the whole column) to fit all the turns it contains. */
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+/* Composer: everything below the transcript (error banner, voice settings,
+   marked-lines chip, reply row) — see .chat-composer in
+   index.html. margin-top: auto pins this whole group to the bottom of
+   .chat-pane-content outright, rather than depending on #transcript's own
+   flex-grow to push it there — belt-and-braces so the reply row and voice
+   settings stay glued to the bottom of the window regardless of how much,
+   or how little (including zero), is in the transcript above. */
+.chat-composer {
+  margin-top: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+.turn {
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  max-width: 100%;
+}
+.turn.presenter { background: var(--presenter); align-self: flex-start; }
+.turn.reviewer { background: var(--reviewer); align-self: flex-end; }
+.turn.system { background: transparent; box-shadow: none; border: 1px dashed var(--border); align-self: center; font-style: italic; color: var(--muted); }
+.turn.thinking { opacity: 0.7; }
+.turn.deeper-pending { opacity: 1; display: flex; align-items: flex-start; gap: 0.6rem; border-left: 3px solid #d29922; }
+.deeper-elapsed { color: var(--muted); font-variant-numeric: tabular-nums; }
+.spinner {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.1rem;
+  border: 2px solid color-mix(in srgb, #d29922 25%, transparent);
+  border-top-color: #d29922;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }
+.turn.deeper-error { border-left: 3px solid var(--error); }
+.turn.deeper-error .role { color: var(--error); }
+/* Look deeper: an answer from the reviewer's own coding agent, not the persona —
+   marked off by an accent edge so it never reads as the author talking. */
+.turn.deeper { background: var(--presenter); align-self: flex-start; border-left: 3px solid #d29922; }
+.look-deeper-btn {
+  margin-top: 0.35rem;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+.harness-model-note { display: block; margin-top: 0.4rem; font-size: 0.72rem; color: var(--muted); }
+
+.hunk-divider {
+  align-self: center;
+  margin: 0.3rem 0;
+  padding: 0.2rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: ui-monospace, "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hunk-divider:hover { border-color: var(--accent); color: var(--accent); }
+.turn .role { font-size: 0.7rem; color: var(--muted); margin-bottom: 0.2rem; }
+
+/* Persona replies (narration/reply/explore reply) render from the same
+   sanitised Block payload the markdown-file preview uses (see appendTurn /
+   appendTurnBlocks in app.js and sanitize_persona_reply in
+   app/utils/markdown_speech.py) — a `` `charge` `` in a reply becomes a
+   real inline code span here instead of showing literal backticks.
+   Deliberately NOT the .md-block class the preview uses: that reserves
+   left padding for a block-selection gutter this chat bubble doesn't have.
+   Everything a block's *content* needs (.md-code-block, .md-span.md-code,
+   .md-bold, list markers, ...) is unscoped above and still applies. */
+.turn-block { position: relative; }
+.turn-block:first-child { margin-top: 0; }
+.turn-block.md-code { margin: 0.3rem 0; }
+.turn-block.md-code .md-code-block { margin: 0; }
+.replay-btn {
+  margin-top: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.replay-btn:hover { border-color: var(--accent); color: var(--accent); }
+.speak-turn-btn { margin-right: 0.35rem; display: inline-flex; align-items: center; gap: 0.3rem; }
+/* Lit while this turn's audio is loading or playing (audio.js setTurnAudioState). */
+.speak-turn-btn.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+/* Speech still being generated: the same spinner Look deeper uses, button-sized. */
+.speak-turn-btn.is-loading::after {
+  content: "";
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .speak-turn-btn.is-loading::after { animation-duration: 2.4s; } }
+
+.edit-request-btn, .edit-request-confirm {
+  margin-top: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.edit-request-btn:hover, .edit-request-confirm:hover { border-color: var(--accent); color: var(--accent); }
+/* Remove is destructive, Edit isn't — they used to be visually identical
+   apart from their text. GitHub-convention red for the destructive one. */
+.edit-request-btn[data-action="remove"] { color: var(--error); border-color: color-mix(in srgb, var(--error) 50%, var(--border)); }
+.edit-request-btn[data-action="remove"]:hover { border-color: var(--error); color: var(--error); background: color-mix(in srgb, var(--error) 10%, transparent); }
+.edit-request-textarea {
+  width: 100%;
+  min-height: 3rem;
+  font: inherit;
+  padding: 0.4rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  resize: vertical;
+}
+
+#error-banner {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--error) 15%, var(--bg));
+  color: var(--error);
+  font-size: 0.85rem;
+}
+#error-banner.notice-success {
+  background: color-mix(in srgb, #2ea043 15%, var(--bg));
+  color: #2ea043;
+}
+#error-banner.notice-info {
+  background: color-mix(in srgb, var(--muted) 15%, var(--bg));
+  color: var(--muted);
+}
+.hidden { display: none; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.voice-prefs {
+  margin: 0.5rem 0 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+/* .hidden (defined above) sets display:none, but shares specificity with
+   .voice-prefs's own display:flex above — being later in the cascade,
+   .voice-prefs would otherwise win regardless of .hidden being present.
+   The compound selector here outranks both, same fix .file-pill.active-
+   style overrides rely on elsewhere in this file. */
+.voice-prefs.hidden { display: none; }
+.voice-pref-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+/* .voice-pref-label's own display/align/gap now defined once further
+   down alongside the .icon rules, since it needs to lay out an icon +
+   text consistently — kept the color rule there too rather than split
+   across two places. */
+.voice-pref-group label { display: flex; align-items: center; gap: 0.15rem; cursor: pointer; }
+/* #act-now-btn/#voice-settings-btn's "on" look — same treatment as every
+   other icon-toggle this session (.file-preview-btn.active,
+   #explore-all-files-btn.active, ...): filled/tinted rather than a
+   separate checkbox, since the button itself now carries the state. */
+#act-now-btn.active, #voice-settings-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+}
+#text-input.act-now-active { border-color: var(--accent); }
+
+.marked-lines-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--mark);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  background: color-mix(in srgb, var(--mark) 12%, var(--bg));
+  font-size: 0.78rem;
+  color: var(--fg);
+}
+#marked-lines-text { display: inline-flex; align-items: center; gap: 0.35rem; }
+/* Same fix as .voice-prefs.hidden above and for the same reason: this
+   rule's own display:flex is later in the cascade than the generic
+   .hidden rule and shares its specificity, so .hidden alone would silently
+   lose without this compound override. */
+.marked-lines-chip.hidden { display: none; }
+
+/* In the toolbar, beside End Review: the queued-comment count and the
+   button that turns them into a plan, as one amber chip. */
+.review-queue-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0.2rem 0.15rem 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  font-size: 0.8rem;
+}
+#review-queue-count { display: inline-flex; align-items: center; gap: 0.35rem; }
+/* Same .hidden-specificity fix as .marked-lines-chip.hidden above. */
+.review-queue-row.hidden { display: none; }
+
+.prompt-suggestions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+/* Same .hidden-specificity fix as .marked-lines-chip.hidden/.review-queue-row.hidden
+   above. */
+.prompt-suggestions-row.hidden { display: none; }
+
+.prompt-chip {
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prompt-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+.act-now-confirm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #d29922;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  background: color-mix(in srgb, #d29922 12%, var(--bg));
+  font-size: 0.85rem;
+}
+.act-now-confirm-row div { display: flex; gap: 0.5rem; flex-shrink: 0; }
+/* Same .hidden-specificity fix as the others above. */
+.act-now-confirm-row.hidden { display: none; }
+.marked-lines-chip button {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+/* Inline GitHub-PR-style review comments, anchored to a code line (see
+   buildLineCommentRowHtml/renderComposerHtml/renderQueuedCommentCardHtml
+   in app.js) — replaces the old bottom-of-page "Request Change" checkbox
+   entirely. A full-width row inserted as a sibling right after the line's
+   own row markup, so it reads inline with the diff rather than off to the
+   side. */
+.line-comment-row {
+  white-space: normal;
+  font-family: "Inter", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+}
+/* Composing box (before submit) — same elevated-card recipe as
+   .act-now-confirm-row, amber var(--accent) border since this is a
+   "you're actively taking an action here" surface like Act Now, not a
+   passive marker — contrast .marked-lines-chip's --mark blue. */
+.line-comment-composer {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  background: var(--bg-elevated);
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.line-comment-composer-header {
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.line-comment-composer-actions { display: flex; align-items: center; gap: 0.4rem; justify-content: flex-end; }
+/* Severity <select> (see severitySelectHtml in app.js) — pushed to the far
+   left of the actions row via margin-right: auto so it reads as "set
+   before sending" rather than grouping with the Cancel/Comment buttons
+   on the right. Same border/radius recipe as .line-comment-mic-btn. */
+.line-comment-severity-select,
+.line-comment-edit-severity-select {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font-size: 0.8rem;
+}
+.line-comment-severity-select { margin-right: auto; }
+.line-comment-edit-severity-select { align-self: flex-start; }
+.line-comment-mic-btn {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+.line-comment-mic-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.line-comment-mic-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.line-comment-mic-btn.recording { border-color: var(--error); color: var(--error); }
+
+/* Collapsed state — a small pill sitting right where the composer/card
+   would otherwise be. Colored by severity (see .severity-* below) so a
+   must-fix is visually distinct from a nit without expanding the card;
+   the base var(--accent) here is only the "suggestion"/unset fallback,
+   same accent-not-mark reasoning as .line-comment-composer above (this is
+   a comment thread, not a mark). */
+.line-comment-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+  color: var(--accent);
+}
+.line-comment-badge:hover { box-shadow: var(--shadow-sm); }
+
+/* Severity tags — same must-fix/suggestion/nit vocabulary as server.py's
+   COMMENT_SEVERITIES (no "question" — see that constant's own comment for
+   why), reusing existing theme tokens rather than inventing new colors:
+   --error (must-fix), --accent (suggestion, matches the badge's own
+   default above), --muted (nit — deliberately the least visually loud).
+   Applied both to the small text pill in an expanded card's header
+   (.severity-tag) and to the collapsed badge's border/background/color so
+   severity reads at a glance without expanding anything. */
+.severity-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+.severity-tag.severity-must-fix,
+.line-comment-badge.severity-must-fix { border-color: var(--error); color: var(--error); }
+.severity-tag.severity-must-fix { background: color-mix(in srgb, var(--error) 15%, transparent); }
+.line-comment-badge.severity-must-fix { background: color-mix(in srgb, var(--error) 12%, var(--bg-elevated)); }
+
+.severity-tag.severity-suggestion,
+.line-comment-badge.severity-suggestion { border-color: var(--accent); color: var(--accent); }
+.severity-tag.severity-suggestion { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.line-comment-badge.severity-suggestion { background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated)); }
+
+.severity-tag.severity-nit,
+.line-comment-badge.severity-nit { border-color: var(--muted); color: var(--muted); }
+.severity-tag.severity-nit { background: color-mix(in srgb, var(--muted) 15%, transparent); }
+.line-comment-badge.severity-nit { background: color-mix(in srgb, var(--muted) 12%, var(--bg-elevated)); }
+/* Centered rather than left-aligned — reads as its own marker in the
+   middle of the code window instead of hugging the gutter. The expanded
+   card-body below sets its own width: 100%, so it stays full-width
+   regardless of this alignment; only the small collapsed badge is
+   actually affected. */
+.line-comment-card { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+/* Expanded state — same elevated-card recipe as the composer above. */
+.line-comment-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  width: 100%;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  background: var(--bg-elevated);
+  padding: 0.5rem 0.6rem;
+}
+/* Same .hidden-specificity fix as every other collapsible component this
+   session (.voice-prefs.hidden, .marked-lines-chip.hidden, etc.) —
+   .line-comment-card-body's own display:flex above outranks the generic
+   .hidden rule at equal specificity without this. */
+.line-comment-card-body.hidden { display: none; }
+.line-comment-card-header {
+  font-size: 0.75rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.line-comment-card-body .comment-body { font-size: 0.85rem; }
+
+/* Input box + the mic living inside it (bottom-right corner) — see
+   #text-input and .composer-mic-btn below. position: relative anchors the
+   mic's position: absolute to this wrapper, not the whole composer. */
+.composer-input-wrap {
+  position: relative;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+.composer-mic-btn {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.35rem;
+  padding: 0.3rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+.composer-mic-btn:hover { color: var(--accent); box-shadow: none; }
+/* Everything else — Interrupt/Act Now/Voice settings/Send — underneath
+   the input box, Send pushed to the far right via margin-left: auto
+   below rather than living inside the input row itself. */
+.composer-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.composer-send-btn {
+  margin-left: auto;
+  background: var(--accent);
+  color: #1a1206;
+  border-color: var(--accent);
+}
+.composer-send-btn:hover { box-shadow: var(--shadow-md); }
+
+@media (max-width: 900px) {
+  .layout { flex-direction: column; }
+  /* Code view now renders the *whole* file (not just the hunk), which can
+     be genuinely tall — without a bounded height here it pushes the chat
+     pane's reply controls below the fold, forcing a scroll past the whole
+     file to reach them. Give each pane its own share and let it scroll
+     internally, same as the desktop side-by-side layout already does,
+     instead of letting the page itself grow unbounded. */
+  .code-pane { border-right: none; border-bottom: 1px solid var(--border); flex: 1 1 45%; min-height: 0; }
+  .chat-pane { width: auto; flex: 1 1 55%; min-height: 0; padding: 1rem; }
+  .file-sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 220px; padding: 0.75rem; }
+  .file-list { width: auto; }
+
+  /* Left/right edge tabs don't map onto a vertically stacked layout —
+     there's no horizontal edge left to slide toward. Hide the button
+     itself (rather than its old dedicated .edge-tab-zone wrapper, gone
+     now that it lives inside the panel it toggles — see the shared
+     .edge-tab comment), and force both panels back to their expanded
+     geometry — including the desktop-only lane padding above, which
+     would otherwise reserve dead space here for a button nothing shows —
+     regardless of whatever .collapsed a desktop-width session left in
+     localStorage. With the old always-visible "Files" button gone, a
+     collapsed-by-default file sidebar with no edge tab to reopen it would
+     otherwise be permanently unreachable here. The chat pane already
+     behaved this way (always shown) on mobile before this feature
+     existed. */
+  .edge-tab { display: none; }
+  .file-sidebar.collapsed { width: auto; padding: 0.75rem; }
+  .chat-pane.collapsed { width: auto; padding: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-sidebar, .chat-pane, .edge-tab { transition: none; }
+}
+/* Full width of the composer, growing with content (see the "input"
+   listener in app.js that sets .style.height from .scrollHeight) up to a
+   capped max-height, then scrolling internally rather than growing the
+   whole pane without bound. Right padding clears .composer-mic-btn,
+   which sits inside this box, not beside it. */
+#text-input {
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  max-height: 200px;
+  resize: none;
+  overflow-y: auto;
+  padding: 0.6rem 2.5rem 0.6rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+button {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+button:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+#mic-btn.recording { background: var(--error); color: #fff; }
+button:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+/* Icon sprite instances (see the <symbol> definitions inlined at the top
+   of index.html) — one consistent stroke-based style inheriting
+   currentColor, replacing platform emoji glyphs that carried their own
+   fixed colors and inconsistent rendering across OS/browser. */
+.icon {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-btn .icon { width: 1.1em; height: 1.1em; }
+.voice-pref-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--fg);
+}
+.act-now-confirm-row .act-now-confirm-info {
+  flex-direction: column;
+  align-items: flex-start;
+  flex-shrink: 1;
+  min-width: 0;
+  gap: 0.3rem;
+}
+.act-now-confirm-title { display: inline-flex; align-items: center; gap: 0.4rem; }
+.act-now-summary { color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.act-now-summary:empty, .act-now-files:empty { display: none; }
+.act-now-files { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.act-now-files button {
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+.act-now-files button[aria-pressed="true"] { border-color: #d29922; font-weight: 600; }
+.act-now-refine-input {
+  align-self: stretch;
+  min-width: 12rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.act-now-refine-input:focus { outline: none; border-color: #d29922; }
+.act-now-refine-input:disabled { opacity: 0.6; }
+
+/* --- Markdown preview ---------------------------------------------------
+   A rendered view of a .md file in the code pane (see renderMdPreview in
+   app.js). Two independent signal axes, kept independent on purpose:
+   selection is the --mark 3px left bar — the same vocabulary .mark-range
+   already uses, because "the range I picked" is semantically the same
+   signal here — while "being read aloud" is a background tint in --reading.
+   Different CSS properties, so a selected block that's currently being read
+   shows both at once instead of one overwriting the other. */
+
+/* .view-mode-toggle and .md-preview-bar both set their own display, which
+   ties with .hidden's specificity and wins on source order — so each needs
+   its own compound override, the same trap .voice-prefs/.marked-lines-chip
+   and friends already document above. */
+.view-mode-toggle.hidden { display: none; }
+.md-preview-bar.hidden { display: none; }
+
+.md-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.6rem;
+  /* Pinned with the header by .code-pane-top, so the Stop/Follow controls
+     don't scroll away exactly when a long document needs them most. */
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  background: var(--bg-elevated);
+  font-size: 0.8rem;
+}
+#md-preview-summary { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--muted); }
+.md-preview-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.md-preview-actions button { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+.md-preview-actions button.active { border-color: var(--accent); color: var(--accent); }
+.md-preview-actions button:disabled { opacity: 0.5; cursor: default; }
+.md-preview-actions button.hidden { display: none; }
+
+/* Prose, not code — the preview is the one thing in this pane that isn't
+   source, so it drops #code-view's monospace stack for the UI font. */
+#code-view.md-preview-mode {
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 0.25rem 0.5rem 1rem;
+}
+.md-block {
+  position: relative;
+  /* left pad reserves the select-gutter column (0.35rem inset + 1.1rem
+     wide, see .md-select-gutter) plus a clear gap after it — the gutter
+     used to sit flush at left:0, right against the --mark .md-in-range /
+     .md-selected left edge, so its dot read as fused with that border. */
+  padding: 0.1rem 0 0.1rem 1.75rem;
+  border-radius: var(--radius-sm);
+}
+.md-heading { font-weight: 700; margin: 0.9rem 0 0.2rem; line-height: 1.3; }
+.md-heading.md-level-1 { font-size: 1.45rem; }
+.md-heading.md-level-2 { font-size: 1.2rem; }
+.md-heading.md-level-3 { font-size: 1.05rem; }
+.md-heading.md-level-4, .md-heading.md-level-5, .md-heading.md-level-6 { font-size: 0.95rem; color: var(--muted); }
+.md-paragraph { margin: 0.35rem 0; }
+.md-list-item {
+  margin: 0.1rem 0;
+  /* Wider than .md-block's generic 1.75rem: the bullet below needs its own
+     column past the select-gutter dot (see that rule) rather than sharing
+     space with it. */
+  padding-left: 2.2rem;
+}
+/* Only unordered items get a generated bullet; ordered ones carry the
+   author's own marker as a real element (see appendBlockBody). */
+.md-list-item:not(:has(.md-list-marker))::before {
+  content: "•";
+  color: var(--accent);
+  position: absolute;
+  /* Clear of .md-select-gutter's column (was 0.65rem, which sat inside it —
+     the gutter's hover/selected "●" painted over this bullet, leaving it
+     half hidden). */
+  left: 1.5rem;
+}
+.md-list-marker { color: var(--accent); margin-right: 0.4rem; }
+.md-quote {
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+  font-style: italic;
+  margin: 0.4rem 0;
+  padding-left: 0.8rem;
+  margin-left: 1.4rem;
+  padding-right: 0;
+}
+.md-rule { border-top: 1px solid var(--border); margin: 0.9rem 0; height: 0; padding: 0; }
+.md-code-block {
+  font-family: ui-monospace, "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.6rem 0.8rem;
+  margin: 0.4rem 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+/* A real bordered table, not columns of text: gap is 0 because a gap breaks
+   the cell borders into disconnected segments, so the separation comes from
+   the cells' own padding instead. max-content keeps a two-column table from
+   stretching across the pane. */
+.md-table {
+  display: grid;
+  gap: 0;
+  margin: 0.5rem 0 0.5rem 1.4rem;
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  /* Clips the cell borders to the rounded corners. */
+  overflow: hidden;
+}
+/* Rows are display: contents so their cells land in the wrapper's grid
+   tracks — which is also why every border below lives on the cell, not the
+   row: a contents box paints nothing of its own. */
+.md-table .md-block { display: contents; }
+.md-cell {
+  padding: 0.3rem 0.6rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  /* A long path in a cell (.context/project_overview.{json,md}) wraps rather
+     than pushing its column past the wrapper's clipped edge. */
+  overflow-wrap: anywhere;
+}
+/* The outer edges are the wrapper's border; without these the last column
+   and last row draw a second line against it. The row's last child is its
+   last cell — the select gutter is appended before them (see
+   renderMdPreview). */
+.md-table .md-block .md-cell:last-child { border-right: none; }
+.md-table .md-block:last-child .md-cell { border-bottom: none; }
+.md-table-row.md-header-row .md-cell { font-weight: 600; background: var(--bg-elevated); }
+
+.md-bold { font-weight: 700; }
+.md-italic { font-style: italic; }
+.md-strike { text-decoration: line-through; color: var(--muted); }
+/* Inline `code` inside prose — distinct from .md-code-block, which is the
+   fenced-block <pre>. */
+.md-span.md-code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.85em;
+  background: color-mix(in srgb, var(--muted) 12%, var(--bg));
+  border-radius: var(--radius-sm);
+  padding: 0 0.25em;
+}
+/* Styled as a link but deliberately not one — the URL is a tooltip, never
+   an href, so a document can't navigate the reviewer away mid-review. */
+.md-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: help; }
+
+/* Mirrors .mark-gutter exactly, including the hover/focus reveal, so block
+   selection has the same affordance (and the same keyboard route) as line
+   marking. */
+.md-select-gutter {
+  position: absolute;
+  /* Inset from the block's own left edge, not flush against it — that edge
+     is where .md-in-range/.md-selected draw their --mark left border, and a
+     flush-left dot read as fused with it. */
+  left: 0.35rem;
+  top: 0.15rem;
+  appearance: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 1.1rem;
+  font: inherit;
+  text-align: center;
+  user-select: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.md-block:hover .md-select-gutter,
+.md-select-gutter:focus-visible { opacity: 0.5; }
+.md-select-gutter.selected { opacity: 1; color: var(--mark); }
+
+.md-block.md-in-range { box-shadow: inset 3px 0 0 var(--mark); }
+.md-block.md-in-chunk { background: color-mix(in srgb, var(--reading) 8%, var(--bg)); }
+.md-block.md-reading { background: color-mix(in srgb, var(--reading) 22%, var(--bg)); }
+/* The sentence of a chat reply being read aloud (audio.js). A named
+   highlight, not a class — only color properties apply to ::highlight. */
+::highlight(tts-reading) { background-color: color-mix(in srgb, var(--reading) 30%, transparent); }
+
+/* --- Guided tour --------------------------------------------------------
+   See app.js's "Guided tour" block. One highlight box + one card, reused
+   across every step rather than rebuilt — JS moves them per step. */
+
+#tour-btn { padding: 0.3rem 0.5rem; line-height: 1; }
+
+.tour-highlight {
+  position: fixed;
+  z-index: 1000;
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  /* The whole trick: a huge spread on an otherwise-invisible shadow paints
+     everything OUTSIDE this box's own rect, so the box itself is the one
+     part of the screen left undimmed — no separate backdrop element, and
+     nothing can ever render on top of the dimmed layer by accident. */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55), 0 0 0 2px var(--accent);
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+/* The intro/outro steps have no target — a full-viewport, zero-size box at
+   the top-left still paints the same dimming shadow with nothing carved
+   out of it, which is exactly the plain "dim everything" look those two
+   steps want. */
+.tour-highlight.tour-no-target { border-radius: 0; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55); }
+
+.tour-card {
+  position: fixed;
+  z-index: 1001;
+  width: min(22rem, calc(100vw - 2rem));
+  background: var(--bg-elevated);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 1rem 1.1rem;
+  transition: top 0.2s ease, left 0.2s ease;
+}
+.tour-card h2 { margin: 0 0 0.4rem; font-size: 1rem; }
+.tour-card p { margin: 0 0 0.9rem; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+.tour-card-progress {
+  font-family: ui-monospace, "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.tour-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.tour-card-actions-left { display: flex; align-items: center; gap: 0.6rem; }
+.tour-skip-btn { background: transparent; border: none; color: var(--muted); font-size: 0.8rem; padding: 0.2rem 0; cursor: pointer; }
+.tour-skip-btn:hover { color: var(--fg); text-decoration: underline; }
+.tour-speak-btn { padding: 0.25rem 0.4rem; line-height: 1; }
+.tour-speak-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.tour-card-nav { display: flex; gap: 0.4rem; }
+#tour-back-btn:disabled { opacity: 0.4; cursor: default; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-highlight, .tour-card { transition: none; }
+}
+
+/* Create plan dialog (static/js/handoff.js). A native <dialog>, so focus
+   trapping, Escape and the backdrop come from the browser. */
+.handoff-dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  padding: 1rem 1.2rem;
+  background: var(--bg-elevated);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.handoff-dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+.handoff-dialog h2 { margin: 0 0 0.4rem; font-size: 1rem; }
+.handoff-intro { margin: 0 0 0.9rem; color: var(--muted); font-size: 0.88rem; line-height: 1.5; }
+.handoff-label { display: block; font-size: 0.85rem; margin-bottom: 0.3rem; }
+.handoff-optional, .handoff-hint { color: var(--muted); font-size: 0.8rem; }
+.handoff-dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.85rem;
+  resize: vertical;
+}
+.handoff-choice {
+  margin: 0.9rem 0 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.handoff-choice legend { padding: 0 0.3rem; font-size: 0.8rem; color: var(--muted); }
+.handoff-choice label { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; cursor: pointer; }
+.handoff-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+.handoff-actions button.hidden { display: none; }
+.handoff-create {
+  background: var(--accent);
+  color: #1a1206;
+  border-color: var(--accent);
+  font-weight: 600;
+}

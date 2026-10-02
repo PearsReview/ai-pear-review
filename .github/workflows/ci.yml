@@ -1,0 +1,120 @@
+# Runs the hermetic unit suite on every pull request and on pushes to the
+# default branch.
+#
+# Deliberately NOT qa_agent/: that suite drives a real browser against a
+# real `python run.py` subprocess, and its narration assertions need a local
+# Ollama model that a hosted runner does not have. Running it here would buy
+# flake, not coverage. If it ever runs in CI it belongs in its own
+# non-blocking workflow.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch makes the previous run's answer
+# irrelevant, so don't pay for it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Nothing here writes to the repository.
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Every leg always reports. The 3.10 leg exists to find out whether
+      # pyproject's floor is real, and a fail-fast cancel would hide that
+      # behind an unrelated failure on another leg.
+      fail-fast: false
+      matrix:
+        # Windows as well as Linux: the app shells out to git and copies
+        # files between paths, which is exactly where the two differ, and
+        # it is developed on Windows while its users may be on either.
+        os: [ubuntu-latest, windows-latest]
+        # 3.10 is the floor pyproject.toml declares; 3.13 is what the app is
+        # developed against. Nothing between them is claimed, so nothing
+        # between them is tested.
+        python-version: ["3.10", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        # Both files, not just requirements.txt: installing the dev set is
+        # also the only check that it still resolves.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run the unit suite
+        # tests/ is hermetic by design - no server, no browser, no model -
+        # and tests/conftest.py's collect_ignore keeps tests/live_llm/ (real
+        # Ollama calls against an external repo) out of this run.
+        run: pytest tests/ -q
+
+  lint:
+    # Its own job, not a step on each matrix leg: the ruleset and its
+    # target-version are pinned in pyproject.toml, so the answer cannot
+    # differ per interpreter and running it twice would just cost minutes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install ruff
+        # Only ruff: linting needs neither the app's dependencies nor
+        # Playwright, and installing them would triple this job's runtime.
+        run: pip install "$(grep -E '^ruff' requirements-dev.txt)"
+
+      - name: Lint
+        run: ruff check --output-format=github .
+
+      - name: Check formatting
+        # Blocking: the repo is formatted, so any diff here is a change that
+        # skipped `ruff format .` - see docs/STYLE.md 4.1.
+        run: ruff format --check --diff .
+
+  types:
+    # Separate from `lint` because this one needs the app's real dependencies
+    # installed. mypy is configured with ignore_missing_imports, so without
+    # them `anthropic` and `requests` would resolve to Any and the check would
+    # pass while verifying nothing - which is worse than not running it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt "$(grep -E '^mypy' requirements-dev.txt)"
+
+      - name: Type-check
+        # Scope and settings come from pyproject.toml's [tool.mypy].
+        run: mypy
