@@ -4,6 +4,7 @@ import { PythonBackend } from "./backend/backend.ts";
 import { output } from "./log.ts";
 import * as chatPanel from "./ui/chatPanel.ts";
 import * as commands from "./ui/commands.ts";
+import * as comments from "./ui/comments.ts";
 import * as diffView from "./ui/diffView.ts";
 import * as hunkTree from "./ui/hunkTree.ts";
 import * as selectionContext from "./ui/selection.ts";
@@ -18,11 +19,13 @@ export function activate(context: vscode.ExtensionContext): void {
   backend = new PythonBackend(context.extensionPath, context.secrets);
   const selection = selectionContext.register(backend);
   const recorder = voice.register(backend, selection.selection);
+  const review = comments.register(backend, selection.selection);
   context.subscriptions.push(
     output,
     backend,
     ...statusBar.register(backend),
-    ...hunkTree.register(backend),
+    ...review.disposables,
+    ...hunkTree.register(backend, review.comments),
     ...diffView.register(backend),
     ...selection.disposables,
     ...recorder.disposables,

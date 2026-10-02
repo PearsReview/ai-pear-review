@@ -31,8 +31,8 @@ export interface ClientPayloads {
   toggle_reviewed_all: Empty;
   refresh_diff: Empty;
   reply: Voiced & { marked_lines?: MarkedLine[] };
-  request_change: Voiced & { marked_lines?: MarkedLine[]; severity?: string };
-  edit_change_request: { id: number; instruction: string; severity?: string };
+  request_change: Voiced & { marked_lines?: MarkedLine[]; severity?: Severity };
+  edit_change_request: { id: number; instruction: string; severity?: Severity };
   remove_review_comment: { id: number };
   finish_review: { note?: string; as_skill?: boolean };
   act_now: Voiced & { marked_lines?: MarkedLine[] };
@@ -128,6 +128,37 @@ export interface DeeperTurn extends Turn {
   model?: string | null;
 }
 
+// comments.py's COMMENT_SEVERITIES.
+export type Severity = "must-fix" | "suggestion" | "nit";
+
+// Where a queued comment sits (web/context.py's line_context); null when it covers a
+// whole hunk rather than marked lines.
+export interface CommentAnchor {
+  first_old_lineno: number | null;
+  first_new_lineno: number | null;
+  last_old_lineno: number | null;
+  last_new_lineno: number | null;
+}
+
+export interface ReviewComment {
+  id: number;
+  file_path: string;
+  where: string;
+  instruction: string;
+  severity: Severity;
+  anchor: CommentAnchor | null;
+}
+
+export interface ReviewFinished {
+  plan_path: string;
+  plan_file: string;
+  as_skill: boolean;
+  skill_written: boolean;
+  skill_note: string | null;
+  instruction_line: string;
+  comment_count: number;
+}
+
 export interface ActNowStatus {
   available: boolean;
   detail: string;
@@ -188,11 +219,11 @@ export interface ServerPayloads {
   file_explore: Unknown;
   definition: Unknown;
   review_progress: ReviewProgress;
-  review_comments_sync: Unknown;
-  review_comment_queued: Unknown;
-  review_comment_updated: Unknown;
-  review_comment_removed: Unknown;
-  review_finished: Unknown;
+  review_comments_sync: { comments: ReviewComment[] };
+  review_comment_queued: ReviewComment & { pending_count: number };
+  review_comment_updated: { id: number; instruction: string; severity: Severity };
+  review_comment_removed: { id: number; pending_count: number };
+  review_finished: ReviewFinished;
   act_now_preview: Unknown;
   act_now_cleared: Unknown;
   agent_stopped: { kind: string; message: string };

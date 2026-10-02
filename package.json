@@ -83,6 +83,60 @@
         "title": "Interrupt",
         "category": "Pear Review",
         "icon": "$(debug-stop)"
+      },
+      {
+        "command": "pearReview.createPlan",
+        "title": "Create Plan from Comments",
+        "category": "Pear Review",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "pearReview.endReview",
+        "title": "End Review",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.mustFix",
+        "title": "Must fix",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.suggestion",
+        "title": "Suggestion",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.nit",
+        "title": "Nit",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.edit",
+        "title": "Edit",
+        "category": "Pear Review",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "pearReview.comment.severity",
+        "title": "Change Severity",
+        "category": "Pear Review",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "pearReview.comment.delete",
+        "title": "Delete",
+        "category": "Pear Review",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "pearReview.comment.save",
+        "title": "Save",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.cancel",
+        "title": "Cancel",
+        "category": "Pear Review"
       }
     ],
     "keybindings": [
@@ -146,6 +200,16 @@
           "command": "pearReview.refresh",
           "when": "view == pearReview.hunks",
           "group": "navigation@3"
+        },
+        {
+          "command": "pearReview.createPlan",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@4"
+        },
+        {
+          "command": "pearReview.endReview",
+          "when": "view == pearReview.hunks",
+          "group": "review@1"
         }
       ],
       "view/item/context": [
@@ -159,6 +223,84 @@
         {
           "command": "pearReview.jumpToHunk",
           "when": "false"
+        },
+        {
+          "command": "pearReview.comment.mustFix",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.suggestion",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.nit",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.edit",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.severity",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.delete",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.save",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.cancel",
+          "when": "false"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "pearReview.comment.mustFix",
+          "when": "commentController == pearReview && commentThreadIsEmpty",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.comment.suggestion",
+          "when": "commentController == pearReview && commentThreadIsEmpty",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.comment.nit",
+          "when": "commentController == pearReview && commentThreadIsEmpty",
+          "group": "inline@3"
+        }
+      ],
+      "comments/comment/title": [
+        {
+          "command": "pearReview.comment.edit",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.comment.severity",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.comment.delete",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@3"
+        }
+      ],
+      "comments/comment/context": [
+        {
+          "command": "pearReview.comment.cancel",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.comment.save",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@2"
         }
       ]
     }

@@ -4,12 +4,13 @@ import * as vscode from "vscode";
 import type { Backend } from "../backend/backend.ts";
 import type { ProgressFile, ProgressHunk, ReviewProgress } from "../backend/protocol.ts";
 import { hunkLabel } from "../review/hunks.ts";
+import type { Comments } from "./comments.ts";
 
 type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: ProgressHunk; file: ProgressFile };
 
 // Files → hunks, from review_progress (which the backend resends on every move and
 // every reviewed toggle), with the hunk on screen marked and revealed.
-export function register(backend: Backend): vscode.Disposable[] {
+export function register(backend: Backend, comments: Comments): vscode.Disposable[] {
   const provider = new HunkTreeProvider(() => backend.repoPath);
   const view = vscode.window.createTreeView("pearReview.hunks", { treeDataProvider: provider });
 
@@ -20,12 +21,21 @@ export function register(backend: Backend): vscode.Disposable[] {
     if (node && view.visible) void view.reveal(node, { select: true, focus: false });
   };
 
+  let progress: ReviewProgress | undefined;
+  const describe = (): void => {
+    const parts = progress?.total ? [`${progress.reviewed_count}/${progress.total} reviewed`] : [];
+    if (comments.count) parts.push(`${comments.count} comment${comments.count === 1 ? "" : "s"}`);
+    view.description = parts.join(" · ") || undefined;
+  };
+
   return [
     view,
     provider,
-    backend.on("review_progress", (progress) => {
-      provider.setProgress(progress);
-      view.description = progress.total ? `${progress.reviewed_count}/${progress.total} reviewed` : undefined;
+    comments.onDidChangeCount(describe),
+    backend.on("review_progress", (p) => {
+      progress = p;
+      provider.setProgress(p);
+      describe();
       revealCurrent();
     }),
     backend.on("presenting", (p) => {
@@ -34,8 +44,9 @@ export function register(backend: Backend): vscode.Disposable[] {
     }),
     backend.onStateChange((state) => {
       if (state === "stopped" || state === "error") {
+        progress = undefined;
         provider.setProgress(undefined);
-        view.description = undefined;
+        describe();
       }
     }),
   ];

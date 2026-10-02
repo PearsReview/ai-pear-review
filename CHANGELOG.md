@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Review comments as native comment threads (Must fix / Suggestion / Nit),
+  editable until Create Plan, on either side of the diff; Create Plan writes
+  the hand-off document and optional /apply-review skill. End Review.
 - Chat: markdown replies, hunk dividers you can click back to, related-change
   links, Look deeper with an elapsed timer, read-aloud per reply, Interrupt,
   and the editor selection (either diff side) sent as a question's context.

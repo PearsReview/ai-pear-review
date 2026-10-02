@@ -1,8 +1,8 @@
-import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
 import type { DiffLine, MarkedLine } from "../backend/protocol.ts";
+import { reviewLocation } from "../git.ts";
 import { markedLines, selectionLabel, type Selection } from "../review/markedLines.ts";
 
 export interface SelectionContext {
@@ -11,6 +11,8 @@ export interface SelectionContext {
   readonly onDidChange: vscode.Event<string | undefined>;
   // The selection as marked_lines, for the next reply.
   markedLines(): MarkedLine[] | undefined;
+  // Any range of a review document as marked_lines (a comment thread's lines).
+  markedLinesAt(sel: Selection, document: vscode.TextDocument): MarkedLine[];
   clear(): void;
 }
 
@@ -36,10 +38,13 @@ export function register(backend: Backend): { selection: SelectionContext; dispo
     },
     onDidChange: changes.event,
     markedLines() {
-      if (!current) return undefined;
-      const { sel, editor } = current;
+      return current && selection.markedLinesAt(current.sel, current.editor.document);
+    },
+    markedLinesAt(sel, document) {
+      // Only the file on screen has its diff here; any other file's lines are context.
       const fullLines = presented?.filePath === sel.filePath ? presented.fullLines : undefined;
-      return markedLines(sel, (n) => editor.document.lineAt(n - 1).text, fullLines);
+      const lineText = (n: number): string => (n - 1 < document.lineCount ? document.lineAt(n - 1).text : "");
+      return markedLines(sel, lineText, fullLines);
     },
     clear() {
       if (!current) return;
@@ -65,15 +70,13 @@ export function register(backend: Backend): { selection: SelectionContext; dispo
 function toSelection(editor: vscode.TextEditor, repoRoot: string): Selection | undefined {
   const { selection, document } = editor;
   if (selection.isEmpty) return undefined;
-  // The git extension's HEAD side (toGitUri) keeps the file's own path.
-  const side = document.uri.scheme === "file" ? "new" : document.uri.scheme === "git" ? "old" : undefined;
-  if (!side) return undefined;
-  const relative = path.relative(repoRoot, document.uri.fsPath);
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
-  // A selection ending at column 0 of a line doesn't include that line.
-  const endLine =
-    selection.end.character === 0 && selection.end.line > selection.start.line
-      ? selection.end.line
-      : selection.end.line + 1;
-  return { filePath: relative.split(path.sep).join("/"), side, startLine: selection.start.line + 1, endLine };
+  const location = reviewLocation(document.uri, repoRoot);
+  if (!location) return undefined;
+  return { ...location, ...lineSpan(selection) };
+}
+
+// 1-based inclusive lines of a range. One ending at column 0 doesn't include that line.
+export function lineSpan(range: vscode.Range): { startLine: number; endLine: number } {
+  const endLine = range.end.character === 0 && range.end.line > range.start.line ? range.end.line : range.end.line + 1;
+  return { startLine: range.start.line + 1, endLine };
 }

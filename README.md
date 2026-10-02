@@ -2,9 +2,9 @@
 
 > **Early development (0.0.x).** Working so far: the Changes tree, the
 > native diff with the current change highlighted, Next/Prev, marking changes
-> reviewed, and the chat: explanations, replies by text or voice, Look
-> deeper, and selected lines as context. Inline comments, the review plan and
-> Act Now come next.
+> reviewed, the chat (explanations, replies by text or voice, Look deeper,
+> selected lines as context), inline review comments and Create Plan. Act Now
+> comes next.
 
 A VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
 It walks you through your uncommitted git changes one hunk at a time, with an AI
@@ -40,6 +40,13 @@ still works on its own.
 6. **Look deeper** under a reply has your coding agent (Cline) read the
    repository for a more thorough, read-only answer. 🔊 reads a reply aloud,
    and **Interrupt** stops whatever the reviewer is doing.
+7. To leave a comment for your coding agent, hover the diff's gutter and press
+   **+** (drag over several lines first to comment on all of them). Type what
+   should change and press **Must fix**, **Suggestion** or **Nit**. Comments
+   can be edited, re-tagged or deleted until you create the plan.
+8. **Create Plan** (the checklist button on the Changes view) writes all
+   comments to `.review/review_<time>.md`, optionally as an `/apply-review`
+   skill too, and gives you the line to hand your coding agent.
 
 To use the Anthropic API instead of a local model, run **Pear Review: Set
 Anthropic API Key**. The key is kept in VS Code's secret storage and passed
