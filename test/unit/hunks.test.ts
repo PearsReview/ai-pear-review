@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { DiffLine } from "../../src/backend/protocol.ts";
-import { fileChange, hunkHighlight, hunkLabel, parseHeader } from "../../src/review/hunks.ts";
+import { fileChange, hunkHighlight, hunkLabel, parseHeader, sidesOf } from "../../src/review/hunks.ts";
 
 const ctx = (o: number, n: number): DiffLine => ({ kind: "context", old_lineno: o, new_lineno: n, text: "" });
 const add = (n: number): DiffLine => ({ kind: "add", old_lineno: null, new_lineno: n, text: "" });
@@ -38,4 +38,15 @@ void test("a removal-only hunk is highlighted in HEAD", () => {
   const full = [ctx(1, 1), del(2), del(3), ctx(4, 2)];
   assert.deepEqual(hunkHighlight(full, 1, 2), { side: "old", lines: [2, 3] });
   assert.equal(hunkHighlight(full, 0, 0), undefined);
+});
+
+void test("sidesOf splits a whole-file diff into its before and after text", () => {
+  const full: DiffLine[] = [
+    { kind: "context", old_lineno: 1, new_lineno: 1, text: "a" },
+    { kind: "del", old_lineno: 2, new_lineno: null, text: "b" },
+    { kind: "add", old_lineno: null, new_lineno: 2, text: "B" },
+    { kind: "context", old_lineno: 3, new_lineno: 3, text: "c" },
+  ];
+  assert.deepEqual(sidesOf(full), { before: "a\nb\nc", after: "a\nB\nc" });
+  assert.deepEqual(sidesOf([]), { before: "", after: "" });
 });

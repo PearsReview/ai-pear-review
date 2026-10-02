@@ -18,7 +18,15 @@ export interface Backend {
   send<T extends ClientMessageType>(type: T, payload: ClientPayloads[T]): void;
   on<T extends ServerMessageType>(type: T, listener: (payload: ServerPayloads[T]) => void): vscode.Disposable;
   onStateChange(listener: (state: BackendState) => void): vscode.Disposable;
+  // The next message of a type, for request/reply pairs like get_settings → settings.
+  next<T extends ServerMessageType>(type: T, timeoutMs?: number): Promise<ServerPayloads[T]>;
+  // A fresh connection to the running backend: a new session, which is what picks up
+  // conversation settings (they apply per connection). Review state is persisted
+  // server-side, so the review resumes where it was.
+  reconnect(): Promise<void>;
 }
+
+const NEXT_TIMEOUT_MS = 15_000;
 
 // A dropped socket with the process still alive is retried once; anything worse is
 // an error state the user restarts from.
@@ -103,6 +111,29 @@ export class PythonBackend implements Backend, vscode.Disposable {
 
   onStateChange(listener: (state: BackendState) => void): vscode.Disposable {
     return this.states.event(listener);
+  }
+
+  next<T extends ServerMessageType>(type: T, timeoutMs = NEXT_TIMEOUT_MS): Promise<ServerPayloads[T]> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        subscription.dispose();
+        reject(new Error(`No "${type}" reply from the backend within ${timeoutMs / 1000}s.`));
+      }, timeoutMs);
+      const subscription = this.on(type, (payload) => {
+        clearTimeout(timer);
+        subscription.dispose();
+        resolve(payload);
+      });
+    });
+  }
+
+  async reconnect(): Promise<void> {
+    if (!this.process || !this.port) throw new Error("The review backend isn't running.");
+    const old = this.client;
+    // Cleared first, so the old socket's close isn't taken for a dropped connection.
+    this.client = undefined;
+    old?.close();
+    await this.connect();
   }
 
   dispose(): void {

@@ -339,3 +339,40 @@ button.speak.loading {
     animation: none;
   }
 }
+
+/* --- Act Now ---------------------------------------------------------------- */
+
+#act.active {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+
+.turn.proposal {
+  border-left: 3px solid var(--vscode-charts-blue);
+  background: var(--vscode-editor-background);
+}
+
+.turn.proposal.applied {
+  border-left-color: var(--vscode-testing-iconPassed);
+}
+
+.proposal-files {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 4px;
+  font-family: var(--vscode-editor-font-family);
+}
+
+.turn.proposal .turn-actions {
+  flex-wrap: wrap;
+}
+
+input.refine {
+  flex: 1;
+  min-width: 8em;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  font: inherit;
+}

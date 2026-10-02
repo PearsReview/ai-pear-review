@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Act Now: act mode in the chat (typed or voice, with selected lines), the
+  proposal as read-only diffs with Apply / Refine / Discard in the chat card
+  and the diff's title bar. Choose Coding Agent and Choose Reviewer Model,
+  saved per repo like the web app's settings panel.
 - Review comments as native comment threads (Must fix / Suggestion / Nit),
   editable until Create Plan, on either side of the diff; Create Plan writes
   the hand-off document and optional /apply-review skill. End Review.

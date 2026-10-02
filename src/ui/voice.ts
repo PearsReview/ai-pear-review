@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
 import { log, showError } from "../log.ts";
+import type { ActNow } from "./actNow.ts";
 import type { SelectionContext } from "./selection.ts";
 
 export interface Voice {
@@ -12,10 +13,12 @@ export interface Voice {
 
 // Press-to-start / press-to-stop: VS Code has no key-up event, so a held key can't
 // be push-to-talk. The server records (webviews can't open the microphone) and hands
-// the clip back; it goes out as an ordinary voiced `reply`, as the browser's does.
+// the clip back; it goes out as an ordinary voiced `reply` (or `act_now` in act mode),
+// as the browser's does.
 export function register(
   backend: Backend,
   selection: SelectionContext,
+  actNow: ActNow,
 ): { voice: Voice; disposables: vscode.Disposable[] } {
   let recording = false;
   const changes = new vscode.EventEmitter<boolean>();
@@ -58,10 +61,12 @@ export function register(
         setRecording(value);
       }),
       backend.on("recording_result", ({ audio_base64, duration_seconds }) => {
-        log(`Voice: got ${duration_seconds}s of audio, sending it as a reply`);
+        const target = actNow.active ? "an Act Now instruction" : "a reply";
+        log(`Voice: got ${duration_seconds}s of audio, sending it as ${target}`);
         try {
           const marked_lines = selection.markedLines();
-          backend.send("reply", marked_lines ? { audio_base64, marked_lines } : { audio_base64 });
+          if (actNow.active) actNow.request({ audio_base64 }, marked_lines);
+          else backend.send("reply", marked_lines ? { audio_base64, marked_lines } : { audio_base64 });
           selection.clear();
         } catch (err) {
           showError(err instanceof Error ? err.message : String(err));

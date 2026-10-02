@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import type { Backend, BackendState } from "../backend/backend.ts";
 import type { ServerMessage } from "../backend/protocol.ts";
 import { showError } from "../log.ts";
+import type { ActNow } from "./actNow.ts";
 import type { SelectionContext } from "./selection.ts";
 import type { Voice } from "./voice.ts";
 
@@ -12,7 +13,10 @@ type ToWebview =
   | { kind: "server"; message: ServerMessage }
   | { kind: "backend"; state: BackendState }
   | { kind: "recording"; recording: boolean }
-  | { kind: "context"; label: string | null };
+  | { kind: "context"; label: string | null }
+  | { kind: "actMode"; on: boolean }
+  // An Act Now proposal, without its diffs (those open as editor tabs).
+  | { kind: "proposal"; agent: string; summary: string; files: { file_path: string; status: string }[] };
 
 // Webview → extension. Validated in parseFromWebview: the webview is a separate
 // context, so its messages are checked like any other input.
@@ -23,6 +27,11 @@ type FromWebview =
   | { kind: "lookDeeper"; index: number; question?: string }
   | { kind: "jump"; index: number }
   | { kind: "clearContext" }
+  | { kind: "actNow"; text: string }
+  | { kind: "setActMode"; on: boolean }
+  | { kind: "proposal"; action: "apply" | "discard" }
+  | { kind: "proposal"; action: "refine"; text: string }
+  | { kind: "proposal"; action: "open"; file_path: string }
   | { kind: "command"; command: ChatCommand };
 
 const COMMANDS = ["explain", "next", "prev", "startReview", "toggleRecording", "interrupt"] as const;
@@ -36,6 +45,7 @@ const FORWARDED = new Set<ServerMessage["type"]>([
   "reviewer_turn",
   "deeper_turn",
   "agent_stopped",
+  "act_now_cleared",
   "audio_chunk",
   "turn_audio_chunk",
   "service_status",
@@ -49,8 +59,9 @@ export function register(
   backend: Backend,
   voice: Voice,
   selection: SelectionContext,
+  actNow: ActNow,
 ): vscode.Disposable[] {
-  const provider = new ChatViewProvider(context.extensionUri, backend, voice, selection);
+  const provider = new ChatViewProvider(context.extensionUri, backend, voice, selection, actNow);
   return [
     vscode.window.registerWebviewViewProvider("pearReview.chat", provider, {
       // Keeps the transcript when the view is hidden; it lives only in the webview.
@@ -69,8 +80,18 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     private readonly backend: Backend,
     voice: Voice,
     private readonly selection: SelectionContext,
+    private readonly actNow: ActNow,
   ) {
     this.subscriptions.push(
+      actNow.onDidChangeActive((on) => this.post({ kind: "actMode", on })),
+      backend.on("act_now_preview", (p) =>
+        this.post({
+          kind: "proposal",
+          agent: p.agent,
+          summary: p.summary,
+          files: p.files.map((f) => ({ file_path: f.file_path, status: f.status })),
+        }),
+      ),
       backend.onStateChange((state) => this.post({ kind: "backend", state })),
       voice.onDidChange((recording) => this.post({ kind: "recording", recording })),
       selection.onDidChange((label) => this.post({ kind: "context", label: label ?? null })),
@@ -107,6 +128,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
         case "ready":
           this.post({ kind: "backend", state: this.backend.state });
           this.post({ kind: "context", label: this.selection.label ?? null });
+          this.post({ kind: "actMode", on: this.actNow.active });
           return;
         case "send": {
           const marked_lines = this.selection.markedLines();
@@ -129,6 +151,22 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
           return;
         case "clearContext":
           this.selection.clear();
+          return;
+        case "actNow":
+          this.actNow.request({ text: message.text }, this.selection.markedLines());
+          this.selection.clear();
+          return;
+        case "setActMode":
+          this.actNow.setActive(message.on);
+          return;
+        case "proposal":
+          if (message.action === "open") {
+            void vscode.commands.executeCommand("pearReview.actNow.openFile", message.file_path);
+          } else if (message.action === "refine") {
+            void vscode.commands.executeCommand("pearReview.actNow.refine", message.text);
+          } else {
+            void vscode.commands.executeCommand(`pearReview.actNow.${message.action}`);
+          }
           return;
         case "command":
           void vscode.commands.executeCommand(`pearReview.${message.command}`);
@@ -177,6 +215,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     <button id="context-clear" class="icon" title="Don't send this selection" aria-label="Don't send this selection">×</button>
   </div>
   <form id="composer">
+    <button type="button" id="act" class="secondary" aria-pressed="false">Act Now</button>
     <button type="button" id="mic" data-command="toggleRecording" title="Push to talk (Ctrl+Alt+Space)">Mic</button>
     <textarea id="input" rows="2" placeholder="Ask about this change… (select lines in the editor to ask about them)"></textarea>
     <button type="submit" id="send">Send</button>
@@ -199,7 +238,17 @@ function parseFromWebview(raw: unknown): FromWebview | undefined {
       return { kind: m.kind };
     case "send":
     case "speak":
+    case "actNow":
       return text ? { kind: m.kind, text } : undefined;
+    case "setActMode":
+      return typeof m.on === "boolean" ? { kind: "setActMode", on: m.on } : undefined;
+    case "proposal":
+      if (m.action === "apply" || m.action === "discard") return { kind: "proposal", action: m.action };
+      if (m.action === "refine") return text ? { kind: "proposal", action: "refine", text } : undefined;
+      if (m.action === "open" && typeof m.file_path === "string") {
+        return { kind: "proposal", action: "open", file_path: m.file_path };
+      }
+      return undefined;
     case "jump":
       return index === undefined ? undefined : { kind: "jump", index };
     case "lookDeeper": {

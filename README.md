@@ -1,10 +1,8 @@
 # AI Pear Review for VS Code
 
-> **Early development (0.0.x).** Working so far: the Changes tree, the
-> native diff with the current change highlighted, Next/Prev, marking changes
-> reviewed, the chat (explanations, replies by text or voice, Look deeper,
-> selected lines as context), inline review comments and Create Plan. Act Now
-> comes next.
+> **Early development (0.0.x).** The review loop works end to end: the
+> Changes tree, the native diff, the chat with voice, Look deeper, inline
+> comments, Create Plan and Act Now. Packaging comes next.
 
 A VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
 It walks you through your uncommitted git changes one hunk at a time, with an AI
@@ -44,9 +42,24 @@ still works on its own.
    **+** (drag over several lines first to comment on all of them). Type what
    should change and press **Must fix**, **Suggestion** or **Nit**. Comments
    can be edited, re-tagged or deleted until you create the plan.
-8. **Create Plan** (the checklist button on the Changes view) writes all
+8. **Act Now**: press **Act Now** next to the message box, then type or say
+   what to change (selected lines go with it). Your coding agent works in a
+   copy of the repo and proposes the change; each file opens as a diff.
+   **Apply** writes it, **Refine** asks for changes to the proposal, and
+   **Discard** drops it. Nothing touches your files until you apply.
+9. **Create Plan** (the checklist button on the Changes view) writes all
    comments to `.review/review_<time>.md`, optionally as an `/apply-review`
    skill too, and gives you the line to hand your coding agent.
+
+**Settings** (in the Changes view's "…" menu, or the Command Palette):
+
+- **Pear Review: Choose Coding Agent**: Cline, or none. Act Now and Look
+  deeper need one. The agent uses the model you set up in Cline itself
+  (`cline auth`), which may be a paid API.
+- **Pear Review: Choose Reviewer Model**: the provider and model that
+  narrates and replies. Takes effect straight away.
+
+Both are saved per repository, in the same place the web app keeps them.
 
 To use the Anthropic API instead of a local model, run **Pear Review: Set
 Anthropic API Key**. The key is kept in VS Code's secret storage and passed

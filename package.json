@@ -137,6 +137,47 @@
         "command": "pearReview.comment.cancel",
         "title": "Cancel",
         "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.chooseAgent",
+        "title": "Choose Coding Agent (Act Now, Look Deeper)",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.chooseModel",
+        "title": "Choose Reviewer Model",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.actNow.toggle",
+        "title": "Act Now: Toggle Act Mode",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.actNow.apply",
+        "title": "Act Now: Apply Proposal",
+        "category": "Pear Review",
+        "icon": "$(check)",
+        "enablement": "pearReview.hasProposal"
+      },
+      {
+        "command": "pearReview.actNow.refine",
+        "title": "Act Now: Refine Proposal",
+        "category": "Pear Review",
+        "icon": "$(edit)",
+        "enablement": "pearReview.hasProposal"
+      },
+      {
+        "command": "pearReview.actNow.discard",
+        "title": "Act Now: Discard Proposal",
+        "category": "Pear Review",
+        "icon": "$(close)",
+        "enablement": "pearReview.hasProposal"
+      },
+      {
+        "command": "pearReview.actNow.openFile",
+        "title": "Act Now: Open Proposed File",
+        "category": "Pear Review"
       }
     ],
     "keybindings": [
@@ -210,6 +251,16 @@
           "command": "pearReview.endReview",
           "when": "view == pearReview.hunks",
           "group": "review@1"
+        },
+        {
+          "command": "pearReview.chooseAgent",
+          "when": "view == pearReview.hunks",
+          "group": "settings@1"
+        },
+        {
+          "command": "pearReview.chooseModel",
+          "when": "view == pearReview.hunks",
+          "group": "settings@2"
         }
       ],
       "view/item/context": [
@@ -254,6 +305,10 @@
         },
         {
           "command": "pearReview.comment.cancel",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.actNow.openFile",
           "when": "false"
         }
       ],
@@ -301,6 +356,23 @@
           "command": "pearReview.comment.save",
           "when": "commentController == pearReview && comment == pearComment",
           "group": "inline@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "pearReview.actNow.apply",
+          "when": "resourceScheme == pear-proposal",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pearReview.actNow.refine",
+          "when": "resourceScheme == pear-proposal",
+          "group": "navigation@2"
+        },
+        {
+          "command": "pearReview.actNow.discard",
+          "when": "resourceScheme == pear-proposal",
+          "group": "navigation@3"
         }
       ]
     }

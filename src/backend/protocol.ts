@@ -159,6 +159,38 @@ export interface ReviewFinished {
   comment_count: number;
 }
 
+// One file of an Act Now proposal (act_now.py's _preview_entry): its whole diff from
+// the working file to what the agent wrote.
+export interface ProposedFile {
+  file_path: string;
+  status: "modified" | "added" | "deleted";
+  full_lines: DiffLine[];
+  highlight_start: number;
+  highlight_end: number;
+}
+
+export interface ActNowPreview extends ProposedFile {
+  files: ProposedFile[];
+  summary: string;
+  agent: string;
+}
+
+// get_settings / set_settings's reply (settings.py). Only what the extension reads is
+// typed; the conversation block's provider sections stay open.
+export interface Settings {
+  settings: { provider?: string; [section: string]: unknown };
+  installed_models?: string[];
+  harness_settings: {
+    agent: string;
+    agents: string[];
+    provider: string | null;
+    model: string | null;
+    model_source?: string | null;
+  };
+  saved?: boolean;
+  applies_on_reconnect?: boolean;
+}
+
 export interface ActNowStatus {
   available: boolean;
   detail: string;
@@ -224,15 +256,15 @@ export interface ServerPayloads {
   review_comment_updated: { id: number; instruction: string; severity: Severity };
   review_comment_removed: { id: number; pending_count: number };
   review_finished: ReviewFinished;
-  act_now_preview: Unknown;
-  act_now_cleared: Unknown;
+  act_now_preview: ActNowPreview;
+  act_now_cleared: { message: string };
   agent_stopped: { kind: string; message: string };
-  settings: Unknown;
+  settings: Settings;
   recording_state: { recording: boolean };
   recording_result: { audio_base64: string; mime_type: string; duration_seconds: number };
   context_too_large: Unknown;
   service_status: ServiceStatus;
-  notice: { message: string };
+  notice: { message: string; level?: "info" | "success" };
   error: { message: string };
 }
 

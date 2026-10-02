@@ -58,3 +58,11 @@ export function hunkHighlight(full: DiffLine[], start: number, end: number): Hun
   if (removed.length) return { side: "old", lines: removed };
   return undefined;
 }
+
+// A whole-file diff (an Act Now preview's full_lines) back into the text on each side.
+// Context lines are on both; removed lines only before, added lines only after.
+export function sidesOf(full: DiffLine[]): { before: string; after: string } {
+  const before = full.filter((l) => l.kind !== "add").map((l) => l.text);
+  const after = full.filter((l) => l.kind !== "del").map((l) => l.text);
+  return { before: before.join("\n"), after: after.join("\n") };
+}
