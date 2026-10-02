@@ -310,3 +310,19 @@ button.chip {
 #mic.recording {
   background: var(--vscode-statusBarItem-errorBackground);
 }
+
+button.speak.loading {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.speak.loading {
+    animation: none;
+  }
+}

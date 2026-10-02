@@ -106,13 +106,39 @@
       : `Not available yet: ${state.actNow.detail}`;
   }
 
+  // The speaker button is idle (🔊), generating (⏳, until the first clip arrives) or
+  // playing (⏹, click to stop). One reply at a time: starting another resets this one.
+  let speaking = /** @type {HTMLElement | null} */ (null);
+
+  function setSpeakState(button, mode) {
+    button.dataset.mode = mode;
+    button.classList.toggle("loading", mode === "loading");
+    button.textContent = mode === "loading" ? "⏳" : mode === "playing" ? "⏹" : "🔊";
+    const title =
+      mode === "loading" ? "Generating speech…" : mode === "playing" ? "Stop reading" : "Read this reply aloud";
+    button.title = title;
+    button.setAttribute("aria-label", title);
+  }
+
+  function stopSpeaking() {
+    if (speaking) setSpeakState(speaking, "idle");
+    speaking = null;
+  }
+
   function speakButton(spoken) {
     const button = document.createElement("button");
     button.className = "icon speak";
-    button.textContent = "🔊";
-    button.title = "Read this reply aloud";
-    button.setAttribute("aria-label", "Read this reply aloud");
-    button.addEventListener("click", () => post({ kind: "speak", text: spoken }));
+    setSpeakState(button, "idle");
+    button.addEventListener("click", () => {
+      if (speaking === button) {
+        stopAudio();
+        return;
+      }
+      stopAudio();
+      speaking = button;
+      setSpeakState(button, "loading");
+      post({ kind: "speak", text: spoken });
+    });
     return button;
   }
 
@@ -211,8 +237,16 @@
 
   player.addEventListener("ended", () => {
     URL.revokeObjectURL(player.src);
-    playNext();
+    if (queue.length) playNext();
+    else stopSpeaking();
   });
+
+  function stopAudio() {
+    queue.forEach((url) => URL.revokeObjectURL(url));
+    queue = [];
+    player.pause();
+    stopSpeaking();
+  }
 
   $("enable-audio").addEventListener("click", () => {
     $("audio-blocked").hidden = true;
@@ -263,16 +297,25 @@
     deeper_turn: (p) => appendTurn("deeper", p.text, p),
     agent_stopped: (p) => appendTurn("system", p.message),
     service_status(p) {
+      if (p.tts === false) stopSpeaking();
       if (p.act_now) {
         state.actNow = p.act_now;
         updateControls();
       }
     },
-    audio_chunk: enqueue,
-    turn_audio_chunk: enqueue,
+    audio_chunk(p) {
+      // Narration takes over the player, so a reply being read aloud stops.
+      if (p.chunk_index === 0) stopSpeaking();
+      enqueue(p);
+    },
+    turn_audio_chunk(p) {
+      if (speaking) setSpeakState(speaking, "playing");
+      enqueue(p);
+    },
     notice: (p) => appendTurn("system", p.message),
     error(p) {
       state.narrating = false;
+      if (speaking?.dataset.mode === "loading") stopSpeaking();
       appendTurn("error", p.message);
       updateControls();
     },
