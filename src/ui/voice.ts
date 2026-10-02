@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
-import { showError } from "../log.ts";
+import { log, showError } from "../log.ts";
 
 export interface Voice {
   readonly recording: boolean;
@@ -33,8 +33,10 @@ export function register(backend: Backend): { voice: Voice; disposables: vscode.
       return recording;
     },
     toggle() {
+      const type = recording ? "stop_recording" : "start_recording";
+      log(`Voice: ${type}`);
       try {
-        backend.send(recording ? "stop_recording" : "start_recording", {});
+        backend.send(type, {});
       } catch (err) {
         showError(err instanceof Error ? err.message : String(err));
       }
@@ -47,8 +49,12 @@ export function register(backend: Backend): { voice: Voice; disposables: vscode.
     disposables: [
       indicator,
       changes,
-      backend.on("recording_state", ({ recording: value }) => setRecording(value)),
-      backend.on("recording_result", ({ audio_base64 }) => {
+      backend.on("recording_state", ({ recording: value }) => {
+        log(`Voice: recording ${value ? "started" : "stopped"}`);
+        setRecording(value);
+      }),
+      backend.on("recording_result", ({ audio_base64, duration_seconds }) => {
+        log(`Voice: got ${duration_seconds}s of audio, sending it as a reply`);
         try {
           backend.send("reply", { audio_base64 });
         } catch (err) {

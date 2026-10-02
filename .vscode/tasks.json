@@ -1,4 +1,15 @@
 {
   "version": "2.0.0",
-  "tasks": [{ "type": "npm", "script": "build", "group": "build", "problemMatcher": "$esbuild" }]
+  "tasks": [
+    {
+      "label": "npm: build",
+      "type": "process",
+      "command": "npm",
+      // npm.cmd, not npm: the default PowerShell execution policy blocks npm.ps1.
+      "windows": { "command": "npm.cmd" },
+      "args": ["run", "build"],
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
 }
