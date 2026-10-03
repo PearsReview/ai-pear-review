@@ -13,7 +13,7 @@ still works on its own.
 
 ## Requirements
 
-- VS Code 1.95 or later, with a **local** workspace. Remote, WSL and Codespaces
+- VS Code 1.106 or later, with a **local** workspace. Remote, WSL and Codespaces
   windows aren't supported.
 - Python 3.10+ with the backend's requirements and `sounddevice` for the mic.
 - The model and speech services the backend is configured for (by default,
@@ -24,7 +24,9 @@ still works on its own.
 
 1. Open a git repository that has uncommitted changes.
 2. Open the **Pear Review** view from the activity bar. It opens your changes
-   straight away: browse the diffs and ask about them in the chat. Press
+   straight away: browse the diffs and ask about them in the chat, which opens
+   as a **Pear Review** tab in the secondary side bar, beside other chat
+   extensions such as Claude Code. Press
    **Start Review** when you want the reviewer to explain each change as you
    go, and to mark changes reviewed and leave comments.
 3. The **Changes** tree lists every changed file and its hunks. The current

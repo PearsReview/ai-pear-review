@@ -16,10 +16,17 @@ export function register(backend: Backend, comments: Comments): vscode.Disposabl
   const view = vscode.window.createTreeView("pearReview.hunks", { treeDataProvider: provider });
   // Showing the view opens the changes (pearReview.openChanges, quietly): browsing and
   // the chat don't wait for Start Review.
+  // The first time the changes open, the chat's tab in the secondary side bar (beside
+  // other chat extensions) comes forward too, and focus returns to the tree.
+  let chatShown = false;
   const openWhenShown = (): void => {
-    if (view.visible && backend.state === "stopped") {
-      void vscode.commands.executeCommand("pearReview.openChanges", { quiet: true });
-    }
+    if (!view.visible || backend.state !== "stopped") return;
+    void vscode.commands.executeCommand<boolean>("pearReview.openChanges", { quiet: true }).then(async (opened) => {
+      if (!opened || chatShown) return;
+      chatShown = true;
+      await vscode.commands.executeCommand("pearReview.chat.focus");
+      await vscode.commands.executeCommand("pearReview.hunks.focus");
+    });
   };
   openWhenShown();
   publish("tree.view", () => ({

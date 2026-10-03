@@ -7,7 +7,7 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.106.0"
   },
   "categories": [
     "Other"
@@ -217,6 +217,13 @@
           "title": "Pear Review",
           "icon": "media/pear.svg"
         }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "pearReviewChat",
+          "title": "Pear Review",
+          "icon": "media/pear.svg"
+        }
       ]
     },
     "views": {
@@ -224,7 +231,9 @@
         {
           "id": "pearReview.hunks",
           "name": "Changes"
-        },
+        }
+      ],
+      "pearReviewChat": [
         {
           "type": "webview",
           "id": "pearReview.chat",

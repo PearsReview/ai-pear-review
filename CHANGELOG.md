@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The chat is a Pear Review tab in the secondary side bar, beside other chat
+  extensions; it comes forward the first time the changes open. Needs VS Code
+  1.106 or later.
 - Opening the Pear Review view opens your changes: browse the diffs and chat
   without pressing Start Review, which now just turns on narration, reviewed
   marks and comments (Open Changes in the Command Palette does the same).
