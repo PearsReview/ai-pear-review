@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 from pathlib import Path
 
 from .harness_service import agent_model, research_note
@@ -77,12 +78,39 @@ def load_overrides(repo_path: str) -> dict:
     path = settings_path(repo_path)
     if not path.exists():
         return {}
+    # The file sits inside the repo under review, so a repo can ship one. A file git
+    # tracks came with the repo rather than from this machine's settings panel, and is
+    # ignored outright: even allowlisted keys (ollama.base_url, the speech endpoints)
+    # would send the reviewer's code and voice to a server of the repo's choosing.
+    if _is_tracked(repo_path, path):
+        log.warning("Ignoring %s: it is committed to the repository, not saved by this app.", path)
+        return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         log.warning("Ignoring unreadable %s: %s", path, exc)
         return {}
-    return data if isinstance(data, dict) else {}
+    if not isinstance(data, dict):
+        return {}
+    # The same allowlists the settings panel's own writes pass through, so a file
+    # edited by hand (or left by anything else) can't reach keys the panel can't —
+    # above all harness.<agent>.command, a program Act Now runs. Everything this app
+    # writes passes unchanged.
+    return {**sanitize(data), **sanitize_tts(data), **sanitize_stt(data), **sanitize_harness(data)}
+
+
+def _is_tracked(repo_path: str, path: Path) -> bool:
+    """Whether git tracks `path` in `repo_path`. False when git can't say (not a repo,
+    no git), which leaves the allowlists in load_overrides as the guard."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, "ls-files", "--error-unmatch", "--", str(path)],
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def save_overrides(repo_path: str, overrides: dict) -> None:

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Security: `.review/ui_settings.json` is input from the repo under review.
+  A copy committed to the repo is ignored, and any copy is held to the settings
+  panel's allowlists on load. Before, a repo could ship one that replaced the
+  coding agent's command (run by Act Now / Look deeper) or pointed the model
+  and speech services at another server.
 - `start_recording` / `stop_recording`: server-side microphone capture
   for clients that can't record themselves (the VS Code extension). Needs
   the optional `recording` extra (`sounddevice`). The browser UI is
