@@ -45,7 +45,7 @@ this table and the registry disagree.
 | `step_into` | `text` | `explore.handle_step_into` | — | — |
 | `list_all_files` | — | `explore.handle_list_all_files` | — | — |
 | `explore_file` | `file_path` | `explore.handle_explore_file` | — | — |
-| `explore_reply` | `text` \| `audio_base64`, `file_path` | `explore.handle_explore_reply` | yes | yes |
+| `explore_reply` | `text` \| `audio_base64`, `file_path`, `marked_lines?` | `explore.handle_explore_reply` | yes | yes |
 | `look_deeper` | `index`, `question?` | `research.handle_look_deeper` | yes | yes |
 | `get_settings` | `provider?` | `settings.handle_get_settings` | — | — |
 | `set_settings` | `settings` | `settings.handle_set_settings` | — | — |
@@ -101,7 +101,7 @@ this table and the registry disagree.
 
 | Field | On | Defined in |
 |---|---|---|
-| `marked_lines` | `reply`, `request_change`, `act_now` | [app/web/context.py](../app/web/context.py) module docstring |
+| `marked_lines` | `reply`, `request_change`, `act_now`, `explore_reply` | [app/web/context.py](../app/web/context.py) module docstring |
 | `anchor` | `review_comment_queued`, `review_comments_sync` | `web/context.py`'s `line_context` |
 | `content_hash` | `md_preview`, `file_audio_chunk` | [app/handlers/voice.py](../app/handlers/voice.py) module docstring |
 | `chunk_index` / `chunk_count` | `audio_chunk`, `turn_audio_chunk`, `tour_audio_chunk`, `file_audio_chunk` | `web/speech.py`'s `try_speak` |

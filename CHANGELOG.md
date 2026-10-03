@@ -9,6 +9,8 @@
 - STT uploads are labelled `audio/wav` when the audio is WAV.
 - `review_progress` file entries also list their hunks (`index`, `header`,
   `reviewed`), for clients that show hunks individually.
+- `explore_reply` accepts optional `marked_lines`, the VS Code extension's
+  editor selection, as context for a question about a file.
 
 ## 0.0.1 — beta
 
