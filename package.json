@@ -195,6 +195,11 @@
         "command": "pearReview.openRepoFile",
         "title": "Open File",
         "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.openChanges",
+        "title": "Open Changes",
+        "category": "Pear Review"
       }
     ],
     "keybindings": [
@@ -239,7 +244,7 @@
     "viewsWelcome": [
       {
         "view": "pearReview.hunks",
-        "contents": "Review your uncommitted changes one hunk at a time, with an AI reviewer you can talk to.\n[Start Review](command:pearReview.startReview)"
+        "contents": "Browse your uncommitted changes and ask about them, or start a review to have the reviewer explain each one.\n[Open Changes](command:pearReview.openChanges)\n[Start Review](command:pearReview.startReview)"
       }
     ],
     "menus": {

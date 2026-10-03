@@ -124,6 +124,10 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
+    // Like the Changes tree, showing the chat opens the changes.
+    if (this.backend.state === "stopped") {
+      void vscode.commands.executeCommand("pearReview.openChanges", { quiet: true });
+    }
     const media = vscode.Uri.joinPath(this.extensionUri, "media", "chat");
     view.webview.options = { enableScripts: true, localResourceRoots: [media] };
     view.webview.html = this.html(view.webview, media);

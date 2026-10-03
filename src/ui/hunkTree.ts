@@ -14,8 +14,17 @@ type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: Progres
 export function register(backend: Backend, comments: Comments): vscode.Disposable[] {
   const provider = new HunkTreeProvider(() => backend.repoPath);
   const view = vscode.window.createTreeView("pearReview.hunks", { treeDataProvider: provider });
+  // Showing the view opens the changes (pearReview.openChanges, quietly): browsing and
+  // the chat don't wait for Start Review.
+  const openWhenShown = (): void => {
+    if (view.visible && backend.state === "stopped") {
+      void vscode.commands.executeCommand("pearReview.openChanges", { quiet: true });
+    }
+  };
+  openWhenShown();
   publish("tree.view", () => ({
     description: view.description,
+    reviewStarted: progress?.review_started ?? false,
     files: provider.getChildren().map((file) => ({
       ...itemSummary(provider.getTreeItem(file)),
       hunks: provider.getChildren(file).map((hunk) => itemSummary(provider.getTreeItem(hunk))),
@@ -39,6 +48,7 @@ export function register(backend: Backend, comments: Comments): vscode.Disposabl
   return [
     view,
     provider,
+    view.onDidChangeVisibility(openWhenShown),
     comments.onDidChangeCount(describe),
     backend.on("review_progress", (p) => {
       progress = p;

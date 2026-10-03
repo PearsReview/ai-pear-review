@@ -20,10 +20,16 @@ class FakeAudio {
   currentTime = 0;
   private listeners = new Map<string, (() => void)[]>();
   static last: FakeAudio | undefined;
+  // Set to refuse play() once, as a panel does before its first click.
+  static refuseNext = false;
   constructor() {
     FakeAudio.last = this;
   }
   play(): Promise<void> {
+    if (FakeAudio.refuseNext) {
+      FakeAudio.refuseNext = false;
+      return Promise.reject(Object.assign(new Error("blocked"), { name: "NotAllowedError" }));
+    }
     this.paused = false;
     this.currentTime = 0.1;
     return Promise.resolve();
@@ -171,12 +177,24 @@ void describe("chat webview", () => {
     chat.server("audio_chunk", { audio_base64: AUDIO, mime_type: "audio/wav", chunk_index: 0, chunk_count: 2 });
     assert.equal(chat.$("audio-bar").hidden, false);
     chat.click("audio-pause");
-    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Resume");
+    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Play");
     assert.match(chat.$("audio-status").textContent ?? "", /paused/);
     chat.click("audio-pause");
     assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Pause");
     chat.click("audio-stop");
     assert.equal(chat.$("audio-bar").hidden, true);
+  });
+
+  void test("blocked audio waits on the bar's play button", async () => {
+    FakeAudio.refuseNext = true;
+    chat.server("audio_chunk", { audio_base64: AUDIO, mime_type: "audio/wav", chunk_index: 0, chunk_count: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(chat.$("audio-bar").hidden, false);
+    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Play");
+    assert.match(chat.$("audio-status").textContent ?? "", /ready/);
+    chat.click("audio-pause");
+    assert.equal(FakeAudio.last?.paused, false, "the click starts playback");
+    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Pause");
   });
 
   void test("sends a typed question on Enter", () => {

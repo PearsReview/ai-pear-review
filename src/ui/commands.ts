@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
-import { pickRepository } from "../git.ts";
+import { pickRepository, repositoryRoots } from "../git.ts";
 import { output, showError } from "../log.ts";
 import type { Voice } from "./voice.ts";
 
@@ -16,28 +16,57 @@ export function register(context: vscode.ExtensionContext, backend: Backend, voi
     }
   };
 
-  const startReview = async (): Promise<void> => {
+  // Opens the changes without starting the review: the tree, the diffs and the chat all
+  // work before Start Review, which only turns on narration, reviewed marks and comments.
+  // `quiet` is the automatic open when the view first shows: no prompts, and nothing at
+  // all unless the workspace has exactly one repository.
+  const openChanges = async (options?: unknown): Promise<boolean> => {
+    const quiet = typeof options === "object" && options !== null && (options as { quiet?: unknown }).quiet === true;
+    if (backend.state === "ready") return true;
+    if (backend.state === "starting") return untilReady();
     if (vscode.env.remoteName) {
-      showError("Remote workspaces aren't supported. Open the repository locally to review it.");
-      return;
+      if (!quiet) showError("Remote workspaces aren't supported. Open the repository locally to review it.");
+      return false;
     }
-    const repo = await pickRepository();
-    if (!repo) return;
+    let repo: string | undefined;
+    if (quiet) {
+      const roots = await repositoryRoots();
+      if (roots.length !== 1) return false;
+      repo = roots[0];
+    } else {
+      repo = await pickRepository();
+    }
+    if (!repo) return false;
     try {
       await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Window, title: "Pear Review: starting backend" },
         () => backend.start(repo),
       );
+      return true;
     } catch (err) {
       showError(err instanceof Error ? err.message : String(err));
-      return;
+      return false;
     }
+  };
+
+  const untilReady = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      const subscription = backend.onStateChange((state) => {
+        if (state === "starting") return;
+        subscription.dispose();
+        resolve(state === "ready");
+      });
+    });
+
+  const startReview = async (): Promise<void> => {
+    if (!(await openChanges())) return;
     await vscode.commands.executeCommand("pearReview.chat.focus");
     send(() => backend.send("start_review", {}));
   };
 
   return [
     backend.on("presenting", (p) => (currentIndex = p.done ? undefined : p.index)),
+    vscode.commands.registerCommand("pearReview.openChanges", openChanges),
     vscode.commands.registerCommand("pearReview.startReview", startReview),
     vscode.commands.registerCommand("pearReview.stopBackend", () => backend.stop()),
     vscode.commands.registerCommand("pearReview.next", () => send(() => backend.send("next", {}))),

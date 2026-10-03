@@ -23,8 +23,10 @@ still works on its own.
 ## Using it
 
 1. Open a git repository that has uncommitted changes.
-2. Open the **Pear Review** view from the activity bar and press **Start
-   Review**, or run **Pear Review: Start Review** from the Command Palette.
+2. Open the **Pear Review** view from the activity bar. It opens your changes
+   straight away: browse the diffs and ask about them in the chat. Press
+   **Start Review** when you want the reviewer to explain each change as you
+   go, and to mark changes reviewed and leave comments.
 3. The **Changes** tree lists every changed file and its hunks. The current
    hunk opens as a diff (HEAD ↔ working file) with its lines highlighted.
    Click any hunk to jump to it; use the ↑/↓ buttons on the tree for

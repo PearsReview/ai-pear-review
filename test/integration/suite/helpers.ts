@@ -106,14 +106,15 @@ export async function modelPrompts(): Promise<string> {
 
 export const repoUri = (file: string): vscode.Uri => vscode.Uri.file(path.join(repo, file));
 
+// Opens the changes (if the view hasn't already) and starts the review.
 export async function ensureReviewStarted(): Promise<void> {
-  const tree = await probe<{ files: unknown[] }>("tree.view");
-  if (tree.files.length) return;
+  const tree = await probe<{ reviewStarted: boolean }>("tree.view");
+  if (tree.reviewStarted) return;
   await vscode.commands.executeCommand("pearReview.startReview");
   // The first start imports the backend and runs its preflight: slower than any later step.
   await waitFor(
-    "the Changes tree to fill",
-    async () => (await probe<{ files: unknown[] }>("tree.view")).files.length > 0,
+    "the review to start",
+    async () => (await probe<{ files: unknown[]; reviewStarted: boolean }>("tree.view")).reviewStarted,
     Math.max(WAIT_MS, 90_000),
   );
 }

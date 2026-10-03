@@ -359,11 +359,20 @@
   let paused = false; // paused by the user
   let reading = /** @type {any} */ (null); // the file clip playing now, if any
 
+  // One bar for all speech. Blocked audio (the panel may not play sound until it has
+  // been clicked once) waits on the bar's play button, as a paused clip does.
   function updateAudioBar() {
     $("audio-bar").hidden = !active;
-    setIcon($("audio-pause"), paused ? "debug-start" : "debug-pause", paused ? "Resume" : "Pause");
+    const waiting = paused || blocked;
+    setIcon($("audio-pause"), waiting ? "debug-start" : "debug-pause", waiting ? "Play" : "Pause");
     const what = reading ? `Reading ${reading.file_path}` : "Speaking";
-    $("audio-status").textContent = paused ? `${what} — paused` : `${what}…`;
+    $("audio-status").textContent = blocked
+      ? reading
+        ? `${reading.file_path} is ready to read aloud`
+        : "A spoken reply is ready"
+      : paused
+        ? `${what} — paused`
+        : `${what}…`;
   }
 
   function enqueue(payload, readingInfo = null) {
@@ -396,7 +405,7 @@
       if (err.name === "NotAllowedError") {
         queue.unshift(next);
         blocked = true;
-        $("audio-blocked").hidden = false;
+        updateAudioBar();
       }
     });
     updateAudioBar();
@@ -412,6 +421,7 @@
     player.pause();
     active = false;
     paused = false;
+    blocked = false;
     setReading(null);
     stopSpeaking();
     updateAudioBar();
@@ -424,6 +434,14 @@
   });
 
   $("audio-pause").addEventListener("click", () => {
+    if (blocked) {
+      // This click is the interaction the panel was waiting for.
+      blocked = false;
+      paused = false;
+      playNext();
+      updateAudioBar();
+      return;
+    }
     paused = !paused;
     if (paused) player.pause();
     else if (player.src && !player.ended && player.currentTime > 0) void player.play();
@@ -435,12 +453,6 @@
   $("audio-stop").addEventListener("click", () => {
     if (reading) post({ kind: "command", command: "interrupt" });
     stopAudio();
-  });
-
-  $("enable-audio").addEventListener("click", () => {
-    $("audio-blocked").hidden = true;
-    blocked = false;
-    playNext();
   });
 
   // --- extension → webview -----------------------------------------------------------
@@ -464,7 +476,10 @@
         header.textContent = `${p.file_path}  ·  change ${p.index + 1} of ${p.total}`;
         if (state.narrating) showThinking();
         else if (!state.started && !transcript.querySelector(".turn")) {
-          appendTurn("system", "Press Start review to have the reviewer explain each change.");
+          appendTurn(
+            "system",
+            "Ask about this change below, or press Start review to have the reviewer explain each one as you go.",
+          );
         }
       }
       updateControls();

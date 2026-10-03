@@ -39,10 +39,6 @@ export function chatHtml({ nonce, cspSource, src }: ChatHtmlOptions): string {
     </div>
   </header>
   <main id="transcript" aria-live="polite"></main>
-  <div id="audio-blocked" class="strip" hidden>
-    ${icon("mute")}<span class="grow">Spoken replies are waiting.</span>
-    <button id="enable-audio" class="pill">Play</button>
-  </div>
   <div id="audio-bar" class="strip" hidden>
     ${icon("unmute")}<span id="audio-status" class="grow">Speaking…</span>
     <button id="audio-pause" class="icon-btn" title="Pause" aria-label="Pause">${icon("debug-pause")}</button>
