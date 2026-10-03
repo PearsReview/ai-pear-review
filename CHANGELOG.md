@@ -7,7 +7,8 @@
   marks and comments (Open Changes in the Command Palette does the same).
 - One audio bar: speech the panel isn't yet allowed to play waits on its play
   button, instead of a second "Spoken replies are waiting" strip.
-- Prev/Next only on the Changes tree, not the chat toolbar.
+- Prev/Next and Start Review (▶, until the review starts) only on the Changes
+  view's title bar; the chat toolbar keeps Explain.
 - Restyled the chat panel: VS Code's codicons in place of emoji and text
   buttons, grey icon buttons and outlined pills, a rounded composer, slim strips
   for audio, file and selection, and colour only for recording and applied

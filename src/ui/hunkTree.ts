@@ -52,6 +52,7 @@ export function register(backend: Backend, comments: Comments): vscode.Disposabl
     comments.onDidChangeCount(describe),
     backend.on("review_progress", (p) => {
       progress = p;
+      void vscode.commands.executeCommand("setContext", "pearReview.reviewStarted", p.review_started);
       provider.setProgress(p);
       describe();
       revealCurrent();

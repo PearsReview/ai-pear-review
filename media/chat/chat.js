@@ -238,7 +238,6 @@
   // --- controls ----------------------------------------------------------------------
 
   function updateControls() {
-    $("start").hidden = state.started;
     const onHunk = state.current !== null && !state.ended;
     /** @type {HTMLButtonElement} */ ($("explain")).disabled =
       !onHunk || !state.started || !state.narrationAvailable || state.narrating || state.narrated.has(state.current);
@@ -478,7 +477,7 @@
         else if (!state.started && !transcript.querySelector(".turn")) {
           appendTurn(
             "system",
-            "Ask about this change below, or press Start review to have the reviewer explain each one as you go.",
+            "Ask about this change below. To have the reviewer explain each change as you go, start the review from the Changes view (▶).",
           );
         }
       }

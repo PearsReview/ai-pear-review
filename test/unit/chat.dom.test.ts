@@ -133,7 +133,6 @@ void describe("chat webview", () => {
     chat.server("presenting", hunk);
     assert.match(chat.$("hunk").textContent ?? "", /calc\.py\s+·\s+change 1 of 2/);
     assert.equal((chat.$("send") as HTMLButtonElement).disabled, false);
-    assert.equal(chat.$("start").hidden, true, "Start review hides once the review has started");
   });
 
   void test("renders a narration's blocks under a divider, with a speaker and Look deeper", () => {
