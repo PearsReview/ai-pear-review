@@ -5,8 +5,8 @@ import type { Settings } from "../backend/protocol.ts";
 import { output, showError } from "../log.ts";
 import type { Prefs } from "./prefs.ts";
 
-// The web app's settings panel, as a native menu (Pear Review: Settings, the chat's
-// gear). Model, speech and agent settings are saved the backend's way (set_settings,
+// The web app's settings panel, as a native menu opened from the chat's gear, the one
+// way in. Model, speech and agent settings are saved the backend's way (set_settings,
 // per repo in .review/ui_settings.json), so the web app sees the same choices; the
 // three preferences are the extension's own (prefs.ts).
 

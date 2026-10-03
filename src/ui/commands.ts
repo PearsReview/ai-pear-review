@@ -101,7 +101,7 @@ export function register(
     }),
     vscode.commands.registerCommand("pearReview.toggleRecording", () => {
       if (!prefs.values.stt && !voice.recording) {
-        void vscode.window.showInformationMessage("Voice input is off. Turn it on in Pear Review: Settings.");
+        void vscode.window.showInformationMessage("Voice input is off. Turn it on in the chat's settings (⚙).");
         return;
       }
       voice.toggle();

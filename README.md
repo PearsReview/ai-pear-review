@@ -64,7 +64,7 @@ still works on its own.
     comments to `.review/review_<time>.md`, optionally as an `/apply-review`
     skill too, and gives you the line to hand your coding agent.
 
-**Settings**: the ⚙ in the chat (or **Pear Review: Settings**) opens the same
+**Settings**: the ⚙ in the chat is the one place for settings. It opens the same
 settings as the web app's panel:
 
 - **Preferences**: explain changes automatically or only when you ask, speak
@@ -82,9 +82,10 @@ settings as the web app's panel:
 Model, speech and agent settings are saved per repository, in the same place
 the web app keeps them.
 
-To use the Anthropic API instead of a local model, run **Pear Review: Set
-Anthropic API Key**. The key is kept in VS Code's secret storage and passed
-to the backend on its next start.
+To use the Anthropic API instead of a local model, set the key under
+**Reviewer model** in settings (⚙), then choose Anthropic as the model. The key
+is kept in VS Code's secret storage and passed to the backend on its next
+start.
 
 ## Developing
 

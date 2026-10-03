@@ -265,7 +265,7 @@
     act.disabled = !onHunk || !state.actNow.available;
     act.title = state.actNow.available
       ? `Ask ${agentName()} to make a change. It proposes it as a diff; nothing is written until you apply it.`
-      : `Act Now is off: ${state.actNow.detail} (Pear Review: Choose Coding Agent)`;
+      : `Act Now is off: ${state.actNow.detail} Choose an agent in settings (⚙).`;
     act.classList.toggle("active", state.actMode);
     act.setAttribute("aria-pressed", String(state.actMode));
     input.placeholder = state.actMode
