@@ -7,6 +7,8 @@
   const vscode = acquireVsCodeApi();
   // @ts-ignore — set by blocks.js
   const { renderBlocks } = window.PearBlocks;
+  // @ts-ignore — set by readalong.js
+  const readAlong = window.PearReadAlong;
   const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
   const transcript = $("transcript");
   const header = $("hunk");
@@ -28,6 +30,9 @@
     // "h:<index>" for a hunk, "f:<path>" for a file asked about: a divider marks each change.
     lastDivider: /** @type {string | null} */ (null),
     targetFile: /** @type {string | null} */ (null),
+    // The file the hunk on screen is in, and whether the chat shows only its turns.
+    reviewFile: /** @type {string | null} */ (null),
+    fileFilter: false,
   };
 
   const post = (message) => vscode.postMessage(message);
@@ -113,6 +118,7 @@
     const isFile = info.index === -1;
     const divider = document.createElement("button");
     divider.className = "hunk-divider";
+    divider.dataset.file = info.file_path;
     const label = document.createElement("span");
     label.textContent = isFile
       ? `About ${info.file_path}`
@@ -204,6 +210,7 @@
     }
     const turn = document.createElement("div");
     turn.className = `turn ${role}`;
+    if (info && info.file_path) turn.dataset.file = info.file_path;
     const label = document.createElement("div");
     label.className = "role";
     label.textContent = roleLabel(role, info);
@@ -245,6 +252,7 @@
     }
     transcript.appendChild(turn);
     turn.scrollIntoView({ block: "end" });
+    applyFilter();
   }
 
   // --- controls ----------------------------------------------------------------------
@@ -298,6 +306,62 @@
 
   function showAgentWorking(what = "is working on it") {
     showThinking(`${agentName()} ${what} — this can take a minute…`, "deeper-pending");
+  }
+
+  // --- the file filter: only the turns about the file in view ---------------------------
+  // The file asked about if there is one, else the hunk's. Untagged lines (thinking,
+  // notices) always show: they are about whatever is happening now.
+  function applyFilter() {
+    const file = state.targetFile ?? state.reviewFile;
+    const button = $("filter");
+    button.setAttribute("aria-pressed", String(state.fileFilter));
+    button.classList.toggle("active", state.fileFilter);
+    for (const node of transcript.children) {
+      if (!(node instanceof HTMLElement)) continue;
+      const hide = state.fileFilter && !!node.dataset.file && node.dataset.file !== file;
+      node.classList.toggle("filtered", hide);
+    }
+  }
+
+  // --- too large for the model: a hand-off to an agent that can read the whole change ---
+
+  function showTooLarge(p) {
+    clearThinking();
+    const card = document.createElement("div");
+    card.className = "turn too-large";
+    if (p.file_path) card.dataset.file = p.file_path;
+    const label = document.createElement("div");
+    label.className = "role";
+    label.textContent =
+      p.reason === "call_failed" ? "The model couldn't answer this in full" : "Too large for the model";
+    const body = document.createElement("div");
+    body.className = "turn-body";
+    const size =
+      p.estimated_tokens && p.budget_tokens
+        ? ` (about ${p.estimated_tokens.toLocaleString()} tokens; it can read ${p.budget_tokens.toLocaleString()})`
+        : "";
+    body.textContent =
+      (p.reason === "call_failed"
+        ? "The model's answer failed, so this came from the prep briefing instead."
+        : `${p.file_path ?? "This change"} doesn't fit in the model's context${size}.`) +
+      " A coding agent can read the whole thing: copy the request for it.";
+    const actions = document.createElement("div");
+    actions.className = "turn-actions";
+    const copy = pill("copy", "Copy for your agent", "strong");
+    copy.addEventListener("click", () => post({ kind: "copy", text: p.handoff_text }));
+    actions.appendChild(copy);
+    if (p.kind === "hunk" && state.current !== null && state.actNow.available) {
+      const deeper = pill("search", "Look deeper", "subtle");
+      const index = state.current;
+      deeper.addEventListener("click", () => {
+        post(p.question ? { kind: "lookDeeper", index, question: p.question } : { kind: "lookDeeper", index });
+        showDeeperPending();
+      });
+      actions.appendChild(deeper);
+    }
+    card.append(label, body, actions);
+    transcript.appendChild(card);
+    card.scrollIntoView({ block: "end" });
   }
 
   // --- the summary screen (send_summary_screen): where the review stands, what's next ---
@@ -418,10 +482,18 @@
   // each clip's line range, which the editor highlights.
 
   const player = new Audio();
-  /** @type {{ url: string, reading: any }[]} */
+  /** @type {{ url: string, reading: any, sentences: any[] | null, blocks: any[] | null }[]} */
   let queue = [];
   let paused = false;
   let reading = /** @type {any} */ (null); // the file passage playing now, if any
+  // The clip playing now: its sentences found in the message (read-along), or for a
+  // file read, its blocks with their lines.
+  let clip = /** @type {{ segments: any[], blocks: any[] | null, file: string | null, at: any }} */ ({
+    segments: [],
+    blocks: null,
+    file: null,
+    at: null,
+  });
 
   function enqueue(payload, button, readingInfo = null) {
     if (payload.chunk_index === 0) {
@@ -434,7 +506,12 @@
       return;
     }
     const bytes = Uint8Array.from(atob(payload.audio_base64), (c) => c.charCodeAt(0));
-    queue.push({ url: URL.createObjectURL(new Blob([bytes], { type: payload.mime_type })), reading: readingInfo });
+    queue.push({
+      url: URL.createObjectURL(new Blob([bytes], { type: payload.mime_type })),
+      reading: readingInfo,
+      sentences: Array.isArray(payload.sentences) ? payload.sentences : null,
+      blocks: Array.isArray(payload.blocks) ? payload.blocks : null,
+    });
     if (owner && owner.dataset.mode !== "paused") setSpeakState(owner, "playing");
     if (player.paused && !paused) playNext();
   }
@@ -450,6 +527,14 @@
     if (!next) return;
     player.src = next.url;
     setReading(next.reading);
+    // Resolve this clip's sentences against the message its button belongs to.
+    const body = owner?.closest(".turn")?.querySelector(".turn-body");
+    clip = {
+      segments: next.sentences && body ? readAlong.resolveSentences(body, next.sentences) : [],
+      blocks: next.blocks,
+      file: next.reading ? next.reading.file_path : null,
+      at: null,
+    };
     player.play().catch((err) => {
       if (err.name === "NotAllowedError") {
         // The panel may not play sound until it has been clicked once: the button
@@ -484,9 +569,35 @@
     player.pause();
     paused = false;
     setReading(null);
+    readAlong.highlight(null);
+    clip = { segments: [], blocks: null, file: null, at: null };
     if (owner) setSpeakState(owner, "idle");
     owner = null;
   }
+
+  // Where the voice is, estimated from how far through the clip it has got.
+  function onTimeUpdate() {
+    const duration = player.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    const fraction = Math.min(1, Math.max(0, player.currentTime / duration));
+    if (clip.segments.length) {
+      const i = readAlong.blockAtFraction(clip.segments, fraction);
+      if (i === clip.at) return;
+      clip.at = i;
+      readAlong.highlight(clip.segments[i]?.range ?? null);
+      const turn = owner?.closest(".turn");
+      if (turn instanceof HTMLElement) turn.dataset.readingSentence = String(i);
+    } else if (clip.blocks && clip.blocks.length && clip.file) {
+      // A file read: move the editor's highlight to the block being read.
+      const i = readAlong.blockAtFraction(clip.blocks, fraction);
+      if (i === clip.at) return;
+      clip.at = i;
+      const block = clip.blocks.find((b) => b.block_index === i);
+      if (block) setReading({ file_path: clip.file, start_line: block.start_line, end_line: block.end_line });
+    }
+  }
+
+  player.addEventListener("timeupdate", onTimeUpdate);
 
   player.addEventListener("ended", () => {
     URL.revokeObjectURL(player.src);
@@ -533,6 +644,8 @@
         state.narrationAvailable = p.narration_available !== false;
         state.narrating = !!p.narrating && !state.narrated.has(p.index);
         header.textContent = `${p.file_path}  ·  change ${p.index + 1} of ${p.total}`;
+        state.reviewFile = p.file_path;
+        applyFilter();
         if (state.narrating) showThinking();
         else if (!state.started && !transcript.querySelector(".turn")) {
           appendTurn(
@@ -614,7 +727,7 @@
       appendTurn("error", p.message);
       updateControls();
     },
-    context_too_large: () => appendTurn("error", "This change is too large for the model's context."),
+    context_too_large: (p) => showTooLarge(p),
   };
 
   window.addEventListener("message", (event) => {
@@ -631,6 +744,7 @@
       updateControls();
     } else if (msg.kind === "target") {
       state.targetFile = msg.file_path;
+      applyFilter();
       $("target").hidden = !msg.file_path;
       $("target-label").textContent = msg.file_path ? `Asking about ${msg.file_path}` : "";
       updateControls();
@@ -680,6 +794,10 @@
   $("context-clear").addEventListener("click", () => post({ kind: "clearContext" }));
 
   $("act").addEventListener("click", () => post({ kind: "setActMode", on: !state.actMode }));
+  $("filter").addEventListener("click", () => {
+    state.fileFilter = !state.fileFilter;
+    applyFilter();
+  });
   $("comment").addEventListener("click", () => post({ kind: "setCommentMode", on: !state.commentMode }));
 
   $("target-back").addEventListener("click", () => post({ kind: "backToReview" }));

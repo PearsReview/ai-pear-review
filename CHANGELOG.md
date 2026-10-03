@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The web app's extras: the read-along highlight of the sentence being spoken
+  (and, reading a file, of the block in the editor); a filter for the current
+  file's conversation; a hand-off card when a change is too large for the
+  model; service status and token use on the status bar.
 - The review's summary in the chat when it ends (reviewed count, comments
   waiting, Create plan, Open plan, Start new review); Mark All Reviewed (✓✓)
   on the Changes view; Show Summary and Start New Review in its menu.

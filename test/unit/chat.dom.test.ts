@@ -10,7 +10,7 @@ import { JSDOM } from "jsdom";
 import { chatHtml } from "../../src/ui/chatHtml.ts";
 
 const media = (file: string): string => readFileSync(new URL(`../../media/chat/${file}`, import.meta.url), "utf8");
-const scripts = media("blocks.js") + "\n" + media("chat.js");
+const scripts = [media("blocks.js"), media("readalong.js"), media("chat.js")].join("\n");
 
 // jsdom has no media playback; this stands in for HTMLAudioElement.
 class FakeAudio {
@@ -39,6 +39,12 @@ class FakeAudio {
   }
   addEventListener(type: string, fn: () => void): void {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), fn]);
+  }
+  duration = 10;
+  // Moves playback to `seconds` and fires timeupdate, as the browser does while playing.
+  seek(seconds: number): void {
+    this.currentTime = seconds;
+    for (const fn of this.listeners.get("timeupdate") ?? []) fn();
   }
   finish(): void {
     this.paused = true;
@@ -267,6 +273,95 @@ void describe("chat webview", () => {
       pending_count: 1,
     });
     assert.match(chat.doc.querySelector(".turn.system:last-child")?.textContent ?? "", /Comment added .*"Rename x"/);
+  });
+
+  void test("the read-along follows the voice through a reply's sentences", () => {
+    chat.server("presenting", hunk);
+    chat.server("reviewer_turn", {
+      text: "First sentence here. Second one follows.",
+      spoken: "First sentence here. Second one follows.",
+      index: 0,
+      total: 2,
+      file_path: "calc.py",
+    });
+    chat.doc.querySelector<HTMLButtonElement>(".turn.presenter button.speak")?.click();
+    chat.server("turn_audio_chunk", {
+      audio_base64: AUDIO,
+      mime_type: "audio/wav",
+      chunk_index: 0,
+      chunk_count: 1,
+      sentences: [
+        { text: "First sentence here.", weight: 1 },
+        { text: "Second one follows.", weight: 1 },
+      ],
+    });
+    const turn = chat.doc.querySelector<HTMLElement>(".turn.presenter");
+    FakeAudio.last?.seek(2);
+    assert.equal(turn?.dataset.readingSentence, "0");
+    FakeAudio.last?.seek(8);
+    assert.equal(turn?.dataset.readingSentence, "1");
+  });
+
+  void test("a file read moves the editor highlight block by block", () => {
+    chat.server("notice", { level: "info", message: "Reading NOTES.md..." });
+    chat.server("file_audio_chunk", {
+      audio_base64: AUDIO,
+      mime_type: "audio/wav",
+      chunk_index: 0,
+      chunk_count: 1,
+      file_path: "NOTES.md",
+      start_line: 1,
+      end_line: 8,
+      content_hash: "x",
+      blocks: [
+        { block_index: 0, start_line: 1, end_line: 1, weight: 1, partial: false },
+        { block_index: 1, start_line: 5, end_line: 8, weight: 3, partial: false },
+      ],
+    });
+    FakeAudio.last?.seek(1);
+    assert.deepEqual(lastPost(chat), { kind: "reading", file_path: "NOTES.md", start_line: 1, end_line: 1 });
+    FakeAudio.last?.seek(7);
+    assert.deepEqual(lastPost(chat), { kind: "reading", file_path: "NOTES.md", start_line: 5, end_line: 8 });
+  });
+
+  void test("the filter shows only the current file's conversation", () => {
+    chat.server("presenting", hunk);
+    chat.server("narration", narration);
+    chat.server("presenting", { ...hunk, index: 1, file_path: "other.py" });
+    chat.server("narration", { ...narration, index: 1, file_path: "other.py", text: "Other." });
+    chat.click("filter");
+    const visible = [...chat.doc.querySelectorAll<HTMLElement>(".turn.presenter")].filter(
+      (t) => !t.classList.contains("filtered"),
+    );
+    assert.deepEqual(
+      visible.map((t) => t.dataset.file),
+      ["other.py"],
+    );
+    assert.equal(chat.$("filter").getAttribute("aria-pressed"), "true");
+    chat.click("filter");
+    assert.equal(chat.doc.querySelectorAll(".turn.filtered").length, 0);
+  });
+
+  void test("a change too large for the model offers a hand-off to copy", () => {
+    chat.server("presenting", hunk);
+    chat.server("context_too_large", {
+      kind: "hunk",
+      reason: "too_large",
+      file_path: "calc.py",
+      question: null,
+      estimated_tokens: 12000,
+      budget_tokens: 7000,
+      handoff_text: "In this repo, look at calc.py…",
+    });
+    const card = chat.doc.querySelector(".turn.too-large");
+    assert.match(
+      card?.textContent ?? "",
+      /doesn't fit in the model's context \(about 12,000 tokens; it can read 7,000\)/,
+    );
+    [...(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])]
+      .find((b) => b.textContent === "Copy for your agent")
+      ?.click();
+    assert.deepEqual(lastPost(chat), { kind: "copy", text: "In this repo, look at calc.py…" });
   });
 
   void test("sends a typed question on Enter", () => {

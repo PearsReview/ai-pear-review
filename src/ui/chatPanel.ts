@@ -42,6 +42,7 @@ type FromWebview =
   | { kind: "comment"; text: string }
   | { kind: "setCommentMode"; on: boolean }
   | { kind: "openPlan"; file: string }
+  | { kind: "copy"; text: string }
   | { kind: "proposal"; action: "apply" | "discard" }
   | { kind: "proposal"; action: "refine"; text: string }
   | { kind: "proposal"; action: "open"; file_path: string }
@@ -230,6 +231,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
         case "openPlan":
           void vscode.commands.executeCommand("pearReview.openPlan", message.file);
           return;
+        case "copy":
+          void vscode.env.clipboard
+            .writeText(message.text)
+            .then(() => vscode.window.showInformationMessage("Copied. Paste it into your coding agent's chat."));
+          return;
         case "backToReview":
           this.target.setFile(undefined);
           return;
@@ -302,6 +308,8 @@ function parseFromWebview(raw: unknown): FromWebview | undefined {
       return typeof m.on === "boolean" ? { kind: "setCommentMode", on: m.on } : undefined;
     case "openPlan":
       return typeof m.file === "string" ? { kind: "openPlan", file: m.file } : undefined;
+    case "copy":
+      return typeof m.text === "string" && m.text ? { kind: "copy", text: m.text } : undefined;
     case "setActMode":
       return typeof m.on === "boolean" ? { kind: "setActMode", on: m.on } : undefined;
     case "proposal":

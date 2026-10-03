@@ -70,6 +70,13 @@ still works on its own.
     summary: how much was reviewed, the comments waiting, and buttons to
     create the plan, open the last plan, or start a new review.
 
+While a reply is read aloud, the sentence being spoken is highlighted in it.
+The filter in the chat's toolbar shows only the conversation about the current
+file. If a change is too large for the model, the chat says so and offers the
+request to copy into your coding agent. The status bar's **Pear** item names
+any service that's down; hover it for the model, speech, coding agent and the
+session's token use.
+
 **Settings**: the ⚙ in the chat is the one place for settings. It opens the same
 settings as the web app's panel:
 

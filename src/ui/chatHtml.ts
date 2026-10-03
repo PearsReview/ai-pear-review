@@ -35,6 +35,7 @@ export function chatHtml({ nonce, cspSource, src }: ChatHtmlOptions): string {
     <div id="hunk" class="hunk">No review running.</div>
     <div id="toolbar" class="toolbar">
       <button id="explain" class="icon-btn" data-command="explain" title="Explain this change" aria-label="Explain this change">${icon("sparkle")}</button>
+      <button id="filter" class="icon-btn" aria-pressed="false" title="Show only this file's conversation" aria-label="Show only this file's conversation">${icon("filter")}</button>
       <button id="settings" class="icon-btn" data-command="settings" title="Settings" aria-label="Settings">${icon("settings-gear")}</button>
     </div>
   </header>
@@ -58,6 +59,7 @@ export function chatHtml({ nonce, cspSource, src }: ChatHtmlOptions): string {
     </div>
   </form>
   <script nonce="${nonce}" src="${src("blocks.js")}"></script>
+  <script nonce="${nonce}" src="${src("readalong.js")}"></script>
   <script nonce="${nonce}" src="${src("chat.js")}"></script>
 </body>
 </html>`;

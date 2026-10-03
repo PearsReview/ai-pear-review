@@ -218,6 +218,21 @@ input:focus-visible {
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 
+.filtered {
+  display: none !important;
+}
+
+.icon-btn.active {
+  color: var(--vscode-foreground);
+  background: var(--surface-strong);
+}
+
+.turn.too-large {
+  border-left: 2px solid var(--vscode-editorWarning-foreground, var(--outline));
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--surface);
+}
+
 .turn.summary {
   border: 1px solid var(--outline);
   background: var(--surface);
@@ -550,4 +565,9 @@ body[data-backend="stopped"] .composer-bar .icon-btn {
   .codicon-modifier-spin {
     animation: none;
   }
+}
+
+/* The sentence being spoken (readalong.js). */
+::highlight(pear-reading) {
+  background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
 }
