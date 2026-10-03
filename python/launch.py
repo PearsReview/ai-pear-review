@@ -18,7 +18,10 @@ import os
 import sys
 from pathlib import Path
 
-BACKEND = Path(__file__).resolve().parent.parent / "backend"
+# PEAR_REVIEW_BACKEND_DIR is for the integration tests, which run a copy of the
+# backend with a patched config.yaml (fake model, fake agent), as qa_agent does,
+# so the submodule itself is never edited.
+BACKEND = Path(os.environ.get("PEAR_REVIEW_BACKEND_DIR") or Path(__file__).resolve().parent.parent / "backend")
 sys.path.insert(0, str(BACKEND))
 
 

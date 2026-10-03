@@ -4,3 +4,4 @@ dist/
 *.vsix
 __pycache__/
 .vscode-test/
+dist-test/

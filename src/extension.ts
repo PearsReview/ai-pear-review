@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import { PythonBackend } from "./backend/backend.ts";
 import { output } from "./log.ts";
+import { read, testMode } from "./testProbe.ts";
 import * as actNow from "./ui/actNow.ts";
 import * as chatPanel from "./ui/chatPanel.ts";
 import * as commands from "./ui/commands.ts";
@@ -19,7 +20,8 @@ let backend: PythonBackend | undefined;
 
 // Wiring only. Nothing here blocks or spawns: the backend starts on the first
 // "Start Review".
-export function activate(context: vscode.ExtensionContext): void {
+// Returns the test probe's reader when PEAR_REVIEW_TEST=1, and nothing otherwise.
+export function activate(context: vscode.ExtensionContext): { read: typeof read } | undefined {
   backend = new PythonBackend(context.extensionPath, context.secrets);
   const selection = selectionContext.register(backend);
   const agent = actNow.register(backend);
@@ -51,6 +53,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     ...commands.register(context, backend, recorder.voice),
   );
+  return testMode ? { read } : undefined;
 }
 
 export async function deactivate(): Promise<void> {

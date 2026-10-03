@@ -4,7 +4,9 @@ import * as vscode from "vscode";
 import type { Backend, BackendState } from "../backend/backend.ts";
 import type { ServerMessage } from "../backend/protocol.ts";
 import { showError } from "../log.ts";
+import { publish, testMode } from "../testProbe.ts";
 import type { ActNow } from "./actNow.ts";
+import { chatHtml } from "./chatHtml.ts";
 import type { ReadAloud } from "./files.ts";
 import type { SelectionContext } from "./selection.ts";
 import type { ChatTarget } from "./target.ts";
@@ -84,6 +86,8 @@ export function register(
 class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   private view: vscode.WebviewView | undefined;
   private readonly subscriptions: vscode.Disposable[] = [];
+  // Everything posted to the webview, for the integration tests (testProbe.ts).
+  private readonly posted: ToWebview[] = [];
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -94,6 +98,8 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     private readonly target: ChatTarget,
     private readonly readAloud: ReadAloud,
   ) {
+    publish("chat.posted", () => this.posted);
+    publish("chat.receive", () => (raw: unknown) => this.receive(raw));
     this.subscriptions.push(
       target.onDidChange((file) => this.post({ kind: "target", file_path: file ?? null })),
       actNow.onDidChangeActive((on) => this.post({ kind: "actMode", on })),
@@ -130,6 +136,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
   }
 
   private post(message: ToWebview): void {
+    if (testMode) this.posted.push(message);
     void this.view?.webview.postMessage(message);
   }
 
@@ -211,56 +218,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
   }
 
   private html(webview: vscode.Webview, media: vscode.Uri): string {
-    const nonce = randomBytes(16).toString("base64");
-    const src = (file: string): string => webview.asWebviewUri(vscode.Uri.joinPath(media, file)).toString();
-    const csp = [
-      "default-src 'none'",
-      `style-src ${webview.cspSource}`,
-      `script-src 'nonce-${nonce}'`,
-      "media-src blob:",
-    ].join("; ");
-    return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="${csp}">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="${src("chat.css")}">
-  <title>Pear Review</title>
-</head>
-<body>
-  <header id="hunk">No review running.</header>
-  <div id="toolbar">
-    <button data-command="startReview" id="start">Start review</button>
-    <button data-command="prev" class="secondary" title="Previous change">Prev</button>
-    <button data-command="next" class="secondary" title="Next change">Next</button>
-    <button data-command="explain" id="explain" class="secondary" title="Have the reviewer explain this change">Explain</button>
-  </div>
-  <main id="transcript" aria-live="polite"></main>
-  <div id="audio-blocked" hidden><button id="enable-audio">Click to enable spoken replies</button></div>
-  <div id="audio-bar" hidden>
-    <span id="audio-status">Speaking…</span>
-    <button id="audio-pause" class="secondary small">Pause</button>
-    <button id="audio-stop" class="secondary small">Stop</button>
-  </div>
-  <div id="target" hidden>
-    <span id="target-label"></span>
-    <button id="target-back" class="link">Back to review</button>
-  </div>
-  <div id="context" hidden>
-    <span id="context-label"></span>
-    <button id="context-clear" class="icon" title="Don't send this selection" aria-label="Don't send this selection">×</button>
-  </div>
-  <form id="composer">
-    <button type="button" id="act" class="secondary" aria-pressed="false">Act Now</button>
-    <button type="button" id="mic" data-command="toggleRecording" title="Push to talk (Ctrl+Alt+Space)">Mic</button>
-    <textarea id="input" rows="2" placeholder="Ask about this change… (select lines in the editor to ask about them)"></textarea>
-    <button type="submit" id="send">Send</button>
-  </form>
-  <script nonce="${nonce}" src="${src("blocks.js")}"></script>
-  <script nonce="${nonce}" src="${src("chat.js")}"></script>
-</body>
-</html>`;
+    return chatHtml({
+      nonce: randomBytes(16).toString("base64"),
+      cspSource: webview.cspSource,
+      src: (file) => webview.asWebviewUri(vscode.Uri.joinPath(media, file)).toString(),
+    });
   }
 }
 

@@ -3,3 +3,5 @@ dist/
 .venv/
 node_modules/
 package-lock.json
+dist-test/
+.vscode-test/

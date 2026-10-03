@@ -5,6 +5,7 @@ import type { Backend } from "../backend/backend.ts";
 import type { ActNowPreview, MarkedLine, ProposedFile } from "../backend/protocol.ts";
 import { showError } from "../log.ts";
 import { sidesOf } from "../review/hunks.ts";
+import { publish } from "../testProbe.ts";
 
 // Read-only documents for a proposal's two sides: pear-proposal:/before/<path> and
 // pear-proposal:/after/<path>. Nothing is on disk until Apply.
@@ -26,6 +27,7 @@ export function register(backend: Backend): { actNow: ActNow; disposables: vscod
   const activeChanges = new vscode.EventEmitter<boolean>();
   let active = false;
   let proposal: ActNowPreview | undefined;
+  publish("actNow.state", () => ({ active, proposal }));
 
   const uriFor = (side: "before" | "after", filePath: string): vscode.Uri =>
     vscode.Uri.from({ scheme: SCHEME, path: `/${side}/${filePath}` });

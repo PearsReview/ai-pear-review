@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
+import { publish } from "../testProbe.ts";
 
 // What the chat is talking about: the hunk on screen (undefined), or a file the
 // reviewer asked about (Ask Pear About This File), whose questions go as explore_reply.
@@ -15,6 +16,7 @@ export function register(backend: Backend): { target: ChatTarget; disposables: v
   const changes = new vscode.EventEmitter<string | undefined>();
   let file: string | undefined;
   let shownIndex: number | undefined;
+  publish("chat.target", () => file);
 
   const target: ChatTarget = {
     get file() {

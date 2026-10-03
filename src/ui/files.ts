@@ -2,8 +2,9 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
-import { gitApi, reviewLocation } from "../git.ts";
+import { repositoryRoots, reviewLocation } from "../git.ts";
 import { showError } from "../log.ts";
+import { publish } from "../testProbe.ts";
 import { lineSpan } from "./selection.ts";
 import type { ChatTarget } from "./target.ts";
 
@@ -34,6 +35,7 @@ export function register(
     overviewRulerLane: vscode.OverviewRulerLane.Center,
   });
   let reading: ReadingPosition | undefined;
+  publish("files.reading", () => reading);
 
   const decorate = (editor: vscode.TextEditor, reveal: boolean): void => {
     const root = backend.repoPath;
@@ -66,7 +68,7 @@ export function register(
       showError("Remote workspaces aren't supported. Open the repository locally.");
       return undefined;
     }
-    const repos = (await gitApi())?.repositories.map((r) => r.rootUri.fsPath) ?? [];
+    const repos = await repositoryRoots();
     const root = repos.filter((r) => reviewLocation(uri, r)).sort((a, b) => b.length - a.length)[0];
     if (!root) {
       showError("That file isn't in a git repository VS Code has open.");

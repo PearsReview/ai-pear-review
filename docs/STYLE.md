@@ -83,10 +83,18 @@ merged, bump the submodule pin here.
 
 ## 8. Tests and definition of done
 
-- Pure logic goes in `test/unit/` (`node --test`, no VS Code). Behaviour that needs
-  VS Code goes in `@vscode/test-electron` integration tests.
-- Every message type the UI sends has a test path.
+- Pure logic goes in `test/unit/` (`node --test`, no VS Code).
+- The chat webview's script is tested in a DOM (`test/unit/chat.dom.test.ts`,
+  jsdom): its markup comes from `src/ui/chatHtml.ts`, so the tests render exactly
+  what the panel serves.
+- Behaviour that needs VS Code goes in `test/integration/suite/` (`@vscode/test-electron`),
+  against a real backend with fakes for the model, speech, agent and microphone. Tests
+  act the way a user does (commands, the chat's message handler) and read state through
+  the test probe (`src/testProbe.ts`). A module that needs checking publishes a
+  read-only view there; it never gains test-only behaviour.
+- Every message type the UI sends has a test path. A new feature adds an integration
+  test, and a DOM test if it changes the chat panel.
 - A change is done when:
-  - [ ] lint, typecheck and tests pass;
+  - [ ] lint, typecheck, `npm test` and `npm run test:integration` pass;
   - [ ] the README and CHANGELOG are updated if behaviour changed;
   - [ ] the manual F5 walkthrough still works (README, "Developing").

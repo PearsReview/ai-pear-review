@@ -13,3 +13,6 @@ backend/static/**
 tsconfig.json
 esbuild.mjs
 eslint.config.mjs
+dist-test/**
+.vscode-test/**
+esbuild.test.mjs

@@ -5,11 +5,18 @@ import { showError } from "./log.ts";
 
 // The slice of the built-in vscode.git extension's API this extension uses.
 interface GitApi {
+  state: "uninitialized" | "initialized";
+  onDidChangeState: vscode.Event<"uninitialized" | "initialized">;
   repositories: { rootUri: vscode.Uri }[];
+  onDidOpenRepository: vscode.Event<unknown>;
   toGitUri(uri: vscode.Uri, ref: string): vscode.Uri;
 }
 
 let api: GitApi | undefined;
+
+// Right after VS Code opens, the git extension is still finding repositories: Start
+// Review pressed then would see none. Caught by the integration suite's first test.
+const DISCOVERY_WAIT_MS = 5_000;
 
 export async function gitApi(): Promise<GitApi | undefined> {
   if (api) return api;
@@ -18,9 +25,35 @@ export async function gitApi(): Promise<GitApi | undefined> {
   return api;
 }
 
+// The git extension's repositories, once it has finished starting and has had a moment
+// to open the workspace's (it opens them one by one after initializing).
+export async function repositoryRoots(): Promise<string[]> {
+  const git = await gitApi();
+  if (!git) return [];
+  if (git.state !== "initialized") {
+    await waitForEvent(git.onDidChangeState, (state) => state === "initialized", DISCOVERY_WAIT_MS);
+  }
+  if (git.repositories.length === 0) await waitForEvent(git.onDidOpenRepository, () => true, DISCOVERY_WAIT_MS);
+  return git.repositories.map((r) => r.rootUri.fsPath);
+}
+
+function waitForEvent<T>(event: vscode.Event<T>, matches: (value: T) => boolean, timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, timeoutMs);
+    const subscription = event((value) => {
+      if (matches(value)) done();
+    });
+    function done(): void {
+      clearTimeout(timer);
+      subscription.dispose();
+      resolve();
+    }
+  });
+}
+
 // The workspace's git repository; a quick pick when there are several.
 export async function pickRepository(): Promise<string | undefined> {
-  const roots = (await gitApi())?.repositories.map((r) => r.rootUri.fsPath) ?? [];
+  const roots = await repositoryRoots();
   if (roots.length === 0) {
     showError("Open a git repository to start a review.");
     return undefined;

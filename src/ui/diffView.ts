@@ -6,6 +6,7 @@ import type { Presenting } from "../backend/protocol.ts";
 import { gitApi } from "../git.ts";
 import { log } from "../log.ts";
 import { fileChange, hunkHighlight } from "../review/hunks.ts";
+import { publish } from "../testProbe.ts";
 
 // The side of a diff with no file behind it: HEAD for a new file, the working tree for
 // a deleted one.
@@ -32,6 +33,7 @@ export function register(backend: Backend): vscode.Disposable[] {
   });
   let current: Highlight | undefined;
   let generation = 0;
+  publish("diff.highlight", () => current && { uri: current.uri, lines: current.ranges.map((r) => r.start.line + 1) });
 
   const apply = (editor: vscode.TextEditor): void => {
     if (current && editor.document.uri.toString() === current.uri) editor.setDecorations(decoration, current.ranges);

@@ -5,7 +5,8 @@ import type { ReviewComment, Severity } from "../backend/protocol.ts";
 import { reviewLocation, reviewUri } from "../git.ts";
 import { log, showError } from "../log.ts";
 import { anchorRange } from "../review/anchors.ts";
-import { lineSpan, type SelectionContext } from "./selection.ts";
+import { publish } from "../testProbe.ts";
+import type { SelectionContext } from "./selection.ts";
 
 export interface Comments {
   readonly count: number;
@@ -47,6 +48,18 @@ export function register(
   const controller = vscode.comments.createCommentController("pearReview", "Pear Review");
   controller.options = { prompt: "Comment for the coding agent", placeHolder: "What should change here?" };
   const threads = new Map<number, PearComment>();
+  publish("comments.threads", () =>
+    [...threads.values()].map((c) => ({
+      id: c.data.id,
+      uri: c.thread?.uri.toString(),
+      startLine: (c.thread?.range?.start.line ?? -1) + 1,
+      endLine: (c.thread?.range?.end.line ?? -1) + 1,
+      body: typeof c.body === "string" ? c.body : c.body.value,
+      author: c.author.name,
+      severity: c.data.severity,
+      comment: c,
+    })),
+  );
   const countChanges = new vscode.EventEmitter<number>();
   let count = 0;
   let open = false;
@@ -107,7 +120,11 @@ export function register(
     const location = root ? reviewLocation(reply.thread.uri, root) : undefined;
     if (!text || !location || !reply.thread.range) return;
     const document = await vscode.workspace.openTextDocument(reply.thread.uri);
-    const marked_lines = selection.markedLinesAt({ ...location, ...lineSpan(reply.thread.range) }, document);
+    // A thread's range is whole lines, its end line included even at column 0; the
+    // editor-selection rule in selection.ts's lineSpan would drop that last line.
+    const { start, end } = reply.thread.range;
+    const span = { startLine: start.line + 1, endLine: end.line + 1 };
+    const marked_lines = selection.markedLinesAt({ ...location, ...span }, document);
     backend.send("request_change", { text, marked_lines, severity });
     reply.thread.dispose();
   };
@@ -123,26 +140,35 @@ export function register(
       }
     };
 
-  const createPlan = async (): Promise<void> => {
+  // `preset` skips the prompts: { note?, asSkill? }, from a keybinding or the tests.
+  const createPlan = async (preset?: unknown): Promise<void> => {
+    const given =
+      typeof preset === "object" && preset !== null ? (preset as { note?: unknown; asSkill?: unknown }) : undefined;
     if (count === 0) {
       void vscode.window.showInformationMessage(
         "No review comments yet. Hover the diff's gutter and press + to comment on lines.",
       );
       return;
     }
-    const note = await vscode.window.showInputBox({
-      title: `Create plan from ${count} comment${count === 1 ? "" : "s"}`,
-      prompt: "An overall note for the coding agent (optional)",
-      ignoreFocusOut: true,
-    });
+    const note = given
+      ? typeof given.note === "string"
+        ? given.note
+        : ""
+      : await vscode.window.showInputBox({
+          title: `Create plan from ${count} comment${count === 1 ? "" : "s"}`,
+          prompt: "An overall note for the coding agent (optional)",
+          ignoreFocusOut: true,
+        });
     if (note === undefined) return;
-    const form = await vscode.window.showQuickPick(
-      [
-        { label: "Plan", description: "Write .review/review_<time>.md", asSkill: false },
-        { label: "Plan and /apply-review skill", description: "Also save it as an agent skill", asSkill: true },
-      ],
-      { title: "Create plan", ignoreFocusOut: true },
-    );
+    const form = given
+      ? { asSkill: given.asSkill === true }
+      : await vscode.window.showQuickPick(
+          [
+            { label: "Plan", description: "Write .review/review_<time>.md", asSkill: false },
+            { label: "Plan and /apply-review skill", description: "Also save it as an agent skill", asSkill: true },
+          ],
+          { title: "Create plan", ignoreFocusOut: true },
+        );
     if (!form) return;
     backend.send(
       "finish_review",

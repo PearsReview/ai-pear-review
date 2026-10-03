@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Tests replacing the Playwright suite for this front end: DOM tests of the
+  chat panel (jsdom) and an integration suite in a real VS Code against a real
+  backend with fake model, speech, agent and microphone (29 tests, ~15 s), with
+  an opt-in run against real Ollama.
+- Fixed: a comment on several lines lost its last line.
+- Fixed: Start Review right after VS Code opened could report "Open a git
+  repository" while git was still finding it.
 - Ask Pear About This File: the chat answers questions about any repo file
   (text or voice, selection as context), from the Explorer or editor menus.
 - Read Aloud for markdown files, with the passage being read highlighted;

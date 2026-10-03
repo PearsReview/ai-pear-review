@@ -91,5 +91,27 @@ setting, then `python` on PATH.
 npm run lint && npm run typecheck && npm test
 ```
 
+### Tests
+
+Three layers, replacing the web app's Playwright suite for this front end:
+
+| Command                           | What runs                                                                                                                         | Time    |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `npm test`                        | Unit tests of the pure helpers, and DOM tests of the chat panel's script under jsdom (clicks, rendering, audio states)            | seconds |
+| `npm run test:integration`        | A real VS Code (downloaded once into `.vscode-test/`) with the extension, opened on a scratch repo, with a real backend behind it | ~15 s   |
+| `npm run test:integration:ollama` | The same suite with your real local Ollama as the reviewer model                                                                  | minutes |
+
+In the integration suite everything the backend calls out to is a fake
+(`test/integration/`): a local server stands in for Ollama and the speech
+service and records every request, the backend's scripted agent
+(`tests/fake_acp_agent.py`) stands in for Cline, and a fake `sounddevice`
+records a tone instead of opening the microphone. The backend runs from a
+temporary copy with a patched config, so `backend/` is never edited. Only the
+model switches to the real one with `:ollama`.
+
+Tests drive the extension through its commands and the chat's message handler,
+and read UI state through a test probe the extension exposes only when
+`PEAR_REVIEW_TEST=1` (`src/testProbe.ts`).
+
 How the code is laid out, and the rules it follows, are in
 [docs/STYLE.md](docs/STYLE.md).

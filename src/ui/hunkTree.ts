@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import type { Backend } from "../backend/backend.ts";
 import type { ProgressFile, ProgressHunk, ReviewProgress } from "../backend/protocol.ts";
 import { hunkLabel } from "../review/hunks.ts";
+import { publish } from "../testProbe.ts";
 import type { Comments } from "./comments.ts";
 
 type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: ProgressHunk; file: ProgressFile };
@@ -13,6 +14,13 @@ type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: Progres
 export function register(backend: Backend, comments: Comments): vscode.Disposable[] {
   const provider = new HunkTreeProvider(() => backend.repoPath);
   const view = vscode.window.createTreeView("pearReview.hunks", { treeDataProvider: provider });
+  publish("tree.view", () => ({
+    description: view.description,
+    files: provider.getChildren().map((file) => ({
+      ...itemSummary(provider.getTreeItem(file)),
+      hunks: provider.getChildren(file).map((hunk) => itemSummary(provider.getTreeItem(hunk))),
+    })),
+  }));
 
   // "presenting" comes just before the "review_progress" that rebuilds the nodes, so
   // both reveal: the second one lands on the rebuilt node.
@@ -50,6 +58,16 @@ export function register(backend: Backend, comments: Comments): vscode.Disposabl
       }
     }),
   ];
+}
+
+function itemSummary(item: vscode.TreeItem): Record<string, unknown> {
+  return {
+    label: typeof item.label === "string" ? item.label : item.label?.label,
+    description: item.description,
+    contextValue: item.contextValue,
+    icon: item.iconPath instanceof vscode.ThemeIcon ? item.iconPath.id : undefined,
+    command: item.command?.arguments,
+  };
 }
 
 class HunkTreeProvider implements vscode.TreeDataProvider<Node>, vscode.Disposable {

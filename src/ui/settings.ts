@@ -36,21 +36,25 @@ export function register(backend: Backend): vscode.Disposable[] {
     return false;
   };
 
-  const chooseAgent = async (): Promise<void> => {
+  // `preset` (an agent id) skips the picker, for a keybinding or the tests.
+  const chooseAgent = async (preset?: unknown): Promise<void> => {
     if (!requireBackend()) return;
     const current = (await fetchSettings()).harness_settings;
-    const picked = await vscode.window.showQuickPick(
-      current.agents.map((agent) => ({
-        label: AGENT_LABELS[agent] ?? agent,
-        agent,
-        description: agent === current.agent ? "current" : undefined,
-        detail:
-          agent !== "none" && current.model
-            ? `Uses the model set in ${AGENT_LABELS[agent] ?? agent}: ${current.provider ?? ""} ${current.model}`.trim()
-            : undefined,
-      })),
-      { title: "Coding agent for Act Now and Look deeper" },
-    );
+    const given = typeof preset === "string" && current.agents.includes(preset) ? { agent: preset } : undefined;
+    const picked =
+      given ??
+      (await vscode.window.showQuickPick(
+        current.agents.map((agent) => ({
+          label: AGENT_LABELS[agent] ?? agent,
+          agent,
+          description: agent === current.agent ? "current" : undefined,
+          detail:
+            agent !== "none" && current.model
+              ? `Uses the model set in ${AGENT_LABELS[agent] ?? agent}: ${current.provider ?? ""} ${current.model}`.trim()
+              : undefined,
+        })),
+        { title: "Coding agent for Act Now and Look deeper" },
+      ));
     if (!picked || picked.agent === current.agent) return;
     await save({ harness: { agent: picked.agent } });
     void vscode.window.showInformationMessage(
@@ -91,8 +95,8 @@ export function register(backend: Backend): vscode.Disposable[] {
     void vscode.window.showInformationMessage(`Pear Review: the reviewer now uses ${provider.label} ${model.trim()}.`);
   };
 
-  const run = (fn: () => Promise<void>) => () =>
-    fn().catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+  const run = (fn: (arg?: unknown) => Promise<void>) => (arg?: unknown) =>
+    fn(arg).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 
   return [
     vscode.commands.registerCommand("pearReview.chooseAgent", run(chooseAgent)),
