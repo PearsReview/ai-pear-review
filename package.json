@@ -178,6 +178,23 @@
         "command": "pearReview.actNow.openFile",
         "title": "Act Now: Open Proposed File",
         "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.askAboutFile",
+        "title": "Ask Pear About This File",
+        "category": "Pear Review",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "pearReview.readAloud",
+        "title": "Read Aloud",
+        "category": "Pear Review",
+        "icon": "$(unmute)"
+      },
+      {
+        "command": "pearReview.openRepoFile",
+        "title": "Open File",
+        "category": "Pear Review"
       }
     ],
     "keybindings": [
@@ -310,6 +327,10 @@
         {
           "command": "pearReview.actNow.openFile",
           "when": "false"
+        },
+        {
+          "command": "pearReview.openRepoFile",
+          "when": "false"
         }
       ],
       "comments/commentThread/context": [
@@ -373,6 +394,42 @@
           "command": "pearReview.actNow.discard",
           "when": "resourceScheme == pear-proposal",
           "group": "navigation@3"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "resourceLangId == markdown && resourceScheme == file",
+          "group": "navigation@10"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "pearReview.askAboutFile",
+          "when": "!explorerResourceIsFolder && resourceScheme == file",
+          "group": "pearReview@1"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "resourceExtname == .md && resourceScheme == file",
+          "group": "pearReview@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "pearReview.askAboutFile",
+          "when": "resourceScheme == file",
+          "group": "pearReview@1"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "resourceLangId == markdown && resourceScheme == file",
+          "group": "pearReview@2"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "pearReview.askAboutFile",
+          "when": "resourceScheme == file",
+          "group": "pearReview@1"
         }
       ]
     }

@@ -2,7 +2,8 @@
 
 > **Early development (0.0.x).** The review loop works end to end: the
 > Changes tree, the native diff, the chat with voice, Look deeper, inline
-> comments, Create Plan and Act Now. Packaging comes next.
+> comments, Create Plan and Act Now, plus questions about any file and
+> markdown read aloud. Packaging comes next.
 
 A VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
 It walks you through your uncommitted git changes one hunk at a time, with an AI
@@ -47,9 +48,17 @@ still works on its own.
    copy of the repo and proposes the change; each file opens as a diff.
    **Apply** writes it, **Refine** asks for changes to the proposal, and
    **Discard** drops it. Nothing touches your files until you apply.
-9. **Create Plan** (the checklist button on the Changes view) writes all
-   comments to `.review/review_<time>.md`, optionally as an `/apply-review`
-   skill too, and gives you the line to hand your coding agent.
+9. **Ask Pear About This File** (right-click a file in the Explorer, or in
+   the editor) points the chat at any file in the repo, changed or not, even
+   before a review starts. Ask by text or voice, with selected lines as
+   context. **Back to review**, or moving to another change, returns the
+   chat to the review.
+10. **Read Aloud** on a markdown file (the speaker button in its title bar,
+    or right-click it) reads it through the chat's audio bar, highlighting
+    the passage being read. Select lines first to read only those.
+11. **Create Plan** (the checklist button on the Changes view) writes all
+    comments to `.review/review_<time>.md`, optionally as an `/apply-review`
+    skill too, and gives you the line to hand your coding agent.
 
 **Settings** (in the Changes view's "…" menu, or the Command Palette):
 

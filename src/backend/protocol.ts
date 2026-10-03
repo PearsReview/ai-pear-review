@@ -41,7 +41,7 @@ export interface ClientPayloads {
   step_into: { text: string };
   list_all_files: Empty;
   explore_file: { file_path: string };
-  explore_reply: Voiced & { file_path: string };
+  explore_reply: Voiced & { file_path: string; marked_lines?: MarkedLine[] };
   look_deeper: { index: number; question?: string };
   get_settings: { provider?: string };
   set_settings: { settings: Unknown };
@@ -227,6 +227,15 @@ export interface ReviewProgress {
   review_ended: boolean;
 }
 
+// One clip of a markdown file read aloud (voice.py's handle_speak_file), with the line
+// range it covers for the read-along highlight.
+export interface FileAudioChunk extends AudioChunk {
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  content_hash: string;
+}
+
 export interface ServiceStatus {
   stt?: boolean;
   tts?: boolean;
@@ -245,7 +254,7 @@ export interface ServerPayloads {
   audio_chunk: AudioChunk;
   turn_audio_chunk: AudioChunk;
   tour_audio_chunk: Unknown;
-  file_audio_chunk: Unknown;
+  file_audio_chunk: FileAudioChunk;
   md_preview: Unknown;
   all_files: Unknown;
   file_explore: Unknown;

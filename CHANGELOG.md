@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Ask Pear About This File: the chat answers questions about any repo file
+  (text or voice, selection as context), from the Explorer or editor menus.
+- Read Aloud for markdown files, with the passage being read highlighted;
+  also offered for a freshly created plan.
 - Act Now: act mode in the chat (typed or voice, with selected lines), the
   proposal as read-only diffs with Apply / Refine / Discard in the chat card
   and the diff's title bar. Choose Coding Agent and Choose Reviewer Model,

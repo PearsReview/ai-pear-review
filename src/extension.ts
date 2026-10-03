@@ -7,10 +7,12 @@ import * as chatPanel from "./ui/chatPanel.ts";
 import * as commands from "./ui/commands.ts";
 import * as comments from "./ui/comments.ts";
 import * as diffView from "./ui/diffView.ts";
+import * as files from "./ui/files.ts";
 import * as hunkTree from "./ui/hunkTree.ts";
 import * as selectionContext from "./ui/selection.ts";
 import * as settings from "./ui/settings.ts";
 import * as statusBar from "./ui/statusBar.ts";
+import * as chatTarget from "./ui/target.ts";
 import * as voice from "./ui/voice.ts";
 
 let backend: PythonBackend | undefined;
@@ -21,7 +23,9 @@ export function activate(context: vscode.ExtensionContext): void {
   backend = new PythonBackend(context.extensionPath, context.secrets);
   const selection = selectionContext.register(backend);
   const agent = actNow.register(backend);
-  const recorder = voice.register(backend, selection.selection, agent.actNow);
+  const target = chatTarget.register(backend);
+  const repoFiles = files.register(backend, target.target);
+  const recorder = voice.register(backend, selection.selection, agent.actNow, target.target);
   const review = comments.register(backend, selection.selection);
   context.subscriptions.push(
     output,
@@ -32,9 +36,19 @@ export function activate(context: vscode.ExtensionContext): void {
     ...diffView.register(backend),
     ...selection.disposables,
     ...agent.disposables,
+    ...target.disposables,
+    ...repoFiles.disposables,
     ...settings.register(backend),
     ...recorder.disposables,
-    ...chatPanel.register(context, backend, recorder.voice, selection.selection, agent.actNow),
+    ...chatPanel.register(
+      context,
+      backend,
+      recorder.voice,
+      selection.selection,
+      agent.actNow,
+      target.target,
+      repoFiles.readAloud,
+    ),
     ...commands.register(context, backend, recorder.voice),
   );
 }

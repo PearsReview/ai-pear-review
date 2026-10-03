@@ -23,7 +23,9 @@
     actMode: false,
     narrated: new Map(), // hunk index -> narration text already shown
     lastQuestion: new Map(), // hunk index -> the reviewer's latest question on it
-    lastDivider: /** @type {number | null} */ (null),
+    // "h:<index>" for a hunk, "f:<path>" for a file asked about: a divider marks each change.
+    lastDivider: /** @type {string | null} */ (null),
+    targetFile: /** @type {string | null} */ (null),
   };
 
   const post = (message) => vscode.postMessage(message);
@@ -70,12 +72,18 @@
 
   // --- transcript ------------------------------------------------------------------
 
+  // index -1 is a turn about a whole file (explore_reply), not a hunk.
   function appendDivider(info) {
+    const isFile = info.index === -1;
     const divider = document.createElement("button");
     divider.className = "hunk-divider";
-    divider.textContent = `${info.file_path} — change ${info.index + 1}/${info.total}`;
-    divider.title = `Jump back to ${info.file_path}`;
-    divider.addEventListener("click", () => post({ kind: "jump", index: info.index }));
+    divider.textContent = isFile
+      ? `About ${info.file_path}`
+      : `${info.file_path} — change ${info.index + 1}/${info.total}`;
+    divider.title = isFile ? `Open ${info.file_path}` : `Jump back to ${info.file_path}`;
+    divider.addEventListener("click", () =>
+      post(isFile ? { kind: "openFile", file_path: info.file_path } : { kind: "jump", index: info.index }),
+    );
     transcript.appendChild(divider);
   }
 
@@ -145,9 +153,12 @@
 
   function appendTurn(role, text, info) {
     clearThinking();
-    if (info && typeof info.index === "number" && info.index >= 0 && info.index !== state.lastDivider) {
-      appendDivider(info);
-      state.lastDivider = info.index;
+    if (info && typeof info.index === "number" && info.file_path) {
+      const key = info.index === -1 ? `f:${info.file_path}` : `h:${info.index}`;
+      if (key !== state.lastDivider) {
+        appendDivider(info);
+        state.lastDivider = key;
+      }
     }
     const turn = document.createElement("div");
     turn.className = `turn ${role}`;
@@ -198,9 +209,11 @@
     const onHunk = state.current !== null && !state.ended;
     /** @type {HTMLButtonElement} */ ($("explain")).disabled =
       !onHunk || !state.started || !state.narrationAvailable || state.narrating || state.narrated.has(state.current);
-    /** @type {HTMLButtonElement} */ ($("send")).disabled = !onHunk;
-    /** @type {HTMLButtonElement} */ (mic).disabled = !onHunk && !mic.classList.contains("recording");
-    input.disabled = !onHunk;
+    // Questions about a file work before the review starts and after it ends.
+    const canAsk = onHunk || state.targetFile !== null;
+    /** @type {HTMLButtonElement} */ ($("send")).disabled = !canAsk;
+    /** @type {HTMLButtonElement} */ (mic).disabled = !canAsk && !mic.classList.contains("recording");
+    input.disabled = !canAsk;
     const act = /** @type {HTMLButtonElement} */ ($("act"));
     act.disabled = !onHunk || !state.actNow.available;
     act.title = state.actNow.available
@@ -210,7 +223,9 @@
     act.setAttribute("aria-pressed", String(state.actMode));
     input.placeholder = state.actMode
       ? `Tell ${agentName()} what to change… (nothing is written until you apply it)`
-      : "Ask about this change… (select lines in the editor to ask about them)";
+      : state.targetFile
+        ? `Ask about ${state.targetFile}… (select lines to ask about them)`
+        : "Ask about this change… (select lines in the editor to ask about them)";
     $("send").textContent = state.actMode ? "Send to agent" : "Send";
     document.querySelectorAll(".look-deeper").forEach(applyLookDeeper);
   }
@@ -305,50 +320,62 @@
   }
 
   // --- audio: a turn's clips play back to back; chunk_index 0 starts a new turn ----
-  // The audio bar (Pause/Resume, Stop) shows while anything is being spoken.
+  // The audio bar (Pause/Resume, Stop) shows while anything is being spoken. A markdown
+  // file read aloud carries each clip's line range, which the editor highlights.
 
   const player = new Audio();
-  /** @type {string[]} */
+  /** @type {{ url: string, reading: any }[]} */
   let queue = [];
   let blocked = false; // autoplay refused until the panel has been clicked once
   let active = false; // a turn is being spoken, playing or paused
   let paused = false; // paused by the user
+  let reading = /** @type {any} */ (null); // the file clip playing now, if any
 
   function updateAudioBar() {
     $("audio-bar").hidden = !active;
     $("audio-pause").textContent = paused ? "Resume" : "Pause";
-    $("audio-status").textContent = paused ? "Paused" : "Speaking…";
+    const what = reading ? `Reading ${reading.file_path}` : "Speaking";
+    $("audio-status").textContent = paused ? `${what} — paused` : `${what}…`;
   }
 
-  function enqueue(payload) {
+  function enqueue(payload, readingInfo = null) {
     if (payload.chunk_index === 0) {
       // A new turn replaces whatever was speaking, paused or not.
       clearQueue();
       player.pause();
       paused = false;
+      setReading(null);
     }
     const bytes = Uint8Array.from(atob(payload.audio_base64), (c) => c.charCodeAt(0));
-    queue.push(URL.createObjectURL(new Blob([bytes], { type: payload.mime_type })));
+    queue.push({ url: URL.createObjectURL(new Blob([bytes], { type: payload.mime_type })), reading: readingInfo });
     active = true;
     if (player.paused && !paused && !blocked) playNext();
     updateAudioBar();
   }
 
+  function setReading(info) {
+    if (!info && !reading) return;
+    reading = info;
+    post(info ? { kind: "reading", ...info } : { kind: "readingDone" });
+  }
+
   function playNext() {
-    const url = queue.shift();
-    if (!url) return;
-    player.src = url;
+    const next = queue.shift();
+    if (!next) return;
+    player.src = next.url;
+    setReading(next.reading);
     player.play().catch((err) => {
       if (err.name === "NotAllowedError") {
-        queue.unshift(url);
+        queue.unshift(next);
         blocked = true;
         $("audio-blocked").hidden = false;
       }
     });
+    updateAudioBar();
   }
 
   function clearQueue() {
-    queue.forEach((url) => URL.revokeObjectURL(url));
+    queue.forEach((entry) => URL.revokeObjectURL(entry.url));
     queue = [];
   }
 
@@ -357,6 +384,7 @@
     player.pause();
     active = false;
     paused = false;
+    setReading(null);
     stopSpeaking();
     updateAudioBar();
   }
@@ -375,7 +403,11 @@
     updateAudioBar();
   });
 
-  $("audio-stop").addEventListener("click", stopAudio);
+  // Stop also stops the backend still synthesising the rest of a long file.
+  $("audio-stop").addEventListener("click", () => {
+    if (reading) post({ kind: "command", command: "interrupt" });
+    stopAudio();
+  });
 
   $("enable-audio").addEventListener("click", () => {
     $("audio-blocked").hidden = true;
@@ -441,6 +473,10 @@
       if (p.chunk_index === 0) stopSpeaking();
       enqueue(p);
     },
+    file_audio_chunk(p) {
+      stopSpeaking();
+      enqueue(p, { file_path: p.file_path, start_line: p.start_line, end_line: p.end_line });
+    },
     turn_audio_chunk(p) {
       if (speaking) setSpeakState(speaking, "playing");
       enqueue(p);
@@ -478,6 +514,12 @@
         else showThinking("…transcribing");
       }
       updateControls();
+    } else if (msg.kind === "target") {
+      state.targetFile = msg.file_path;
+      $("target").hidden = !msg.file_path;
+      $("target-label").textContent = msg.file_path ? `Asking about ${msg.file_path}` : "";
+      updateControls();
+      if (msg.file_path) input.focus();
     } else if (msg.kind === "actMode") {
       state.actMode = msg.on;
       updateControls();
@@ -517,6 +559,8 @@
   $("context-clear").addEventListener("click", () => post({ kind: "clearContext" }));
 
   $("act").addEventListener("click", () => post({ kind: "setActMode", on: !state.actMode }));
+
+  $("target-back").addEventListener("click", () => post({ kind: "backToReview" }));
 
   $("composer").addEventListener("submit", (e) => {
     e.preventDefault();

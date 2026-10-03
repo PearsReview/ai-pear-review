@@ -199,11 +199,14 @@ export function register(
               `Give your coding agent: ${result.instruction_line}` +
               (result.skill_note ? ` — ${result.skill_note}` : ""),
             "Open plan",
+            "Read aloud",
             "Copy instruction",
           )
           .then((choice) => {
             if (choice === "Open plan") {
               void vscode.commands.executeCommand("markdown.showPreview", vscode.Uri.file(result.plan_path));
+            } else if (choice === "Read aloud") {
+              void vscode.commands.executeCommand("pearReview.readAloud", vscode.Uri.file(result.plan_path));
             } else if (choice === "Copy instruction") {
               void vscode.env.clipboard.writeText(result.instruction_line);
             }

@@ -5,7 +5,9 @@ import type { Backend, BackendState } from "../backend/backend.ts";
 import type { ServerMessage } from "../backend/protocol.ts";
 import { showError } from "../log.ts";
 import type { ActNow } from "./actNow.ts";
+import type { ReadAloud } from "./files.ts";
 import type { SelectionContext } from "./selection.ts";
+import type { ChatTarget } from "./target.ts";
 import type { Voice } from "./voice.ts";
 
 // Extension → webview. media/chat/chat.js handles exactly these kinds.
@@ -15,6 +17,7 @@ type ToWebview =
   | { kind: "recording"; recording: boolean }
   | { kind: "context"; label: string | null }
   | { kind: "actMode"; on: boolean }
+  | { kind: "target"; file_path: string | null }
   // An Act Now proposal, without its diffs (those open as editor tabs).
   | { kind: "proposal"; agent: string; summary: string; files: { file_path: string; status: string }[] };
 
@@ -32,6 +35,10 @@ type FromWebview =
   | { kind: "proposal"; action: "apply" | "discard" }
   | { kind: "proposal"; action: "refine"; text: string }
   | { kind: "proposal"; action: "open"; file_path: string }
+  | { kind: "backToReview" }
+  | { kind: "openFile"; file_path: string }
+  | { kind: "reading"; file_path: string; start_line: number; end_line: number }
+  | { kind: "readingDone" }
   | { kind: "command"; command: ChatCommand };
 
 const COMMANDS = ["explain", "next", "prev", "startReview", "toggleRecording", "interrupt"] as const;
@@ -48,6 +55,7 @@ const FORWARDED = new Set<ServerMessage["type"]>([
   "act_now_cleared",
   "audio_chunk",
   "turn_audio_chunk",
+  "file_audio_chunk",
   "service_status",
   "notice",
   "error",
@@ -60,8 +68,10 @@ export function register(
   voice: Voice,
   selection: SelectionContext,
   actNow: ActNow,
+  target: ChatTarget,
+  readAloud: ReadAloud,
 ): vscode.Disposable[] {
-  const provider = new ChatViewProvider(context.extensionUri, backend, voice, selection, actNow);
+  const provider = new ChatViewProvider(context.extensionUri, backend, voice, selection, actNow, target, readAloud);
   return [
     vscode.window.registerWebviewViewProvider("pearReview.chat", provider, {
       // Keeps the transcript when the view is hidden; it lives only in the webview.
@@ -81,8 +91,11 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     voice: Voice,
     private readonly selection: SelectionContext,
     private readonly actNow: ActNow,
+    private readonly target: ChatTarget,
+    private readonly readAloud: ReadAloud,
   ) {
     this.subscriptions.push(
+      target.onDidChange((file) => this.post({ kind: "target", file_path: file ?? null })),
       actNow.onDidChangeActive((on) => this.post({ kind: "actMode", on })),
       backend.on("act_now_preview", (p) =>
         this.post({
@@ -129,10 +142,14 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
           this.post({ kind: "backend", state: this.backend.state });
           this.post({ kind: "context", label: this.selection.label ?? null });
           this.post({ kind: "actMode", on: this.actNow.active });
+          this.post({ kind: "target", file_path: this.target.file ?? null });
           return;
         case "send": {
           const marked_lines = this.selection.markedLines();
-          this.backend.send("reply", marked_lines ? { text: message.text, marked_lines } : { text: message.text });
+          const extra = marked_lines ? { marked_lines } : {};
+          const file = this.target.file;
+          if (file) this.backend.send("explore_reply", { text: message.text, file_path: file, ...extra });
+          else this.backend.send("reply", { text: message.text, ...extra });
           // Context goes with one question, as the browser's markers do.
           this.selection.clear();
           return;
@@ -158,6 +175,22 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
           return;
         case "setActMode":
           this.actNow.setActive(message.on);
+          return;
+        case "backToReview":
+          this.target.setFile(undefined);
+          return;
+        case "openFile":
+          void vscode.commands.executeCommand("pearReview.openRepoFile", message.file_path);
+          return;
+        case "reading":
+          this.readAloud.highlight({
+            filePath: message.file_path,
+            startLine: message.start_line,
+            endLine: message.end_line,
+          });
+          return;
+        case "readingDone":
+          this.readAloud.highlight(undefined);
           return;
         case "proposal":
           if (message.action === "open") {
@@ -210,6 +243,10 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     <button id="audio-pause" class="secondary small">Pause</button>
     <button id="audio-stop" class="secondary small">Stop</button>
   </div>
+  <div id="target" hidden>
+    <span id="target-label"></span>
+    <button id="target-back" class="link">Back to review</button>
+  </div>
   <div id="context" hidden>
     <span id="context-label"></span>
     <button id="context-clear" class="icon" title="Don't send this selection" aria-label="Don't send this selection">×</button>
@@ -235,7 +272,17 @@ function parseFromWebview(raw: unknown): FromWebview | undefined {
   switch (m.kind) {
     case "ready":
     case "clearContext":
+    case "backToReview":
+    case "readingDone":
       return { kind: m.kind };
+    case "openFile":
+      return typeof m.file_path === "string" ? { kind: "openFile", file_path: m.file_path } : undefined;
+    case "reading": {
+      const { file_path, start_line, end_line } = m;
+      return typeof file_path === "string" && typeof start_line === "number" && typeof end_line === "number"
+        ? { kind: "reading", file_path, start_line, end_line }
+        : undefined;
+    }
     case "send":
     case "speak":
     case "actNow":
