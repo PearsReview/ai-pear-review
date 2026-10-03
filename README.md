@@ -64,15 +64,23 @@ still works on its own.
     comments to `.review/review_<time>.md`, optionally as an `/apply-review`
     skill too, and gives you the line to hand your coding agent.
 
-**Settings** (in the Changes view's "…" menu, or the Command Palette):
+**Settings**: the ⚙ in the chat (or **Pear Review: Settings**) opens the same
+settings as the web app's panel:
 
-- **Pear Review: Choose Coding Agent**: Cline, or none. Act Now and Look
-  deeper need one. The agent uses the model you set up in Cline itself
-  (`cline auth`), which may be a paid API.
-- **Pear Review: Choose Reviewer Model**: the provider and model that
-  narrates and replies. Takes effect straight away.
+- **Preferences**: explain changes automatically or only when you ask, speak
+  replies aloud, and voice input on or off. Kept by the extension.
+- **Reviewer model**: provider and model, context size, reply length and
+  timeout, and the Anthropic API key.
+- **Speech**: the text-to-speech and speech-to-text service endpoints and
+  tokens.
+- **Coding agent**: Cline, or none. Act Now and Look deeper need one. The agent
+  uses the model you set up in Cline itself (`cline auth`), which may be a paid
+  API.
+- **Review context**: whether the prep files (project overview, call map,
+  change briefings) are present and up to date, and how to refresh them.
 
-Both are saved per repository, in the same place the web app keeps them.
+Model, speech and agent settings are saved per repository, in the same place
+the web app keeps them.
 
 To use the Anthropic API instead of a local model, run **Pear Review: Set
 Anthropic API Key**. The key is kept in VS Code's secret storage and passed

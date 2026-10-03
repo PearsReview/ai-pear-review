@@ -24,6 +24,9 @@ export interface Backend {
   // conversation settings (they apply per connection). Review state is persisted
   // server-side, so the review resumes where it was.
   reconnect(): Promise<void>;
+  // The query string each new connection carries (session preferences the server reads
+  // before any message could arrive).
+  setConnectQuery(query: () => string): void;
 }
 
 const NEXT_TIMEOUT_MS = 15_000;
@@ -41,6 +44,7 @@ export class PythonBackend implements Backend, vscode.Disposable {
   private reconnecting = false;
   private readonly messages = new vscode.EventEmitter<ServerMessage>();
   private readonly states = new vscode.EventEmitter<BackendState>();
+  private connectQuery: () => string = () => "";
 
   constructor(
     private readonly extensionPath: string,
@@ -127,6 +131,10 @@ export class PythonBackend implements Backend, vscode.Disposable {
     });
   }
 
+  setConnectQuery(query: () => string): void {
+    this.connectQuery = query;
+  }
+
   async reconnect(): Promise<void> {
     if (!this.process || !this.port) throw new Error("The review backend isn't running.");
     const old = this.client;
@@ -153,7 +161,7 @@ export class PythonBackend implements Backend, vscode.Disposable {
       () => this.onSocketClosed(client),
     );
     this.client = client;
-    await client.connect(this.port as number);
+    await client.connect(this.port as number, this.connectQuery());
   }
 
   private onSocketClosed(client: WsClient): void {

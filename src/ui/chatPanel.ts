@@ -8,6 +8,7 @@ import { publish, testMode } from "../testProbe.ts";
 import type { ActNow } from "./actNow.ts";
 import { chatHtml } from "./chatHtml.ts";
 import type { ReadAloud } from "./files.ts";
+import type { Prefs, PrefValues } from "./prefs.ts";
 import type { SelectionContext } from "./selection.ts";
 import type { ChatTarget } from "./target.ts";
 import type { Voice } from "./voice.ts";
@@ -20,6 +21,7 @@ type ToWebview =
   | { kind: "context"; label: string | null }
   | { kind: "actMode"; on: boolean }
   | { kind: "target"; file_path: string | null }
+  | { kind: "prefs"; prefs: PrefValues }
   // An Act Now proposal, without its diffs (those open as editor tabs).
   | { kind: "proposal"; agent: string; summary: string; files: { file_path: string; status: string }[] };
 
@@ -44,7 +46,7 @@ type FromWebview =
   | { kind: "readingDone" }
   | { kind: "command"; command: ChatCommand };
 
-const COMMANDS = ["explain", "toggleRecording", "interrupt"] as const;
+const COMMANDS = ["explain", "toggleRecording", "interrupt", "settings"] as const;
 type ChatCommand = (typeof COMMANDS)[number];
 
 // Server messages the chat shows; the rest arrive as their UI is built.
@@ -73,8 +75,18 @@ export function register(
   actNow: ActNow,
   target: ChatTarget,
   readAloud: ReadAloud,
+  prefs: Prefs,
 ): vscode.Disposable[] {
-  const provider = new ChatViewProvider(context.extensionUri, backend, voice, selection, actNow, target, readAloud);
+  const provider = new ChatViewProvider(
+    context.extensionUri,
+    backend,
+    voice,
+    selection,
+    actNow,
+    target,
+    readAloud,
+    prefs,
+  );
   return [
     vscode.window.registerWebviewViewProvider("pearReview.chat", provider, {
       // Keeps the transcript when the view is hidden; it lives only in the webview.
@@ -98,7 +110,9 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     private readonly actNow: ActNow,
     private readonly target: ChatTarget,
     private readonly readAloud: ReadAloud,
+    private readonly prefs: Prefs,
   ) {
+    this.subscriptions.push(prefs.onDidChange((values) => this.post({ kind: "prefs", prefs: values })));
     publish("chat.posted", () => this.posted);
     publish("chat.receive", () => (raw: unknown) => this.receive(raw));
     this.subscriptions.push(
@@ -155,6 +169,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
           this.post({ kind: "context", label: this.selection.label ?? null });
           this.post({ kind: "actMode", on: this.actNow.active });
           this.post({ kind: "target", file_path: this.target.file ?? null });
+          this.post({ kind: "prefs", prefs: this.prefs.values });
           return;
         case "send": {
           const marked_lines = this.selection.markedLines();

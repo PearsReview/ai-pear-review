@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Settings (⚙ in the chat, or Pear Review: Settings): the web app's settings
+  panel as a native menu — explain automatically or on request, speak replies,
+  voice input, reviewer model and limits, Anthropic key, speech services,
+  coding agent, and the prep files' freshness.
 - The chat is a Pear Review tab in the secondary side bar, beside other chat
   extensions; it comes forward the first time the changes open. Needs VS Code
   1.106 or later.

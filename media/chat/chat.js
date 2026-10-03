@@ -21,6 +21,7 @@
     narrating: false,
     actNow: { available: false, detail: "Checking whether a coding agent is set up…", agent: "the agent" },
     actMode: false,
+    stt: true,
     narrated: new Map(), // hunk index -> narration text already shown
     lastQuestion: new Map(), // hunk index -> the reviewer's latest question on it
     // "h:<index>" for a hunk, "f:<path>" for a file asked about: a divider marks each change.
@@ -254,7 +255,11 @@
     // Questions about a file work before the review starts and after it ends.
     const canAsk = onHunk || state.targetFile !== null;
     /** @type {HTMLButtonElement} */ ($("send")).disabled = !canAsk;
-    /** @type {HTMLButtonElement} */ (mic).disabled = !canAsk && !mic.classList.contains("recording");
+    const recording = mic.classList.contains("recording");
+    /** @type {HTMLButtonElement} */ (mic).disabled = (!canAsk || !state.stt) && !recording;
+    if (!recording) {
+      setIcon(mic, "mic", state.stt ? "Push to talk (Ctrl+Alt+Space)" : "Voice input is off (Settings)");
+    }
     input.disabled = !canAsk;
     const act = /** @type {HTMLButtonElement} */ ($("act"));
     act.disabled = !onHunk || !state.actNow.available;
@@ -574,6 +579,9 @@
       $("target-label").textContent = msg.file_path ? `Asking about ${msg.file_path}` : "";
       updateControls();
       if (msg.file_path) input.focus();
+    } else if (msg.kind === "prefs") {
+      state.stt = msg.prefs.stt;
+      updateControls();
     } else if (msg.kind === "actMode") {
       state.actMode = msg.on;
       updateControls();

@@ -3,9 +3,15 @@ import * as vscode from "vscode";
 import type { Backend } from "../backend/backend.ts";
 import { pickRepository, repositoryRoots } from "../git.ts";
 import { output, showError } from "../log.ts";
+import type { Prefs } from "./prefs.ts";
 import type { Voice } from "./voice.ts";
 
-export function register(context: vscode.ExtensionContext, backend: Backend, voice: Voice): vscode.Disposable[] {
+export function register(
+  context: vscode.ExtensionContext,
+  backend: Backend,
+  voice: Voice,
+  prefs: Prefs,
+): vscode.Disposable[] {
   let currentIndex: number | undefined;
 
   const send = (fn: () => void): void => {
@@ -93,7 +99,13 @@ export function register(context: vscode.ExtensionContext, backend: Backend, voi
       const index = currentIndex;
       send(() => backend.send("explain_hunk", { index }));
     }),
-    vscode.commands.registerCommand("pearReview.toggleRecording", () => voice.toggle()),
+    vscode.commands.registerCommand("pearReview.toggleRecording", () => {
+      if (!prefs.values.stt && !voice.recording) {
+        void vscode.window.showInformationMessage("Voice input is off. Turn it on in Pear Review: Settings.");
+        return;
+      }
+      voice.toggle();
+    }),
     vscode.commands.registerCommand("pearReview.showLog", () => output.show()),
     vscode.commands.registerCommand("pearReview.setAnthropicApiKey", async () => {
       const key = await vscode.window.showInputBox({

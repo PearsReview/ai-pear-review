@@ -212,6 +212,16 @@ void describe("chat webview", () => {
     assert.equal(speak?.dataset.mode, "playing");
   });
 
+  void test("the gear opens settings, and voice input off disables the mic", () => {
+    chat.server("presenting", hunk);
+    chat.click("settings");
+    assert.deepEqual(lastPost(chat), { kind: "command", command: "settings" });
+    assert.equal((chat.$("mic") as HTMLButtonElement).disabled, false);
+    chat.send({ kind: "prefs", prefs: { autoNarrate: true, tts: true, stt: false } });
+    assert.equal((chat.$("mic") as HTMLButtonElement).disabled, true);
+    assert.match(chat.$("mic").title, /Voice input is off/);
+  });
+
   void test("sends a typed question on Enter", () => {
     chat.server("presenting", hunk);
     const input = chat.$("input") as HTMLTextAreaElement;

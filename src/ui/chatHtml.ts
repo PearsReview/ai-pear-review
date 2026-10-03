@@ -35,6 +35,7 @@ export function chatHtml({ nonce, cspSource, src }: ChatHtmlOptions): string {
     <div id="hunk" class="hunk">No review running.</div>
     <div id="toolbar" class="toolbar">
       <button id="explain" class="icon-btn" data-command="explain" title="Explain this change" aria-label="Explain this change">${icon("sparkle")}</button>
+      <button id="settings" class="icon-btn" data-command="settings" title="Settings" aria-label="Settings">${icon("settings-gear")}</button>
     </div>
   </header>
   <main id="transcript" aria-live="polite"></main>

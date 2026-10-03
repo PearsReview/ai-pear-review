@@ -13,11 +13,12 @@ export class WsClient {
     private readonly onClose: () => void,
   ) {}
 
-  connect(port: number): Promise<void> {
+  // `query` is the connection URL's query string, without the "?".
+  connect(port: number, query = ""): Promise<void> {
     const origin = `http://127.0.0.1:${port}`;
     // The server rejects a handshake without an Origin that matches its Host (its
     // CSWSH guard, _origin_is_trusted in app/server.py), and ws sends none by default.
-    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`, { origin });
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws${query ? `?${query}` : ""}`, { origin });
     this.socket = socket;
     socket.on("message", (data: WebSocket.RawData) => this.receive(data));
     socket.on("close", () => {

@@ -201,6 +201,12 @@
         "command": "pearReview.openChanges",
         "title": "Open Changes",
         "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.settings",
+        "title": "Settings",
+        "category": "Pear Review",
+        "icon": "$(settings-gear)"
       }
     ],
     "keybindings": [
@@ -298,6 +304,11 @@
           "command": "pearReview.chooseModel",
           "when": "view == pearReview.hunks",
           "group": "settings@2"
+        },
+        {
+          "command": "pearReview.settings",
+          "when": "view == pearReview.hunks",
+          "group": "settings@0"
         }
       ],
       "view/item/context": [

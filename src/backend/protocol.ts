@@ -177,8 +177,31 @@ export interface ActNowPreview extends ProposedFile {
 
 // get_settings / set_settings's reply (settings.py). Only what the extension reads is
 // typed; the conversation block's provider sections stay open.
+export interface SpeechSettings {
+  endpoint: string | null;
+  token_set: boolean;
+}
+
+// One prep file's freshness (settings.py's context_status).
+export interface PrepStatus {
+  present: boolean;
+  head_moved?: boolean;
+  generated_at?: string | null;
+  refresh_hint: string;
+}
+
 export interface Settings {
-  settings: { provider?: string; [section: string]: unknown };
+  settings: {
+    provider?: string;
+    max_tokens?: number | null;
+    timeout_seconds?: number | null;
+    ollama?: { model?: string | null; base_url?: string | null; num_ctx?: number | null };
+    anthropic?: { model?: string | null; max_tokens?: number | null };
+    [section: string]: unknown;
+  };
+  tts_settings?: SpeechSettings;
+  stt_settings?: SpeechSettings;
+  context_status?: Record<string, PrepStatus>;
   installed_models?: string[];
   harness_settings: {
     agent: string;
