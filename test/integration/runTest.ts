@@ -6,6 +6,7 @@
 //
 // The coding agent and the speech service are always fakes; the microphone is a fake
 // sounddevice that records a tone.
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
@@ -31,6 +32,25 @@ for (const name of Object.keys(process.env)) {
   if (name === "ELECTRON_RUN_AS_NODE" || name.startsWith("VSCODE_")) delete process.env[name];
 }
 
+// A cold local model can take longer to load than the backend's 60 s call budget, and
+// the first narration would fail on that alone. One tiny request loads it first.
+async function warmUpOllama(backend: string, py: string): Promise<void> {
+  const read =
+    "import sys, yaml; c = yaml.safe_load(open(sys.argv[1], encoding='utf-8'))['conversation']['ollama']; print(c.get('base_url') or 'http://127.0.0.1:11434'); print(c['model'])";
+  const [baseUrl, model] = execFileSync(py, ["-c", read, path.join(backend, "app", "config.yaml")], {
+    encoding: "utf8",
+  })
+    .trim()
+    .split(/\r?\n/);
+  console.log(`Loading ${model} in Ollama before the run…`);
+  const started = Date.now();
+  await fetch(`${baseUrl}/api/generate`, {
+    method: "POST",
+    body: JSON.stringify({ model, prompt: "hi", stream: false, options: { num_predict: 1 } }),
+  });
+  console.log(`Model ready after ${Math.round((Date.now() - started) / 1000)}s.`);
+}
+
 const work = mkdtempSync(path.join(tmpdir(), "pear-it-"));
 const repo = path.join(work, "repo");
 const fake = await startFakeServices();
@@ -39,6 +59,7 @@ try {
   seedRepo(repo);
   const backend = prepareBackend(work, repo, { fakeUrl: fake.url, liveModel, python });
   console.log(`Integration run: ${liveModel ? "real Ollama" : "fake model"}; scratch dir ${work}`);
+  if (liveModel) await warmUpOllama(backend, python);
   await runTests({
     extensionDevelopmentPath: ROOT,
     extensionTestsPath: path.join(ROOT, "dist-test", "suite", "index.js"),

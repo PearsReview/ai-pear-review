@@ -36,6 +36,14 @@ async function currentHunk(): Promise<{ file: string; hunk: TreeItem } | undefin
 async function goTo(index: number, file: string): Promise<Highlight> {
   await vscode.commands.executeCommand("pearReview.jumpToHunk", index);
   await waitFor(`hunk ${index} (${file}) to be current`, async () => (await currentHunk())?.file === file);
+  // The highlight is set before the diff tab finishes opening; wait for both.
+  await waitFor(`the diff tab for ${file}`, () => {
+    const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+    return (
+      input instanceof vscode.TabInputTextDiff &&
+      [input.original, input.modified].some((u) => decodeURIComponent(u.toString()).includes(file))
+    );
+  });
   return waitFor(`the diff highlight for ${file}`, async () => {
     const h = await highlight();
     return h && decodeURIComponent(h.uri).includes(file) ? h : undefined;
