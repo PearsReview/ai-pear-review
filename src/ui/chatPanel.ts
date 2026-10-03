@@ -43,7 +43,7 @@ type FromWebview =
   | { kind: "readingDone" }
   | { kind: "command"; command: ChatCommand };
 
-const COMMANDS = ["explain", "next", "prev", "startReview", "toggleRecording", "interrupt"] as const;
+const COMMANDS = ["explain", "startReview", "toggleRecording", "interrupt"] as const;
 type ChatCommand = (typeof COMMANDS)[number];
 
 // Server messages the chat shows; the rest arrive as their UI is built.
