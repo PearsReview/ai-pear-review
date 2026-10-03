@@ -222,6 +222,53 @@ void describe("chat webview", () => {
     assert.match(chat.$("mic").title, /Voice input is off/);
   });
 
+  void test("the review's summary offers the plan, the last plan and a new review", () => {
+    chat.server("presenting", {
+      index: 0,
+      total: 5,
+      done: true,
+      ended: true,
+      ended_early: true,
+      reviewed_count: 3,
+      pending_comment_count: 2,
+      review_plan: ".review/review_1.md",
+    });
+    const card = chat.doc.querySelector(".turn.summary");
+    assert.match(card?.textContent ?? "", /Review ended/);
+    assert.match(card?.textContent ?? "", /3 of 5 changes reviewed · 2 comments waiting for a plan/);
+    const buttons = [...(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
+    buttons.find((b) => b.textContent === "Create plan")?.click();
+    assert.deepEqual(lastPost(chat), { kind: "command", command: "createPlan" });
+    buttons.find((b) => b.textContent === "Open plan")?.click();
+    assert.deepEqual(lastPost(chat), { kind: "openPlan", file: ".review/review_1.md" });
+    buttons.find((b) => b.textContent === "Start new review")?.click();
+    assert.deepEqual(lastPost(chat), { kind: "command", command: "newReview" });
+  });
+
+  void test("comment mode waits for the review, then sends the next message as a comment", () => {
+    chat.server("presenting", { ...hunk, review_started: false });
+    assert.equal((chat.$("comment") as HTMLButtonElement).disabled, true);
+    chat.server("presenting", hunk);
+    assert.equal((chat.$("comment") as HTMLButtonElement).disabled, false);
+    chat.click("comment");
+    assert.deepEqual(lastPost(chat), { kind: "setCommentMode", on: true });
+    chat.send({ kind: "commentMode", on: true });
+    assert.equal(chat.$("send").getAttribute("aria-label"), "Add comment");
+    (chat.$("input") as HTMLTextAreaElement).value = "Rename x";
+    chat.$("composer").dispatchEvent(new chat.window.Event("submit", { cancelable: true }));
+    assert.deepEqual(lastPost(chat), { kind: "comment", text: "Rename x" });
+    chat.server("review_comment_queued", {
+      id: 1,
+      file_path: "calc.py",
+      where: "line 2",
+      instruction: "Rename x",
+      severity: "suggestion",
+      anchor: null,
+      pending_count: 1,
+    });
+    assert.match(chat.doc.querySelector(".turn.system:last-child")?.textContent ?? "", /Comment added .*"Rename x"/);
+  });
+
   void test("sends a typed question on Enter", () => {
     chat.server("presenting", hunk);
     const input = chat.$("input") as HTMLTextAreaElement;

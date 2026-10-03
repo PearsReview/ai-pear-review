@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
@@ -88,6 +89,31 @@ export function register(
         "End Review",
       );
       if (choice) send(() => backend.send("end_review", {}));
+    }),
+    vscode.commands.registerCommand("pearReview.reviewAll", () => send(() => backend.send("toggle_reviewed_all", {}))),
+    vscode.commands.registerCommand("pearReview.showSummary", () => send(() => backend.send("show_summary", {}))),
+    // `{ confirmed: true }` skips the question, for a keybinding or the tests.
+    vscode.commands.registerCommand("pearReview.newReview", async (preset?: unknown) => {
+      const confirmed =
+        typeof preset === "object" && preset !== null && (preset as { confirmed?: unknown }).confirmed === true;
+      const choice =
+        confirmed ||
+        (await vscode.window.showWarningMessage(
+          "Start a new review? Reviewed marks are cleared and the changes are read again. Plans already written stay in .review/.",
+          { modal: true },
+          "Start New Review",
+        ));
+      if (!choice) return;
+      send(() => {
+        backend.send("new_review", {});
+        backend.send("start_review", {});
+      });
+    }),
+    vscode.commands.registerCommand("pearReview.openPlan", (file: unknown) => {
+      if (typeof file === "string" && backend.repoPath) {
+        const uri = vscode.Uri.file(path.join(backend.repoPath, file));
+        void vscode.commands.executeCommand("markdown.showPreview", uri);
+      }
     }),
     vscode.commands.registerCommand("pearReview.interrupt", () => send(() => backend.send("stop", {}))),
     vscode.commands.registerCommand("pearReview.refresh", () => send(() => backend.send("refresh_diff", {}))),

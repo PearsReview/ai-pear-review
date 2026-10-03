@@ -218,6 +218,11 @@ input:focus-visible {
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
 }
 
+.turn.summary {
+  border: 1px solid var(--outline);
+  background: var(--surface);
+}
+
 .turn.proposal.applied {
   border-left-color: var(--vscode-testing-iconPassed, var(--vscode-foreground));
 }

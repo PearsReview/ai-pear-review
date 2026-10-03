@@ -7,6 +7,7 @@ import { showError } from "../log.ts";
 import { publish, testMode } from "../testProbe.ts";
 import type { ActNow } from "./actNow.ts";
 import { chatHtml } from "./chatHtml.ts";
+import type { Comments } from "./comments.ts";
 import type { ReadAloud } from "./files.ts";
 import type { Prefs, PrefValues } from "./prefs.ts";
 import type { SelectionContext } from "./selection.ts";
@@ -20,6 +21,7 @@ type ToWebview =
   | { kind: "recording"; recording: boolean }
   | { kind: "context"; label: string | null }
   | { kind: "actMode"; on: boolean }
+  | { kind: "commentMode"; on: boolean }
   | { kind: "target"; file_path: string | null }
   | { kind: "prefs"; prefs: PrefValues }
   // An Act Now proposal, without its diffs (those open as editor tabs).
@@ -37,6 +39,9 @@ type FromWebview =
   | { kind: "clearContext" }
   | { kind: "actNow"; text: string }
   | { kind: "setActMode"; on: boolean }
+  | { kind: "comment"; text: string }
+  | { kind: "setCommentMode"; on: boolean }
+  | { kind: "openPlan"; file: string }
   | { kind: "proposal"; action: "apply" | "discard" }
   | { kind: "proposal"; action: "refine"; text: string }
   | { kind: "proposal"; action: "open"; file_path: string }
@@ -46,7 +51,7 @@ type FromWebview =
   | { kind: "readingDone" }
   | { kind: "command"; command: ChatCommand };
 
-const COMMANDS = ["explain", "toggleRecording", "interrupt", "settings"] as const;
+const COMMANDS = ["explain", "toggleRecording", "interrupt", "settings", "createPlan", "newReview"] as const;
 type ChatCommand = (typeof COMMANDS)[number];
 
 // Server messages the chat shows; the rest arrive as their UI is built.
@@ -58,6 +63,7 @@ const FORWARDED = new Set<ServerMessage["type"]>([
   "deeper_turn",
   "agent_stopped",
   "act_now_cleared",
+  "review_comment_queued",
   "audio_chunk",
   "turn_audio_chunk",
   "file_audio_chunk",
@@ -76,6 +82,7 @@ export function register(
   target: ChatTarget,
   readAloud: ReadAloud,
   prefs: Prefs,
+  comments: Comments,
 ): vscode.Disposable[] {
   const provider = new ChatViewProvider(
     context.extensionUri,
@@ -86,6 +93,7 @@ export function register(
     target,
     readAloud,
     prefs,
+    comments,
   );
   return [
     vscode.window.registerWebviewViewProvider("pearReview.chat", provider, {
@@ -111,7 +119,9 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     private readonly target: ChatTarget,
     private readonly readAloud: ReadAloud,
     private readonly prefs: Prefs,
+    private readonly comments: Comments,
   ) {
+    this.subscriptions.push(comments.onDidChangeCommentMode((on) => this.post({ kind: "commentMode", on })));
     this.subscriptions.push(prefs.onDidChange((values) => this.post({ kind: "prefs", prefs: values })));
     publish("chat.posted", () => this.posted);
     publish("chat.receive", () => (raw: unknown) => this.receive(raw));
@@ -170,6 +180,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
           this.post({ kind: "actMode", on: this.actNow.active });
           this.post({ kind: "target", file_path: this.target.file ?? null });
           this.post({ kind: "prefs", prefs: this.prefs.values });
+          this.post({ kind: "commentMode", on: this.comments.commentMode });
           return;
         case "send": {
           const marked_lines = this.selection.markedLines();
@@ -204,7 +215,20 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
           this.selection.clear();
           return;
         case "setActMode":
+          // Act and Comment both claim the next message, so only one is on.
+          if (message.on) this.comments.setCommentMode(false);
           this.actNow.setActive(message.on);
+          return;
+        case "setCommentMode":
+          if (message.on) this.actNow.setActive(false);
+          this.comments.setCommentMode(message.on);
+          return;
+        case "comment":
+          this.comments.request({ text: message.text }, this.selection.markedLines());
+          this.selection.clear();
+          return;
+        case "openPlan":
+          void vscode.commands.executeCommand("pearReview.openPlan", message.file);
           return;
         case "backToReview":
           this.target.setFile(undefined);
@@ -272,7 +296,12 @@ function parseFromWebview(raw: unknown): FromWebview | undefined {
     case "send":
     case "speak":
     case "actNow":
+    case "comment":
       return text ? { kind: m.kind, text } : undefined;
+    case "setCommentMode":
+      return typeof m.on === "boolean" ? { kind: "setCommentMode", on: m.on } : undefined;
+    case "openPlan":
+      return typeof m.file === "string" ? { kind: "openPlan", file: m.file } : undefined;
     case "setActMode":
       return typeof m.on === "boolean" ? { kind: "setActMode", on: m.on } : undefined;
     case "proposal":

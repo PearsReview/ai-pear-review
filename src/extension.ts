@@ -29,8 +29,8 @@ export function activate(context: vscode.ExtensionContext): { read: typeof read 
   const agent = actNow.register(backend);
   const target = chatTarget.register(backend);
   const repoFiles = files.register(backend, target.target);
-  const recorder = voice.register(backend, selection.selection, agent.actNow, target.target);
   const review = comments.register(backend, selection.selection);
+  const recorder = voice.register(backend, selection.selection, agent.actNow, target.target, review.comments);
   context.subscriptions.push(
     output,
     backend,
@@ -54,6 +54,7 @@ export function activate(context: vscode.ExtensionContext): { read: typeof read 
       target.target,
       repoFiles.readAloud,
       prefs.prefs,
+      review.comments,
     ),
     ...commands.register(context, backend, recorder.voice, prefs.prefs),
   );

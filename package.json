@@ -207,6 +207,27 @@
         "title": "Settings",
         "category": "Pear Review",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "pearReview.reviewAll",
+        "title": "Mark All Reviewed / Unreviewed",
+        "category": "Pear Review",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "pearReview.showSummary",
+        "title": "Show Summary",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.newReview",
+        "title": "Start New Review",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.openPlan",
+        "title": "Open Plan",
+        "category": "Pear Review"
       }
     ],
     "keybindings": [
@@ -286,14 +307,29 @@
           "group": "navigation@3"
         },
         {
+          "command": "pearReview.reviewAll",
+          "when": "view == pearReview.hunks && pearReview.reviewStarted && !pearReview.reviewEnded",
+          "group": "navigation@3"
+        },
+        {
           "command": "pearReview.createPlan",
           "when": "view == pearReview.hunks",
           "group": "navigation@4"
         },
         {
           "command": "pearReview.endReview",
-          "when": "view == pearReview.hunks",
+          "when": "view == pearReview.hunks && pearReview.reviewStarted && !pearReview.reviewEnded",
           "group": "review@1"
+        },
+        {
+          "command": "pearReview.showSummary",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded",
+          "group": "review@2"
+        },
+        {
+          "command": "pearReview.newReview",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded",
+          "group": "review@3"
         }
       ],
       "view/item/context": [
@@ -362,6 +398,10 @@
         },
         {
           "command": "pearReview.setAnthropicApiKey",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.openPlan",
           "when": "false"
         }
       ],

@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import type { Backend } from "../backend/backend.ts";
 import { log, showError } from "../log.ts";
 import type { ActNow } from "./actNow.ts";
+import type { Comments } from "./comments.ts";
 import type { SelectionContext } from "./selection.ts";
 import type { ChatTarget } from "./target.ts";
 
@@ -21,6 +22,7 @@ export function register(
   selection: SelectionContext,
   actNow: ActNow,
   target: ChatTarget,
+  comments: Comments,
 ): { voice: Voice; disposables: vscode.Disposable[] } {
   let recording = false;
   const changes = new vscode.EventEmitter<boolean>();
@@ -64,12 +66,19 @@ export function register(
       }),
       backend.on("recording_result", ({ audio_base64, duration_seconds }) => {
         const file = target.file;
-        const kind = actNow.active ? "an Act Now instruction" : file ? `a question about ${file}` : "a reply";
+        const kind = actNow.active
+          ? "an Act Now instruction"
+          : comments.commentMode
+            ? "a review comment"
+            : file
+              ? `a question about ${file}`
+              : "a reply";
         log(`Voice: got ${duration_seconds}s of audio, sending it as ${kind}`);
         try {
           const marked_lines = selection.markedLines();
           const extra = marked_lines ? { marked_lines } : {};
           if (actNow.active) actNow.request({ audio_base64 }, marked_lines);
+          else if (comments.commentMode) comments.request({ audio_base64 }, marked_lines);
           else if (file) backend.send("explore_reply", { audio_base64, file_path: file, ...extra });
           else backend.send("reply", { audio_base64, ...extra });
           selection.clear();

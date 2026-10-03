@@ -21,6 +21,7 @@
     narrating: false,
     actNow: { available: false, detail: "Checking whether a coding agent is set up…", agent: "the agent" },
     actMode: false,
+    commentMode: false,
     stt: true,
     narrated: new Map(), // hunk index -> narration text already shown
     lastQuestion: new Map(), // hunk index -> the reviewer's latest question on it
@@ -268,12 +269,25 @@
       : `Act Now is off: ${state.actNow.detail} Choose an agent in settings (⚙).`;
     act.classList.toggle("active", state.actMode);
     act.setAttribute("aria-pressed", String(state.actMode));
+    // Comments are a review action: they wait for Start Review, as in the browser.
+    const comment = /** @type {HTMLButtonElement} */ ($("comment"));
+    comment.disabled = !onHunk || !state.started;
+    comment.title = state.started
+      ? "Leave a comment for your coding agent, typed or spoken, on the selected lines or this change. It goes into the plan."
+      : "Comments open once the review has started (▶ on the Changes view).";
+    comment.setAttribute("aria-pressed", String(state.commentMode));
     input.placeholder = state.actMode
       ? `Tell ${agentName()} what to change… (nothing is written until you apply it)`
-      : state.targetFile
-        ? `Ask about ${state.targetFile}… (select lines to ask about them)`
-        : "Ask about this change… (select lines in the editor to ask about them)";
-    setIcon($("send"), "send", state.actMode ? "Send to agent" : "Send");
+      : state.commentMode
+        ? "Comment for your coding agent on the selected lines, or this change…"
+        : state.targetFile
+          ? `Ask about ${state.targetFile}… (select lines to ask about them)`
+          : "Ask about this change… (select lines in the editor to ask about them)";
+    setIcon(
+      $("send"),
+      state.commentMode ? "comment" : "send",
+      state.actMode ? "Send to agent" : state.commentMode ? "Add comment" : "Send",
+    );
     document.querySelectorAll(".look-deeper").forEach(applyLookDeeper);
   }
 
@@ -284,6 +298,43 @@
 
   function showAgentWorking(what = "is working on it") {
     showThinking(`${agentName()} ${what} — this can take a minute…`, "deeper-pending");
+  }
+
+  // --- the summary screen (send_summary_screen): where the review stands, what's next ---
+
+  function showSummary(p) {
+    clearThinking();
+    document.querySelector(".turn.summary")?.remove();
+    const card = document.createElement("div");
+    card.className = "turn summary";
+    const label = document.createElement("div");
+    label.className = "role";
+    label.textContent = p.ended_early ? "Review ended" : "Review finished";
+    const body = document.createElement("div");
+    body.className = "turn-body";
+    const pending = p.pending_comment_count || 0;
+    const parts = [`${p.reviewed_count ?? 0} of ${p.total} changes reviewed`];
+    if (pending) parts.push(`${pending} comment${pending === 1 ? "" : "s"} waiting for a plan`);
+    body.textContent = parts.join(" · ");
+    const actions = document.createElement("div");
+    actions.className = "turn-actions";
+    if (pending) {
+      const plan = pill("checklist", "Create plan", "strong");
+      plan.addEventListener("click", () => post({ kind: "command", command: "createPlan" }));
+      actions.appendChild(plan);
+    }
+    if (p.review_plan) {
+      const open = pill("file", "Open plan");
+      open.title = p.review_plan;
+      open.addEventListener("click", () => post({ kind: "openPlan", file: p.review_plan }));
+      actions.appendChild(open);
+    }
+    const again = pill("refresh", "Start new review", "subtle");
+    again.addEventListener("click", () => post({ kind: "command", command: "newReview" }));
+    actions.appendChild(again);
+    card.append(label, body, actions);
+    transcript.appendChild(card);
+    card.scrollIntoView({ block: "end" });
   }
 
   // --- Act Now proposal ---------------------------------------------------------------
@@ -474,6 +525,7 @@
             ? "End of the changes."
             : "No changes to review.";
         state.ended = !!p.ended || state.ended;
+        if (p.ended) showSummary(p);
       } else {
         state.current = p.index;
         state.started = !!p.review_started;
@@ -507,6 +559,9 @@
     reviewer_turn: (p) => appendTurn("presenter", p.text, p),
     deeper_turn: (p) => appendTurn("deeper", p.text, p),
     agent_stopped: (p) => appendTurn("system", p.message),
+    review_comment_queued(p) {
+      appendTurn("system", `Comment added (${p.severity}) on ${p.file_path}, ${p.where}: "${p.instruction}"`);
+    },
     act_now_cleared(p) {
       setProposalDone("no changes left");
       appendTurn("system", p.message);
@@ -570,6 +625,7 @@
       setIcon(mic, msg.recording ? "mic-filled" : "mic", msg.recording ? "Stop recording and send" : "Push to talk");
       if (!msg.recording) {
         if (state.actMode) showAgentWorking("will start once your words are transcribed");
+        else if (state.commentMode) showThinking("Transcribing your comment");
         else showThinking("…transcribing");
       }
       updateControls();
@@ -581,6 +637,9 @@
       if (msg.file_path) input.focus();
     } else if (msg.kind === "prefs") {
       state.stt = msg.prefs.stt;
+      updateControls();
+    } else if (msg.kind === "commentMode") {
+      state.commentMode = msg.on;
       updateControls();
     } else if (msg.kind === "actMode") {
       state.actMode = msg.on;
@@ -621,6 +680,7 @@
   $("context-clear").addEventListener("click", () => post({ kind: "clearContext" }));
 
   $("act").addEventListener("click", () => post({ kind: "setActMode", on: !state.actMode }));
+  $("comment").addEventListener("click", () => post({ kind: "setCommentMode", on: !state.commentMode }));
 
   $("target-back").addEventListener("click", () => post({ kind: "backToReview" }));
 
@@ -632,6 +692,8 @@
     if (state.actMode) {
       post({ kind: "actNow", text });
       showAgentWorking();
+    } else if (state.commentMode) {
+      post({ kind: "comment", text });
     } else {
       post({ kind: "send", text });
       showThinking();

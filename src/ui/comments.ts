@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
-import type { ReviewComment, Severity } from "../backend/protocol.ts";
+import type { MarkedLine, ReviewComment, Severity } from "../backend/protocol.ts";
 import { reviewLocation, reviewUri } from "../git.ts";
 import { log, showError } from "../log.ts";
 import { anchorRange } from "../review/anchors.ts";
@@ -11,6 +11,13 @@ import type { SelectionContext } from "./selection.ts";
 export interface Comments {
   readonly count: number;
   readonly onDidChangeCount: vscode.Event<number>;
+  // Comment mode: the chat's next typed or spoken message becomes a review comment
+  // on the selected lines (or the current hunk), as the web app's comment box does.
+  readonly commentMode: boolean;
+  setCommentMode(on: boolean): void;
+  readonly onDidChangeCommentMode: vscode.Event<boolean>;
+  // Queues one comment (text or recorded audio) and leaves comment mode.
+  request(instruction: { text: string } | { audio_base64: string }, marked_lines?: MarkedLine[]): void;
 }
 
 const SEVERITY_LABEL: Record<Severity, string> = { "must-fix": "Must fix", suggestion: "Suggestion", nit: "Nit" };
@@ -61,6 +68,13 @@ export function register(
     })),
   );
   const countChanges = new vscode.EventEmitter<number>();
+  const modeChanges = new vscode.EventEmitter<boolean>();
+  let commentMode = false;
+  const setCommentMode = (on: boolean): void => {
+    if (on === commentMode) return;
+    commentMode = on;
+    modeChanges.fire(on);
+  };
   let count = 0;
   let open = false;
   let reviewFiles = new Set<string>();
@@ -183,8 +197,23 @@ export function register(
         return count;
       },
       onDidChangeCount: countChanges.event,
+      get commentMode() {
+        return commentMode;
+      },
+      setCommentMode,
+      onDidChangeCommentMode: modeChanges.event,
+      request(instruction, marked_lines) {
+        // A spoken comment's wording can be fixed afterwards with the thread's edit.
+        backend.send("request_change", {
+          ...instruction,
+          ...(marked_lines ? { marked_lines } : {}),
+          severity: "suggestion",
+        });
+        setCommentMode(false);
+      },
     },
     disposables: [
+      modeChanges,
       controller,
       countChanges,
       backend.on("review_progress", (p) => {
@@ -240,6 +269,7 @@ export function register(
       }),
       backend.onStateChange((state) => {
         if (state === "ready") return;
+        setCommentMode(false);
         clearThreads();
         setCount(0);
         open = false;

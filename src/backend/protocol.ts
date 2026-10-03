@@ -80,6 +80,13 @@ export interface Presenting {
   review_ended?: boolean;
   narrating?: boolean;
   narration_available?: boolean;
+  // The summary screen (progress.py's send_summary_screen): done and ended.
+  ended?: boolean;
+  ended_early?: boolean;
+  reviewed_count?: number;
+  pending_comment_count?: number;
+  // The newest plan, repo-relative, or null.
+  review_plan?: string | null;
 }
 
 // A rendered markdown block of a reply (markdown_speech.block_to_payload).
