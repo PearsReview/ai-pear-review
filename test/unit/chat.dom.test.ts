@@ -160,6 +160,7 @@ void describe("chat webview", () => {
     speak.click();
     assert.deepEqual(lastPost(chat), { kind: "speak", text: "It calls add." });
     assert.equal(speak.dataset.mode, "loading");
+    assert.ok(speak.querySelector(".codicon-loading.codicon-modifier-spin"), "a spinning loader while speech is made");
     chat.server("turn_audio_chunk", { audio_base64: AUDIO, mime_type: "audio/wav", chunk_index: 0, chunk_count: 1 });
     assert.equal(speak.dataset.mode, "playing");
     FakeAudio.last?.finish();
@@ -170,10 +171,10 @@ void describe("chat webview", () => {
     chat.server("audio_chunk", { audio_base64: AUDIO, mime_type: "audio/wav", chunk_index: 0, chunk_count: 2 });
     assert.equal(chat.$("audio-bar").hidden, false);
     chat.click("audio-pause");
-    assert.equal(chat.$("audio-pause").textContent, "Resume");
+    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Resume");
     assert.match(chat.$("audio-status").textContent ?? "", /paused/);
     chat.click("audio-pause");
-    assert.equal(chat.$("audio-pause").textContent, "Pause");
+    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Pause");
     chat.click("audio-stop");
     assert.equal(chat.$("audio-bar").hidden, true);
   });
@@ -194,7 +195,7 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "setActMode", on: true });
     chat.send({ kind: "actMode", on: true });
     assert.match((chat.$("input") as HTMLTextAreaElement).placeholder, /Tell Cline what to change/);
-    assert.equal(chat.$("send").textContent, "Send to agent");
+    assert.equal(chat.$("send").getAttribute("aria-label"), "Send to agent");
     (chat.$("input") as HTMLTextAreaElement).value = "Add a guard";
     chat.$("composer").dispatchEvent(new chat.window.Event("submit", { cancelable: true }));
     assert.deepEqual(lastPost(chat), { kind: "actNow", text: "Add a guard" });

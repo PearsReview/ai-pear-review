@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Restyled the chat panel: VS Code's codicons in place of emoji and text
+  buttons, grey icon buttons and outlined pills, a rounded composer, slim strips
+  for audio, file and selection, and colour only for recording and applied
+  proposals.
 - Tests replacing the Playwright suite for this front end: DOM tests of the
   chat panel (jsdom) and an integration suite in a real VS Code against a real
   backend with fake model, speech, agent and microphone (29 tests, ~15 s), with

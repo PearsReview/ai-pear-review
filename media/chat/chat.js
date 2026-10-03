@@ -30,24 +30,58 @@
 
   const post = (message) => vscode.postMessage(message);
 
+  // Buttons are VS Code codicons (media/chat/codicons). An icon-only button carries its
+  // name in aria-label and title; a pill shows a short label beside its icon.
+  function icon(name, extra = "") {
+    const i = document.createElement("i");
+    i.className = `codicon codicon-${name} ${extra}`.trim();
+    i.setAttribute("aria-hidden", "true");
+    return i;
+  }
+
+  function iconButton(name, label, className = "icon-btn") {
+    const b = document.createElement("button");
+    b.className = className;
+    setIcon(b, name, label);
+    return b;
+  }
+
+  function pill(name, label, className = "") {
+    const b = document.createElement("button");
+    b.className = `pill ${className}`.trim();
+    const text = document.createElement("span");
+    text.textContent = label;
+    b.append(icon(name), text);
+    return b;
+  }
+
+  // Swaps an icon-only button's glyph and name together.
+  function setIcon(button, name, label, spin = false) {
+    button.replaceChildren(icon(name, spin ? "codicon-modifier-spin" : ""));
+    button.title = label;
+    button.setAttribute("aria-label", label);
+  }
+
   // --- thinking --------------------------------------------------------------------
 
   let thinking = /** @type {HTMLElement | null} */ (null);
   let thinkingTimer = 0;
 
-  function showThinking(text = "…thinking", kind = "") {
+  function showThinking(text = "Thinking", kind = "") {
     clearThinking();
     thinking = document.createElement("div");
     thinking.className = `turn thinking ${kind}`;
     thinking.setAttribute("role", "status");
+    const dots = document.createElement("span");
+    dots.className = "dots";
+    dots.setAttribute("aria-hidden", "true");
+    dots.append(document.createElement("i"), document.createElement("i"), document.createElement("i"));
     const label = document.createElement("span");
+    label.className = "grow";
     label.textContent = text;
-    thinking.appendChild(label);
-    const stop = document.createElement("button");
-    stop.className = "link";
-    stop.textContent = "Interrupt";
+    const stop = pill("debug-stop", "Interrupt", "subtle");
     stop.addEventListener("click", () => post({ kind: "command", command: "interrupt" }));
-    thinking.appendChild(stop);
+    thinking.append(dots, label, stop);
     transcript.appendChild(thinking);
     thinking.scrollIntoView({ block: "end" });
     return label;
@@ -77,9 +111,11 @@
     const isFile = info.index === -1;
     const divider = document.createElement("button");
     divider.className = "hunk-divider";
-    divider.textContent = isFile
+    const label = document.createElement("span");
+    label.textContent = isFile
       ? `About ${info.file_path}`
       : `${info.file_path} — change ${info.index + 1}/${info.total}`;
+    divider.append(icon(isFile ? "file" : "git-compare"), label);
     divider.title = isFile ? `Open ${info.file_path}` : `Jump back to ${info.file_path}`;
     divider.addEventListener("click", () =>
       post(isFile ? { kind: "openFile", file_path: info.file_path } : { kind: "jump", index: info.index }),
@@ -97,9 +133,7 @@
   }
 
   function lookDeeperButton(index, question) {
-    const button = document.createElement("button");
-    button.className = "secondary small look-deeper";
-    button.textContent = "Look deeper";
+    const button = pill("search", "Look deeper", "subtle look-deeper");
     applyLookDeeper(button);
     button.addEventListener("click", () => {
       post(question ? { kind: "lookDeeper", index, question } : { kind: "lookDeeper", index });
@@ -115,18 +149,18 @@
       : `Not available yet: ${state.actNow.detail}`;
   }
 
-  // The speaker button is idle (🔊), generating (⏳, until the first clip arrives) or
-  // playing (⏹, click to stop). One reply at a time: starting another resets this one.
+  // The speaker button is idle (speaker), generating (spinner, until the first clip
+  // arrives) or playing (stop, click to stop). One reply at a time: starting another
+  // resets this one.
   let speaking = /** @type {HTMLElement | null} */ (null);
 
   function setSpeakState(button, mode) {
     button.dataset.mode = mode;
     button.classList.toggle("loading", mode === "loading");
-    button.textContent = mode === "loading" ? "⏳" : mode === "playing" ? "⏹" : "🔊";
-    const title =
-      mode === "loading" ? "Generating speech…" : mode === "playing" ? "Stop reading" : "Read this reply aloud";
-    button.title = title;
-    button.setAttribute("aria-label", title);
+    button.classList.toggle("active", mode === "playing");
+    if (mode === "loading") setIcon(button, "loading", "Generating speech…", true);
+    else if (mode === "playing") setIcon(button, "debug-stop", "Stop reading");
+    else setIcon(button, "unmute", "Read this reply aloud");
   }
 
   function stopSpeaking() {
@@ -135,8 +169,7 @@
   }
 
   function speakButton(spoken) {
-    const button = document.createElement("button");
-    button.className = "icon speak";
+    const button = iconButton("unmute", "Read this reply aloud", "icon-btn speak");
     setSpeakState(button, "idle");
     button.addEventListener("click", () => {
       if (speaking === button) {
@@ -226,7 +259,7 @@
       : state.targetFile
         ? `Ask about ${state.targetFile}… (select lines to ask about them)`
         : "Ask about this change… (select lines in the editor to ask about them)";
-    $("send").textContent = state.actMode ? "Send to agent" : "Send";
+    setIcon($("send"), "send", state.actMode ? "Send to agent" : "Send");
     document.querySelectorAll(".look-deeper").forEach(applyLookDeeper);
   }
 
@@ -262,17 +295,15 @@
     const files = document.createElement("div");
     files.className = "proposal-files";
     for (const f of p.files) {
-      const b = document.createElement("button");
-      b.className = "link";
-      b.textContent = `${f.status} · ${f.file_path}`;
+      const glyph = f.status === "added" ? "diff-added" : f.status === "deleted" ? "diff-removed" : "diff-modified";
+      const b = pill(glyph, `${f.status} · ${f.file_path}`, "file-link");
       b.title = "Open this file's proposed diff";
       b.addEventListener("click", () => post({ kind: "proposal", action: "open", file_path: f.file_path }));
       files.appendChild(b);
     }
     const actions = document.createElement("div");
     actions.className = "turn-actions";
-    const apply = document.createElement("button");
-    apply.textContent = "Apply";
+    const apply = pill("check", "Apply", "strong");
     apply.title = "Write the proposed change to your working tree";
     apply.addEventListener("click", () => {
       post({ kind: "proposal", action: "apply" });
@@ -281,9 +312,7 @@
     const refineInput = document.createElement("input");
     refineInput.className = "refine";
     refineInput.placeholder = "What should change about it?";
-    const refine = document.createElement("button");
-    refine.className = "secondary";
-    refine.textContent = "Refine";
+    const refine = pill("edit", "Refine");
     const sendRefine = () => {
       const text = refineInput.value.trim();
       if (!text) return refineInput.focus();
@@ -294,14 +323,13 @@
     refineInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") sendRefine();
     });
-    const discard = document.createElement("button");
-    discard.className = "secondary";
-    discard.textContent = "Discard";
+    const discard = pill("discard", "Discard", "subtle");
     discard.addEventListener("click", () => {
       post({ kind: "proposal", action: "discard" });
       setProposalDone("discarded");
     });
-    actions.append(apply, refineInput, refine, discard);
+    // The refine box takes its own row; the three actions share the next.
+    actions.append(refineInput, apply, refine, discard);
     card.append(label, summary, files, actions);
     card.scrollIntoView({ block: "end" });
   }
@@ -311,7 +339,7 @@
   function setProposalDone(status, final = true) {
     if (!proposalCard) return;
     const card = proposalCard;
-    card.querySelectorAll("button:not(.link), input").forEach((el) => {
+    card.querySelectorAll("button:not(.file-link), input").forEach((el) => {
       /** @type {HTMLButtonElement} */ (el).disabled = true;
     });
     const label = card.querySelector(".role");
@@ -333,7 +361,7 @@
 
   function updateAudioBar() {
     $("audio-bar").hidden = !active;
-    $("audio-pause").textContent = paused ? "Resume" : "Pause";
+    setIcon($("audio-pause"), paused ? "debug-start" : "debug-pause", paused ? "Resume" : "Pause");
     const what = reading ? `Reading ${reading.file_path}` : "Speaking";
     $("audio-status").textContent = paused ? `${what} — paused` : `${what}…`;
   }
@@ -508,7 +536,7 @@
     if (msg.kind === "server") handlers[msg.message.type]?.(msg.message.payload);
     else if (msg.kind === "recording") {
       mic.classList.toggle("recording", msg.recording);
-      mic.textContent = msg.recording ? "Stop" : "Mic";
+      setIcon(mic, msg.recording ? "mic-filled" : "mic", msg.recording ? "Stop recording and send" : "Push to talk");
       if (!msg.recording) {
         if (state.actMode) showAgentWorking("will start once your words are transcribed");
         else showThinking("…transcribing");

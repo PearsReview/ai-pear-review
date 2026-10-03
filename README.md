@@ -115,3 +115,8 @@ and read UI state through a test probe the extension exposes only when
 
 How the code is laid out, and the rules it follows, are in
 [docs/STYLE.md](docs/STYLE.md).
+
+## Credits
+
+The chat panel's icons are VS Code's [codicons](https://github.com/microsoft/vscode-codicons),
+licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
