@@ -157,7 +157,7 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "jump", index: 0 });
   });
 
-  void test("the speaker button goes generating → playing → idle", () => {
+  void test("the speaker button goes loading → pause → play → idle", () => {
     chat.server("presenting", hunk);
     chat.server("narration", narration);
     const speak = chat.doc.querySelector<HTMLButtonElement>("button.speak");
@@ -165,35 +165,51 @@ void describe("chat webview", () => {
     speak.click();
     assert.deepEqual(lastPost(chat), { kind: "speak", text: "It calls add." });
     assert.equal(speak.dataset.mode, "loading");
-    assert.ok(speak.querySelector(".codicon-loading.codicon-modifier-spin"), "a spinning loader while speech is made");
+    assert.ok(speak.querySelector(".codicon-loading.codicon-modifier-spin"), "a spinner while speech is made");
     chat.server("turn_audio_chunk", { audio_base64: AUDIO, mime_type: "audio/wav", chunk_index: 0, chunk_count: 1 });
     assert.equal(speak.dataset.mode, "playing");
+    assert.ok(speak.querySelector(".codicon-debug-pause"), "playing shows pause");
+    speak.click();
+    assert.equal(speak.dataset.mode, "paused");
+    assert.equal(FakeAudio.last?.paused, true);
+    assert.ok(speak.querySelector(".codicon-play"), "paused shows play");
+    speak.click();
+    assert.equal(speak.dataset.mode, "playing");
+    assert.equal(FakeAudio.last?.paused, false);
     FakeAudio.last?.finish();
     assert.equal(speak.dataset.mode, "idle");
   });
 
-  void test("the audio bar pauses, resumes and stops speech", () => {
-    chat.server("audio_chunk", { audio_base64: AUDIO, mime_type: "audio/wav", chunk_index: 0, chunk_count: 2 });
-    assert.equal(chat.$("audio-bar").hidden, false);
-    chat.click("audio-pause");
-    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Play");
-    assert.match(chat.$("audio-status").textContent ?? "", /paused/);
-    chat.click("audio-pause");
-    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Pause");
-    chat.click("audio-stop");
-    assert.equal(chat.$("audio-bar").hidden, true);
+  void test("clicking while speech is being made cancels it", () => {
+    chat.server("presenting", hunk);
+    chat.server("narration", narration);
+    const speak = chat.doc.querySelector<HTMLButtonElement>("button.speak");
+    speak?.click();
+    speak?.click();
+    assert.equal(speak?.dataset.mode, "idle");
+    assert.deepEqual(lastPost(chat), { kind: "command", command: "interrupt" });
   });
 
-  void test("blocked audio waits on the bar's play button", async () => {
+  void test("narration speaks under its own message's button", () => {
+    chat.server("presenting", hunk);
+    chat.server("narration", narration);
+    chat.server("audio_chunk", { audio_base64: AUDIO, mime_type: "audio/wav", chunk_index: 0, chunk_count: 1 });
+    const speak = chat.doc.querySelector<HTMLButtonElement>("button.speak");
+    assert.equal(speak?.dataset.mode, "playing");
+    assert.equal(chat.doc.getElementById("audio-bar"), null, "there is no separate audio bar");
+  });
+
+  void test("audio the panel may not play yet waits on the message's Play", async () => {
+    chat.server("presenting", hunk);
+    chat.server("narration", narration);
     FakeAudio.refuseNext = true;
     chat.server("audio_chunk", { audio_base64: AUDIO, mime_type: "audio/wav", chunk_index: 0, chunk_count: 1 });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert.equal(chat.$("audio-bar").hidden, false);
-    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Play");
-    assert.match(chat.$("audio-status").textContent ?? "", /ready/);
-    chat.click("audio-pause");
+    const speak = chat.doc.querySelector<HTMLButtonElement>("button.speak");
+    assert.equal(speak?.dataset.mode, "paused");
+    speak?.click();
     assert.equal(FakeAudio.last?.paused, false, "the click starts playback");
-    assert.equal(chat.$("audio-pause").getAttribute("aria-label"), "Pause");
+    assert.equal(speak?.dataset.mode, "playing");
   });
 
   void test("sends a typed question on Enter", () => {
@@ -256,7 +272,12 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "openFile", file_path: "NOTES.md" });
   });
 
-  void test("reading a file aloud reports each passage, and Stop interrupts the backend", () => {
+  void test("a file read aloud gets its own line, reports each passage, and pauses", () => {
+    chat.server("notice", { level: "info", message: "Reading NOTES.md..." });
+    const line = chat.doc.querySelector(".turn.reading");
+    assert.match(line?.textContent ?? "", /Reading NOTES\.md/);
+    const speak = line?.querySelector<HTMLButtonElement>("button.speak");
+    assert.equal(speak?.dataset.mode, "loading");
     chat.server("file_audio_chunk", {
       audio_base64: AUDIO,
       mime_type: "audio/wav",
@@ -268,10 +289,27 @@ void describe("chat webview", () => {
       content_hash: "x",
     });
     assert.deepEqual(lastPost(chat), { kind: "reading", file_path: "NOTES.md", start_line: 1, end_line: 3 });
-    assert.match(chat.$("audio-status").textContent ?? "", /Reading NOTES\.md/);
-    chat.click("audio-stop");
-    const tail = chat.posts.slice(-2);
-    assert.deepEqual(tail, [{ kind: "command", command: "interrupt" }, { kind: "readingDone" }]);
+    assert.equal(speak?.dataset.mode, "playing");
+    speak?.click();
+    assert.equal(speak?.dataset.mode, "paused");
+    chat.server("notice", { level: "success", message: "Finished reading NOTES.md." });
+    assert.equal(
+      chat.doc.querySelectorAll(".turn.system:not(.reading)").length,
+      0,
+      "the read's notices stay out of the chat",
+    );
+  });
+
+  void test("finishing a read aloud doesn't mark a proposal applied", () => {
+    chat.send({
+      kind: "proposal",
+      agent: "Cline",
+      summary: "x",
+      files: [{ file_path: "calc.py", status: "modified" }],
+    });
+    chat.server("notice", { level: "success", message: "Finished reading NOTES.md." });
+    const card = chat.doc.querySelector(".turn.proposal");
+    assert.equal(card?.classList.contains("applied"), false);
   });
 
   void test("shows the selection that goes with the next question, and can drop it", () => {

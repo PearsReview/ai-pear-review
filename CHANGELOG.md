@@ -8,8 +8,11 @@
 - Opening the Pear Review view opens your changes: browse the diffs and chat
   without pressing Start Review, which now just turns on narration, reviewed
   marks and comments (Open Changes in the Command Palette does the same).
-- One audio bar: speech the panel isn't yet allowed to play waits on its play
-  button, instead of a second "Spoken replies are waiting" strip.
+- Audio is controlled from each message's own speaker button, with no
+  separate audio bar: a spinner while speech is made (click to cancel), pause
+  while it plays, play while paused. Narration plays under its own message; a
+  markdown file read aloud gets a "Reading <file>" line with the same button.
+- Fixed: finishing a read aloud marked an open Act Now proposal as applied.
 - Prev/Next and Start Review (▶, until the review starts) only on the Changes
   view's title bar; the chat toolbar keeps Explain.
 - Restyled the chat panel: VS Code's codicons in place of emoji and text

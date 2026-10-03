@@ -38,11 +38,6 @@ export function chatHtml({ nonce, cspSource, src }: ChatHtmlOptions): string {
     </div>
   </header>
   <main id="transcript" aria-live="polite"></main>
-  <div id="audio-bar" class="strip" hidden>
-    ${icon("unmute")}<span id="audio-status" class="grow">Speaking…</span>
-    <button id="audio-pause" class="icon-btn" title="Pause" aria-label="Pause">${icon("debug-pause")}</button>
-    <button id="audio-stop" class="icon-btn" title="Stop" aria-label="Stop">${icon("debug-stop")}</button>
-  </div>
   <div id="target" class="strip" hidden>
     ${icon("file")}<span id="target-label" class="grow"></span>
     <button id="target-back" class="pill">${icon("arrow-left")}<span>Back to review</span></button>

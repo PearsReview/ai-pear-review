@@ -29,6 +29,7 @@ type FromWebview =
   | { kind: "ready" }
   | { kind: "send"; text: string }
   | { kind: "speak"; text: string }
+  | { kind: "speakFile"; file_path: string }
   | { kind: "lookDeeper"; index: number; question?: string }
   | { kind: "jump"; index: number }
   | { kind: "clearContext" }
@@ -168,6 +169,9 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
         case "speak":
           this.backend.send("speak_turn", { text: message.text });
           return;
+        case "speakFile":
+          this.backend.send("speak_file", { file_path: message.file_path });
+          return;
         case "lookDeeper":
           this.backend.send(
             "look_deeper",
@@ -242,7 +246,8 @@ function parseFromWebview(raw: unknown): FromWebview | undefined {
     case "readingDone":
       return { kind: m.kind };
     case "openFile":
-      return typeof m.file_path === "string" ? { kind: "openFile", file_path: m.file_path } : undefined;
+    case "speakFile":
+      return typeof m.file_path === "string" ? { kind: m.kind, file_path: m.file_path } : undefined;
     case "reading": {
       const { file_path, start_line, end_line } = m;
       return typeof file_path === "string" && typeof start_line === "number" && typeof end_line === "number"

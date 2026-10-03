@@ -229,6 +229,14 @@ input:focus-visible {
   font-style: italic;
 }
 
+/* A markdown file read aloud: one quiet line with its speaker button. */
+.turn.reading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-style: normal;
+}
+
 .turn.error {
   border-left: 2px solid var(--vscode-errorForeground);
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
@@ -514,7 +522,8 @@ input.refine {
   animation: pulse 1.2s ease-in-out infinite;
 }
 
-.icon-btn.speak.active {
+.icon-btn.speak.active,
+.icon-btn.speak[data-mode="loading"] {
   color: var(--vscode-foreground);
   background: var(--hover);
 }
