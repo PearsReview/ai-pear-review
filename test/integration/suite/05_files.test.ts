@@ -89,12 +89,33 @@ describe("read aloud", () => {
     assert.ok(at.startLine >= 5, `read from line ${at.startLine}`);
   });
 
-  it("highlights the passage in the open file as the player reaches it", async () => {
+  it("highlights the passage in the open file without moving the cursor", async () => {
     const editor = await vscode.window.showTextDocument(repoUri("NOTES.md"));
     clearSelection();
+    const cursor = editor.selection.active;
     await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
-    const at = await waitFor("the passage being read", reading);
-    await waitFor("the cursor on the passage", () => editor.selection.active.line === at.startLine - 1);
+    await waitFor("the passage being read", reading);
+    await waitFor("a later passage", async () => ((await reading())?.startLine ?? 0) > 1);
+    assert.ok(editor.selection.isEmpty, "nothing is selected by the read");
+    assert.ok(editor.selection.active.isEqual(cursor), "the cursor stays where the reviewer left it");
+  });
+
+  it("ends when another message cancels it on the backend", async () => {
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("the read to start", async () => (await readState()) !== undefined);
+    // A reply cancels speak_file on the backend without a word back; the read ends with
+    // the clips it already has, instead of waiting for the rest forever.
+    await fromChat({ kind: "send", text: "What does this change do?" });
+    await waitFor("the read to end", async () => !(await readState()), 20_000);
+    assert.equal(await reading(), undefined);
+  });
+
+  it("stops the chat's audio, so only one voice plays", async () => {
+    const from = await mark();
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("the chat told to stop", async () =>
+      (await posted()).slice(from).some((m) => m.kind === "stopAudio"),
+    );
   });
 
   it("opens a markdown file's preview, and reads it, from the Changes tree", async () => {

@@ -394,17 +394,21 @@
       segments: next.sentences && body ? readAlong.resolveSentences(body, next.sentences) : [],
       at: null,
     };
-    player.play().catch((err) => {
-      if (err.name === "NotAllowedError") {
-        // The panel may not play sound until it has been clicked once: the button
-        // waits on Play, and that click is the permission.
-        queue.unshift(next);
-        paused = true;
-        if (owner) setSpeakState(owner, "paused");
-        showBlockedHint(true);
-        post({ kind: "audioBlocked" });
-      }
-    });
+    // Playing takes the voice: a file being read aloud stops (src/audio/speaking.ts).
+    player
+      .play()
+      .then(() => post({ kind: "audioStarted" }))
+      .catch((err) => {
+        if (err.name === "NotAllowedError") {
+          // The panel may not play sound until it has been clicked once: the button
+          // waits on Play, and that click is the permission.
+          queue.unshift(next);
+          paused = true;
+          if (owner) setSpeakState(owner, "paused");
+          showBlockedHint(true);
+          post({ kind: "audioBlocked" });
+        }
+      });
   }
 
   // Audio started from outside the panel (Read Aloud in the editor, automatic narration
@@ -429,8 +433,9 @@
     paused = false;
     showBlockedHint(false);
     if (owner) setSpeakState(owner, "playing");
-    if (player.src && !player.ended && player.currentTime > 0) void player.play();
-    else playNext();
+    if (player.src && !player.ended && player.currentTime > 0) {
+      void player.play().then(() => post({ kind: "audioStarted" }));
+    } else playNext();
   }
 
   function clearQueue() {
@@ -550,6 +555,8 @@
     } else if (msg.kind === "actMode") {
       state.actMode = msg.on;
       updateControls();
+    } else if (msg.kind === "stopAudio") {
+      stopAudio();
     } else if (msg.kind === "settle") {
       clearThinking();
       state.narrating = false;

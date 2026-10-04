@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
 
+import type { Speaking } from "../audio/speaking.ts";
 import type { Backend, BackendState } from "../backend/backend.ts";
 import type { ServerMessage } from "../backend/protocol.ts";
 import { log, showError } from "../log.ts";
@@ -23,7 +24,9 @@ type ToWebview =
   | { kind: "prefs"; prefs: PrefValues }
   // Something ended a wait (an error, an agent stopping, a proposal arriving): the
   // chat drops its thinking dots. What happened is shown outside it (notices.ts).
-  | { kind: "settle" };
+  | { kind: "settle" }
+  // Another voice took over (a file read aloud): stop the chat's audio.
+  | { kind: "stopAudio" };
 
 // Webview → extension. Validated in parseFromWebview: the webview is a separate
 // context, so its messages are checked like any other input.
@@ -39,6 +42,8 @@ type FromWebview =
   | { kind: "openPlan"; file: string }
   | { kind: "copy"; text: string }
   | { kind: "audioBlocked" }
+  // The chat began playing a message: it takes the voice.
+  | { kind: "audioStarted" }
   | { kind: "proposal"; action: "apply" | "discard" }
   | { kind: "proposal"; action: "refine"; text: string }
   | { kind: "proposal"; action: "open"; file_path: string }
@@ -70,8 +75,18 @@ export function register(
   actNow: ActNow,
   target: ChatTarget,
   prefs: Prefs,
+  speaking: Speaking,
 ): vscode.Disposable[] {
-  const provider = new ChatViewProvider(context.extensionUri, backend, voice, selection, actNow, target, prefs);
+  const provider = new ChatViewProvider(
+    context.extensionUri,
+    backend,
+    voice,
+    selection,
+    actNow,
+    target,
+    prefs,
+    speaking,
+  );
   return [
     vscode.window.registerWebviewViewProvider("pearReview.chat", provider, {
       // Keeps the transcript when the view is hidden; it lives only in the webview.
@@ -95,6 +110,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     private readonly actNow: ActNow,
     private readonly target: ChatTarget,
     private readonly prefs: Prefs,
+    private readonly speaking: Speaking,
   ) {
     this.subscriptions.push(prefs.onDidChange((values) => this.post({ kind: "prefs", prefs: values })));
     publish("chat.posted", () => this.posted);
@@ -107,6 +123,9 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
       backend.on("agent_stopped", () => this.post({ kind: "settle" })),
       backend.on("error", () => this.post({ kind: "settle" })),
       backend.onStateChange((state) => this.post({ kind: "backend", state })),
+      speaking.onDidClaim((who) => {
+        if (who === "file") this.post({ kind: "stopAudio" });
+      }),
       voice.onDidChange((recording) => this.post({ kind: "recording", recording })),
       selection.onDidChange((label) => this.post({ kind: "context", label: label ?? null })),
     );
@@ -186,6 +205,9 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
         case "openPlan":
           void vscode.commands.executeCommand("pearReview.openPlan", message.file);
           return;
+        case "audioStarted":
+          this.speaking.claim("chat");
+          return;
         case "audioBlocked":
           log("Chat: audio is waiting for a click in the chat panel (the panel may not play sound before one).");
           return;
@@ -235,6 +257,7 @@ function parseFromWebview(raw: unknown): FromWebview | undefined {
   switch (m.kind) {
     case "ready":
     case "audioBlocked":
+    case "audioStarted":
     case "clearContext":
     case "backToReview":
       return { kind: m.kind };

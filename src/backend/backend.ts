@@ -18,6 +18,9 @@ export interface Backend {
   send<T extends ClientMessageType>(type: T, payload: ClientPayloads[T]): void;
   on<T extends ServerMessageType>(type: T, listener: (payload: ServerPayloads[T]) => void): vscode.Disposable;
   onStateChange(listener: (state: BackendState) => void): vscode.Disposable;
+  // Each message as it is sent. A cancelling one (CANCELLING_MESSAGES) ends whatever
+  // backend task was running, and nothing comes back to say so.
+  readonly onDidSend: vscode.Event<ClientMessageType>;
   // The next message of a type, for request/reply pairs like get_settings → settings.
   next<T extends ServerMessageType>(type: T, timeoutMs?: number): Promise<ServerPayloads[T]>;
   // A fresh connection to the running backend: a new session, which is what picks up
@@ -46,6 +49,8 @@ export class PythonBackend implements Backend, vscode.Disposable {
   private startingFor: string | undefined;
   private readonly messages = new vscode.EventEmitter<ServerMessage>();
   private readonly states = new vscode.EventEmitter<BackendState>();
+  private readonly sends = new vscode.EventEmitter<ClientMessageType>();
+  readonly onDidSend = this.sends.event;
   private connectQuery: () => string = () => "";
 
   constructor(
@@ -118,6 +123,7 @@ export class PythonBackend implements Backend, vscode.Disposable {
   send<T extends ClientMessageType>(type: T, payload: ClientPayloads[T]): void {
     if (!this.client) throw new Error("The review backend isn't running — start a review first.");
     this.client.send(type, payload);
+    this.sends.fire(type);
   }
 
   on<T extends ServerMessageType>(type: T, listener: (payload: ServerPayloads[T]) => void): vscode.Disposable {
@@ -162,6 +168,7 @@ export class PythonBackend implements Backend, vscode.Disposable {
     void this.stop();
     this.messages.dispose();
     this.states.dispose();
+    this.sends.dispose();
   }
 
   private async connect(): Promise<void> {

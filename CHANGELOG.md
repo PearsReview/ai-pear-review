@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Safer and sturdier Read Aloud. The backend no longer loads the reviewed
+  repo's `.env` (its variables reached the coding agent). Reading no longer
+  moves the cursor or selection. A read cancelled on the backend by another
+  action (a question, Next…) ends instead of waiting forever. The chat's audio
+  and a file read never play at once: whichever starts takes over. A player
+  that can't start reports an error instead of failing silently in the
+  extension host. Text-to-speech that isn't WAV gets a clear message.
+- Reading a preview's selection is opt-in (`pearReview.readPreviewSelection`),
+  because it goes through the clipboard. The preview's file is found from its
+  tab in any display language, and two files with the same name are never
+  confused: Read Aloud asks for the text instead.
+
 - Read Aloud from a preview reads the text selected in the preview, as a
   selection in the file's text does; with nothing selected it reads the whole
   file.

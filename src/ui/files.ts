@@ -2,13 +2,16 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import { AudioPlayer } from "../audio/player.ts";
+import type { Speaking } from "../audio/speaking.ts";
 import type { Backend } from "../backend/backend.ts";
+import { CANCELLING_MESSAGES } from "../backend/protocol.ts";
 import { repositoryRoots, reviewLocation } from "../git.ts";
 import { log, showError } from "../log.ts";
 import type { ReadingSpot } from "../review/markdownReading.ts";
 import { blockAtFraction, type SpokenBlock } from "../review/reading.ts";
 import { sourceLinesOf, type LineRange } from "../review/selectionLines.ts";
 import { publish } from "../testProbe.ts";
+import { previewFile, previewShowing, previewTab } from "./previewTabs.ts";
 import { lineSpan } from "./selection.ts";
 import type { ChatTarget } from "./target.ts";
 
@@ -37,13 +40,20 @@ export interface Reader {
 // How long the clipboard gets to receive a copy from the preview's webview.
 const COPY_SETTLE_MS = 150;
 
+// The speech the player can play (python/player.py reads WAV).
+const PLAYABLE = new Set(["audio/wav", "audio/x-wav", "audio/wave"]);
+
 interface Read extends ReadingState {
   // The file's text when the read began: the preview of this file is the one rendering it.
   text: string;
   clips: Map<number, { blocks: SpokenBlock[]; startLine: number; endLine: number }>;
   received: number;
+  // How many clips the read will have: unknown until the first arrives, and cut to what
+  // has arrived when the backend stops making them (a cancel, or its finished notice).
   total: number | undefined;
   finished: number;
+  // The player has nothing left to play right now.
+  idle: boolean;
 }
 
 // Two ways into the repo beyond the changes under review: asking the reviewer about
@@ -57,6 +67,7 @@ export function register(
   context: vscode.ExtensionContext,
   backend: Backend,
   target: ChatTarget,
+  speaking: Speaking,
 ): { reader: Reader; disposables: vscode.Disposable[] } {
   const player = new AudioPlayer(context.extensionPath);
   const changes = new vscode.EventEmitter<ReadingState | undefined>();
@@ -85,16 +96,9 @@ export function register(
     }
     const range = new vscode.Range(position.startLine - 1, 0, position.endLine - 1, 0);
     editor.setDecorations(decoration, [range]);
-    if (!reveal) return;
-    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-    // A collapsed cursor at the passage: VS Code's markdown preview marks the cursor's
-    // line and scrolls with the editor, so a preview open beside it follows the reading
-    // (extensions can't highlight inside the preview itself). Collapsed, it never reads
-    // as a selection for the chat's context.
-    const start = range.start;
-    if (!editor.selection.isEmpty || !editor.selection.active.isEqual(start)) {
-      editor.selection = new vscode.Selection(start, start);
-    }
+    // Scrolls, but never moves the cursor or selection: the reviewer may be working in
+    // the file while it's read. The preview follows on its own (markdownReading.ts).
+    if (reveal) editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   };
 
   // The highlight needs the file's text on screen. Read from a preview (or with the file
@@ -112,20 +116,6 @@ export function register(
       viewColumn: vscode.ViewColumn.Beside,
       preserveFocus: true,
       preview: true,
-    });
-  };
-
-  // A markdown preview of the file, open in a visible tab group. Its tab says
-  // "Preview <file name>".
-  const previewShowing = (filePath: string): boolean => {
-    const name = path.basename(filePath);
-    return vscode.window.tabGroups.all.some((group) => {
-      const tab = group.activeTab;
-      return (
-        tab?.input instanceof vscode.TabInputWebview &&
-        tab.input.viewType.includes("markdown.preview") &&
-        tab.label.replace(/^\[?Preview\]? ?/, "").trim() === name
-      );
     });
   };
 
@@ -178,18 +168,30 @@ export function register(
     update();
   };
 
+  // The backend is still making speech for this read.
+  const receiving = (r: Read): boolean => r.total === undefined || r.received < r.total;
+
+  // No more clips are coming: the read ends once the player has played what it has.
+  const noMoreClips = (): void => {
+    if (!read) return;
+    read.total = read.received;
+    if (read.received === 0 || (read.idle && read.finished >= read.received)) finish();
+  };
+
   const stopReading = (): void => {
     if (!read) return;
+    const stillMaking = receiving(read);
     player.stop();
-    // Still synthesising the rest of the file: stop that too.
-    if (read.total === undefined || read.received < read.total) {
+    finish();
+    // Still synthesising the rest of the file (so speak_file is still the backend's
+    // current task): stop that too. Sent only then, or it would cancel something else.
+    if (stillMaking) {
       try {
         backend.send("stop", {});
       } catch {
         // The backend is gone; nothing left to stop.
       }
     }
-    finish();
   };
 
   const pauseReading = (): void => {
@@ -208,41 +210,20 @@ export function register(
 
   // --- which file a command means ---------------------------------------------------------
 
-  const isPreview = (tab: vscode.Tab | undefined): tab is vscode.Tab =>
-    tab?.input instanceof vscode.TabInputWebview && tab.input.viewType.includes("markdown.preview");
-
-  // The markdown preview a title-bar button was pressed on. The active group's tab if it
-  // is one; otherwise any visible group's, because a preview open beside another editor
-  // isn't always the active group when its title bar is clicked. A markdown file active
-  // in a text editor takes precedence over a preview elsewhere.
-  const previewTab = (): vscode.Tab | undefined => {
-    const active = vscode.window.tabGroups.activeTabGroup.activeTab;
-    if (isPreview(active)) return active;
-    const text = vscode.window.activeTextEditor?.document;
-    if (text && text.uri.scheme === "file" && text.languageId === "markdown") return undefined;
-    return vscode.window.tabGroups.all.map((g) => g.activeTab).find(isPreview);
-  };
-
   const activeTabIsPreview = (): boolean => previewTab() !== undefined;
 
-  // The Explorer and editor menus pass the file's URI; a markdown preview passes nothing
-  // and its tab is labelled "Preview <file name>", so the file is looked for in open
-  // documents, then open tabs, then the workspace; otherwise the active editor's.
+  // The Explorer and editor menus pass the file's URI; a markdown preview passes nothing,
+  // so its file is worked out from the tab (previewTabs.ts); otherwise the active editor's.
   const targetUri = async (arg: unknown): Promise<vscode.Uri | undefined> => {
     if (arg instanceof vscode.Uri && arg.scheme === "file") return arg;
     const tab = previewTab();
     if (tab) {
-      const name = tab.label.replace(/^\[?Preview\]? ?/, "").trim();
-      const named = (uri: vscode.Uri): boolean => path.basename(uri.fsPath) === name;
-      const doc = vscode.workspace.textDocuments.find((d) => d.uri.scheme === "file" && named(d.uri));
-      if (doc) return doc.uri;
-      const tabUri = vscode.window.tabGroups.all
-        .flatMap((g) => g.tabs)
-        .map((t) => (t.input instanceof vscode.TabInputText ? t.input.uri : undefined))
-        .find((u) => u && u.scheme === "file" && named(u));
-      if (tabUri) return tabUri;
-      const found = await vscode.workspace.findFiles(`**/${name}`, "**/node_modules/**", 2);
-      if (found.length === 1) return found[0];
+      const file = await previewFile(tab);
+      if (file) return file;
+      log(`Read Aloud: can't tell which file the preview "${tab.label}" shows.`);
+      throw new Error(
+        `Couldn't tell which file "${tab.label}" shows (more than one has that name). Open the file's text and use Read Aloud there.`,
+      );
     }
     return vscode.window.activeTextEditor?.document.uri;
   };
@@ -346,11 +327,22 @@ export function register(
     const selected =
       editor && editor.document.uri.toString() === uri.toString() && !editor.selection.isEmpty
         ? lineSpan(editor.selection)
-        : fromPreview
+        : fromPreview && vscode.workspace.getConfiguration("pearReview").get<boolean>("readPreviewSelection")
           ? await previewSelection(text)
           : undefined;
-    read = { filePath, uri, text, status: "loading", clips: new Map(), received: 0, total: undefined, finished: 0 };
+    read = {
+      filePath,
+      uri,
+      text,
+      status: "loading",
+      clips: new Map(),
+      received: 0,
+      total: undefined,
+      finished: 0,
+      idle: true,
+    };
     update();
+    speaking.claim("file");
     backend.send(
       "speak_file",
       selected
@@ -389,6 +381,14 @@ export function register(
       // Each clip of the file goes to the player as it arrives.
       backend.on("file_audio_chunk", (p) => {
         if (!read || p.file_path !== read.filePath) return;
+        if (!PLAYABLE.has(p.mime_type.toLowerCase())) {
+          showError(
+            `Read Aloud plays WAV speech, and the text-to-speech service sends ${p.mime_type}. Choose a service that returns WAV in settings (⚙).`,
+          );
+          stopReading();
+          return;
+        }
+        read.idle = false;
         const id = player.play(p.audio_base64);
         const blocks: SpokenBlock[] = p.blocks ?? [];
         read.clips.set(id, { blocks, startLine: p.start_line, endLine: p.end_line });
@@ -403,6 +403,7 @@ export function register(
           return;
         }
         if (e.event === "idle") {
+          read.idle = true;
           if (read.total !== undefined && read.finished >= read.total) finish();
           return;
         }
@@ -426,10 +427,22 @@ export function register(
           read.finished += 1;
         }
       }),
-      // Speech that never comes (the speech service is down, nothing readable): the
-      // backend says so with an error, which ends a read still waiting for it.
-      backend.on("error", ({ message }) => {
-        if (read?.status === "loading" && read.received === 0 && /read|speech/i.test(message)) finish();
+      // The read failed (nothing readable, speech off, the speech service down partway):
+      // play what already came, then end.
+      backend.on("error", ({ source }) => {
+        if (source === "speak_file") noMoreClips();
+      }),
+      backend.on("notice", ({ event }) => {
+        if (event === "reading_finished") noMoreClips();
+      }),
+      // Another long-running message cancels speak_file on the backend, silently: the read
+      // ends with the clips it has.
+      backend.onDidSend((type) => {
+        if (read && receiving(read) && type !== "speak_file" && CANCELLING_MESSAGES.has(type)) noMoreClips();
+      }),
+      // The chat started speaking: one voice at a time.
+      speaking.onDidClaim((who) => {
+        if (who === "chat") stopReading();
       }),
       vscode.commands.registerCommand("pearReview.askAboutFile", run(askAboutFile)),
       vscode.commands.registerCommand("pearReview.readAloud", run(readFileAloud)),

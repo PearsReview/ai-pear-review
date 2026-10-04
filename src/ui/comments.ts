@@ -6,6 +6,7 @@ import { reviewLocation, reviewUri } from "../git.ts";
 import { log, showError } from "../log.ts";
 import { anchorRange } from "../review/anchors.ts";
 import { publish } from "../testProbe.ts";
+import { showPreview } from "./previewTabs.ts";
 import type { SelectionContext } from "./selection.ts";
 
 export interface Comments {
@@ -284,7 +285,7 @@ export function register(
           )
           .then((choice) => {
             if (choice === "Open plan") {
-              void vscode.commands.executeCommand("markdown.showPreview", vscode.Uri.file(result.plan_path));
+              void showPreview(vscode.Uri.file(result.plan_path));
             } else if (choice === "Read aloud") {
               void vscode.commands.executeCommand("pearReview.readAloud", vscode.Uri.file(result.plan_path));
             } else if (choice === "Copy instruction") {

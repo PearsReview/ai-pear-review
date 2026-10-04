@@ -305,8 +305,16 @@ export interface ServerPayloads {
   recording_result: { audio_base64: string; mime_type: string; duration_seconds: number };
   context_too_large: Unknown;
   service_status: ServiceStatus;
-  notice: { message: string; level?: "info" | "success" };
-  error: { message: string };
+  // `event` says what a notice reports, for acting on it rather than its wording
+  // (wire-protocol.md, "Fields shared across messages").
+  notice: {
+    message: string;
+    level?: "info" | "success";
+    event?: "reading_started" | "reading_finished" | "act_now_applied";
+    files?: string[];
+  };
+  // `source` names the action that failed, so its state can end with it.
+  error: { message: string; source?: "speak_file" };
 }
 
 export type ClientMessageType = keyof ClientPayloads;
@@ -387,6 +395,27 @@ export const SERVER_MESSAGE_TYPES = Object.keys({
   notice: true,
   error: true,
 } satisfies Record<ServerMessageType, true>);
+
+// The messages that cancel whatever the backend is running before they start: the
+// "cancels" column of wire-protocol.md (test/unit/protocol.test.ts checks it). Sending
+// one ends a read aloud that is still being synthesised, without any reply saying so.
+export const CANCELLING_MESSAGES: ReadonlySet<ClientMessageType> = new Set<ClientMessageType>([
+  "next",
+  "prev",
+  "stop",
+  "jump_to_hunk",
+  "refresh_diff",
+  "reply",
+  "request_change",
+  "act_now",
+  "refine_act_now",
+  "explore_reply",
+  "look_deeper",
+  "speak_file",
+  "speak_turn",
+  "explain_hunk",
+  "speak_text",
+]);
 
 export function isServerMessage(value: unknown): value is ServerMessage {
   if (typeof value !== "object" || value === null) return false;

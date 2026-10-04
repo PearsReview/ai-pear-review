@@ -323,6 +323,11 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Python 3.10+ interpreter for the review backend. Empty: the extension's own `.venv` if present, otherwise `python` on PATH."
+        },
+        "pearReview.readPreviewSelection": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "**Read Aloud** pressed on a markdown preview reads only the text selected in it. VS Code doesn't tell extensions what a preview has selected, so this briefly copies the selection through the clipboard and then puts your clipboard's text back (other clipboard content, such as an image, is lost, and clipboard history records the copy). Off: a read started from a preview reads the whole file; a selection in the file's text editor always works."
         }
       }
     },

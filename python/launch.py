@@ -36,11 +36,9 @@ def main() -> None:
         raise SystemExit(f"Not starting — --repo {repo} is not a directory.")
     os.environ[run.REPO_PATH_ENV] = str(repo)
 
-    # load_dotenv ran when run.py was imported, from the extension host's
-    # cwd; the reviewed repo's own .env is the one that should apply.
-    from dotenv import load_dotenv
-
-    load_dotenv(repo / ".env")
+    # Importing run.py loaded the backend's own .env, as the web app does. The reviewed
+    # repo's .env is never loaded: it is input from that repo, and its variables would
+    # reach the coding agent's process (NODE_OPTIONS, ANTHROPIC_BASE_URL, ...).
 
     import uvicorn
 

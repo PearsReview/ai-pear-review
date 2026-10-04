@@ -5,6 +5,7 @@ import type { Backend } from "../backend/backend.ts";
 import { pickRepository, repositoryRoots } from "../git.ts";
 import { output, showError } from "../log.ts";
 import type { Prefs } from "./prefs.ts";
+import { showPreview } from "./previewTabs.ts";
 import type { Voice } from "./voice.ts";
 
 export function register(
@@ -112,7 +113,7 @@ export function register(
     vscode.commands.registerCommand("pearReview.openPlan", (file: unknown) => {
       if (typeof file === "string" && backend.repoPath) {
         const uri = vscode.Uri.file(path.join(backend.repoPath, file));
-        void vscode.commands.executeCommand("markdown.showPreview", uri);
+        void showPreview(uri);
       }
     }),
     vscode.commands.registerCommand("pearReview.interrupt", () => send(() => backend.send("stop", {}))),

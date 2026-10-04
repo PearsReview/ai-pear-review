@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { CLIENT_MESSAGE_TYPES, SERVER_MESSAGE_TYPES, isServerMessage } from "../../src/backend/protocol.ts";
+import {
+  CANCELLING_MESSAGES,
+  CLIENT_MESSAGE_TYPES,
+  SERVER_MESSAGE_TYPES,
+  isServerMessage,
+} from "../../src/backend/protocol.ts";
 
 const doc = readFileSync(new URL("../../backend/docs/wire-protocol.md", import.meta.url), "utf8");
 
@@ -23,6 +28,19 @@ void test("every client → server message in wire-protocol.md is typed, and not
 void test("every server → client message in wire-protocol.md is typed, and nothing else", () => {
   const doc = documented("## Python → Browser", "## Fields shared across messages");
   assert.deepEqual([...SERVER_MESSAGE_TYPES].sort(), [...doc].sort());
+});
+
+void test("CANCELLING_MESSAGES is the cancels column of wire-protocol.md", () => {
+  const section = doc.split("## Browser → Python")[1]?.split("## Python → Browser")[0] ?? "";
+  // | `name` | payload | handler | cancels | background |, where a payload may hold an
+  // escaped \| ("`text` \| `audio_base64`").
+  const cancelling = section
+    .split("\n")
+    .map((row) => row.split(/(?<!\\)\|/).map((cell) => cell.trim()))
+    .filter((cells) => /^`[a-z_]+`$/.test(cells[1] ?? "") && cells[4] === "yes")
+    .map((cells) => (cells[1] as string).slice(1, -1));
+  assert.ok(cancelling.length > 0);
+  assert.deepEqual([...CANCELLING_MESSAGES].sort(), cancelling.sort());
 });
 
 void test("isServerMessage accepts known messages and rejects the rest", () => {

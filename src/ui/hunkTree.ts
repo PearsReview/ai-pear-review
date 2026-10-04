@@ -7,6 +7,7 @@ import { fileChange, hunkLabel } from "../review/hunks.ts";
 import { publish } from "../testProbe.ts";
 import type { Comments } from "./comments.ts";
 import type { Reader } from "./files.ts";
+import { showPreview } from "./previewTabs.ts";
 
 type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: ProgressHunk; file: ProgressFile };
 
@@ -68,7 +69,7 @@ export function register(backend: Backend, comments: Comments, reader: Reader): 
     // The row passes its node; these hand its file to VS Code's preview and to Read Aloud.
     vscode.commands.registerCommand("pearReview.tree.preview", (node: Node) => {
       const uri = fileUri(node);
-      if (uri) void vscode.commands.executeCommand("markdown.showPreview", uri);
+      if (uri) void showPreview(uri);
     }),
     vscode.commands.registerCommand("pearReview.tree.readAloud", (node: Node) => {
       const uri = fileUri(node);

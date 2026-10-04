@@ -53,7 +53,8 @@ export class AudioPlayer implements vscode.Disposable {
   // `start`: whether to launch the player for this command (only playing needs it).
   private send(command: Record<string, unknown>, start = true): void {
     if (!this.proc && start) this.launch();
-    this.proc?.stdin?.write(JSON.stringify(command) + "\n");
+    const stdin = this.proc?.stdin;
+    if (stdin?.writable) stdin.write(JSON.stringify(command) + "\n");
   }
 
   private launch(): void {
@@ -76,13 +77,22 @@ export class AudioPlayer implements vscode.Disposable {
       }
     });
     proc.stderr?.on("data", (chunk: Buffer) => log(`Player: ${chunk.toString("utf8").trimEnd()}`));
+    // Without these, an interpreter that can't be found, or a write after the player
+    // died, is an unhandled 'error' event in the extension host.
+    proc.on("error", (err) => this.fail(proc, `Couldn't start the audio player (${err.message}).`));
+    proc.stdin?.on("error", (err) => this.fail(proc, `The audio player stopped (${err.message}).`));
     proc.on("exit", (code) => {
-      if (this.proc !== proc) return;
-      this.proc = undefined;
-      if (code) {
-        log(`Player exited (code ${code}).`);
-        this.events.fire({ event: "error", message: `The audio player stopped (code ${code}). See the log.` });
-      }
+      if (code) this.fail(proc, `The audio player stopped (code ${code}).`);
+      else if (this.proc === proc) this.proc = undefined;
     });
+  }
+
+  // The player is gone (it never started, or its pipe broke): forget it, so the next clip
+  // launches a fresh one, and report it once.
+  private fail(proc: ChildProcess, message: string): void {
+    if (this.proc !== proc) return;
+    this.proc = undefined;
+    log(`Player: ${message}`);
+    this.events.fire({ event: "error", message: `${message} See the log.` });
   }
 }

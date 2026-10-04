@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 
+import { Speaking } from "./audio/speaking.ts";
 import { PythonBackend } from "./backend/backend.ts";
 import { output } from "./log.ts";
 import { readingPlugin, type MarkdownItLike } from "./review/markdownReading.ts";
@@ -35,12 +36,14 @@ export function activate(context: vscode.ExtensionContext): {
   const selection = selectionContext.register(backend);
   const agent = actNow.register(backend);
   const target = chatTarget.register(backend);
-  const repoFiles = files.register(context, backend, target.target);
+  const speaking = new Speaking();
+  const repoFiles = files.register(context, backend, target.target, speaking);
   const review = comments.register(backend, selection.selection);
   const recorder = voice.register(backend, selection.selection, agent.actNow, target.target, review.comments);
   context.subscriptions.push(
     output,
     backend,
+    speaking,
     ...statusBar.register(backend),
     ...notices.register(backend),
     ...review.disposables,
@@ -61,6 +64,7 @@ export function activate(context: vscode.ExtensionContext): {
       agent.actNow,
       target.target,
       prefs.prefs,
+      speaking,
     ),
     ...commands.register(context, backend, recorder.voice, prefs.prefs),
   );
