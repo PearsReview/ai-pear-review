@@ -139,6 +139,21 @@ describe("read aloud", () => {
     );
   });
 
+  it("finds the preview even when another editor's group is active", async () => {
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await vscode.window.showTextDocument(repoUri("calc.py"), { viewColumn: vscode.ViewColumn.One });
+    await vscode.commands.executeCommand("markdown.showPreviewToSide", repoUri("NOTES.md"));
+    await waitFor("the preview beside calc.py", () =>
+      vscode.window.tabGroups.all.some(
+        (g) => g.activeTab?.input instanceof vscode.TabInputWebview && g.activeTab.label.includes("NOTES.md"),
+      ),
+    );
+    // Focus back on calc.py's group, as when the preview's title bar is clicked from there.
+    await vscode.window.showTextDocument(repoUri("calc.py"), { viewColumn: vscode.ViewColumn.One });
+    await vscode.commands.executeCommand("pearReview.readAloud", { groupId: 2, editorIndex: 0 });
+    await waitFor("NOTES.md to be read", async () => (await readState())?.filePath === "NOTES.md");
+  });
+
   it("leaves the chat out of it", async () => {
     const from = await mark();
     await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));

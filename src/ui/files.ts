@@ -208,18 +208,30 @@ export function register(
 
   // --- which file a command means ---------------------------------------------------------
 
-  const activeTabIsPreview = (): boolean => {
-    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
-    return tab?.input instanceof vscode.TabInputWebview && tab.input.viewType.includes("markdown.preview");
+  const isPreview = (tab: vscode.Tab | undefined): tab is vscode.Tab =>
+    tab?.input instanceof vscode.TabInputWebview && tab.input.viewType.includes("markdown.preview");
+
+  // The markdown preview a title-bar button was pressed on. The active group's tab if it
+  // is one; otherwise any visible group's, because a preview open beside another editor
+  // isn't always the active group when its title bar is clicked. A markdown file active
+  // in a text editor takes precedence over a preview elsewhere.
+  const previewTab = (): vscode.Tab | undefined => {
+    const active = vscode.window.tabGroups.activeTabGroup.activeTab;
+    if (isPreview(active)) return active;
+    const text = vscode.window.activeTextEditor?.document;
+    if (text && text.uri.scheme === "file" && text.languageId === "markdown") return undefined;
+    return vscode.window.tabGroups.all.map((g) => g.activeTab).find(isPreview);
   };
+
+  const activeTabIsPreview = (): boolean => previewTab() !== undefined;
 
   // The Explorer and editor menus pass the file's URI; a markdown preview passes nothing
   // and its tab is labelled "Preview <file name>", so the file is looked for in open
   // documents, then open tabs, then the workspace; otherwise the active editor's.
   const targetUri = async (arg: unknown): Promise<vscode.Uri | undefined> => {
-    if (arg instanceof vscode.Uri) return arg;
-    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
-    if (tab?.input instanceof vscode.TabInputWebview && tab.input.viewType.includes("markdown.preview")) {
+    if (arg instanceof vscode.Uri && arg.scheme === "file") return arg;
+    const tab = previewTab();
+    if (tab) {
       const name = tab.label.replace(/^\[?Preview\]? ?/, "").trim();
       const named = (uri: vscode.Uri): boolean => path.basename(uri.fsPath) === name;
       const doc = vscode.workspace.textDocuments.find((d) => d.uri.scheme === "file" && named(d.uri));
@@ -309,9 +321,13 @@ export function register(
   };
 
   const readFileAloud = async (arg: unknown): Promise<void> => {
-    const fromPreview = !(arg instanceof vscode.Uri) && activeTabIsPreview();
+    const fromPreview = !(arg instanceof vscode.Uri && arg.scheme === "file") && activeTabIsPreview();
     const uri = await targetUri(arg);
     if (!uri || uri.scheme !== "file" || !/\.(md|markdown)$/i.test(uri.fsPath)) {
+      // What the button passed, and what was found, for a report from the log.
+      const passed = arg instanceof vscode.Uri ? arg.toString() : arg === undefined ? "nothing" : JSON.stringify(arg);
+      const tabs = vscode.window.tabGroups.all.map((g) => g.activeTab?.label ?? "-").join(" | ");
+      log(`Read Aloud: no markdown file found (passed ${passed}; found ${uri?.toString() ?? "none"}; tabs ${tabs}).`);
       showError("Read Aloud works on markdown (.md) files.");
       return;
     }
