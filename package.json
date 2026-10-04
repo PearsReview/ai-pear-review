@@ -15,6 +15,12 @@
   "extensionKind": [
     "ui"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Pear Review runs a Python backend and a coding agent against the repository's files, so it needs a trusted workspace."
+    }
+  },
   "main": "./dist/extension.js",
   "activationEvents": [],
   "contributes": {
@@ -282,6 +288,11 @@
         "title": "Switch Repository",
         "category": "Pear Review",
         "icon": "$(repo)"
+      },
+      {
+        "command": "pearReview.setupPython",
+        "title": "Set Up Python Environment",
+        "category": "Pear Review"
       }
     ],
     "keybindings": [
@@ -328,7 +339,7 @@
         "pearReview.pythonPath": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Python 3.10+ interpreter for the review backend. Empty: the extension's own `.venv` if present, otherwise `python` on PATH."
+          "markdownDescription": "Python 3.10+ interpreter for the review backend and the audio player, with the backend's packages installed. Empty: the environment **Pear Review: Set Up Python Environment** made (or, when developing, this extension's own `.venv`)."
         },
         "pearReview.readPreviewSelection": {
           "type": "boolean",
@@ -740,7 +751,9 @@
     "test": "node --test \"test/unit/**/*.test.ts\"",
     "vscode:prepublish": "node esbuild.mjs --production",
     "test:integration": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts",
-    "test:integration:ollama": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts --ollama"
+    "test:integration:ollama": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts --ollama",
+    "package": "vsce package --allow-missing-repository --no-rewrite-relative-links",
+    "test:package": "node test/packaging/checkPackage.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -751,6 +764,7 @@
     "@types/vscode": "~1.106.0",
     "@types/ws": "^8.5.0",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.25.0",
     "eslint": "^9.0.0",
     "jsdom": "^30.1.1",

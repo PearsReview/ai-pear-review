@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Pear Review: Set Up Python Environment** makes a Python environment for the
+  extension (in its global storage) from a Python 3.10+ it finds (the Python
+  extension's choice first) and installs the backend's packages and
+  sounddevice. The interpreter is now the `pearReview.pythonPath` setting,
+  then that environment (or, when developing, the extension's `.venv`);
+  `python` on PATH is no longer guessed. A missing environment, or one without
+  the backend's packages, says so with a **Set Up Python** button.
+- Packaging: `npm run package` builds the `.vsix`, and `npm run test:package`
+  checks it holds what the backend needs. Fixed: the package left out
+  `backend/static`, which the backend mounts on start, so an installed
+  extension's backend couldn't start.
+- The extension declares that it needs a trusted workspace.
+
 - Several repositories in one window: each gets its own backend and its own
   review. **Switch Repository** (on the Changes view when there's more than
   one) or Ask Pear / Read Aloud on a file in another repository changes which

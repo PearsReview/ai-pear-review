@@ -7,7 +7,6 @@ node_modules/**
 backend/tests/**
 backend/qa_agent/**
 backend/demo/**
-backend/static/**
 **/__pycache__/**
 **/*.ts
 tsconfig.json
@@ -16,3 +15,18 @@ eslint.config.mjs
 dist-test/**
 .vscode-test/**
 esbuild.test.mjs
+backend/.git
+backend/.github/**
+backend/.claude/**
+backend/.clinerules/**
+backend/docs/**
+backend/requirements-dev.txt
+backend/.env*
+*.vsix
+.pytest_cache/**
+.ruff_cache/**
+**/*.map
+.gitmodules
+.prettierignore
+.prettierrc.json
+backend/.git*

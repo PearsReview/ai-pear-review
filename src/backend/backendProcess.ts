@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import * as path from "node:path";
 
-import { log } from "../log.ts";
+import { SETUP_PYTHON, log } from "../log.ts";
 
 const PORT_LINE = /^PEAR_REVIEW_PORT=(\d+)\s*$/m;
 // Startup includes the preflight, which pings Ollama / the voice service. Generous,
@@ -10,6 +10,8 @@ const READY_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 250;
 // How long a stopped backend gets to exit before it's killed outright.
 const KILL_GRACE_MS = 3_000;
+// How much of the backend's stderr is kept to explain a failed start.
+const STDERR_KEPT = 4_000;
 
 export interface StartOptions {
   python: string;
@@ -47,6 +49,7 @@ export class BackendProcess {
         child.kill();
       }, READY_TIMEOUT_MS);
       let buffered = "";
+      let stderr = "";
       const onData = (chunk: Buffer): void => {
         const text = chunk.toString("utf8");
         buffered += text;
@@ -58,14 +61,26 @@ export class BackendProcess {
       };
       child.stdout?.on("data", onData);
       child.stdout?.on("data", (chunk: Buffer) => log(chunk.toString("utf8").trimEnd()));
-      child.stderr?.on("data", (chunk: Buffer) => log(chunk.toString("utf8").trimEnd()));
+      child.stderr?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString("utf8");
+        log(text.trimEnd());
+        stderr = (stderr + text).slice(-STDERR_KEPT);
+      });
       child.once("error", (err) => {
         clearTimeout(timer);
         reject(new Error(`Could not start ${options.python}: ${err.message}`));
       });
       child.once("exit", (code) => {
         clearTimeout(timer);
-        reject(new Error(`The backend exited during startup (code ${code}). See the log for the reason.`));
+        // The commonest cause by far: an interpreter without the backend's packages.
+        const missing = /No module named '([^']+)'/.exec(stderr)?.[1];
+        reject(
+          new Error(
+            missing
+              ? `${options.python} doesn't have the backend's Python packages (no module named '${missing}'). Run "${SETUP_PYTHON}", or install backend/requirements.txt into that interpreter.`
+              : `The backend exited during startup (code ${code}). See the log for the reason.`,
+          ),
+        );
         this.child = undefined;
         for (const listener of this.exitListeners) listener(code);
       });

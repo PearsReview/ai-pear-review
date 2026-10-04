@@ -60,6 +60,10 @@ let failed = false;
 // (suite/index.ts picks them by PEAR_TEST_SUITE).
 async function run(suite: string, workspace: string, backend: string, env: Record<string, string> = {}): Promise<void> {
   console.log(`\n— ${suite} run: ${workspace}`);
+  // The interpreter is a setting, as a user without "Set Up Python Environment" sets it.
+  const userData = path.join(work, `user-data-${suite}`);
+  mkdirSync(path.join(userData, "User"), { recursive: true });
+  writeFileSync(path.join(userData, "User", "settings.json"), JSON.stringify({ "pearReview.pythonPath": python }));
   await runTests({
     extensionDevelopmentPath: ROOT,
     extensionTestsPath: path.join(ROOT, "dist-test", "suite", "index.js"),
@@ -70,7 +74,7 @@ async function run(suite: string, workspace: string, backend: string, env: Recor
       "--skip-welcome",
       "--skip-release-notes",
       "--user-data-dir",
-      path.join(work, `user-data-${suite}`),
+      userData,
     ],
     extensionTestsEnv: {
       PEAR_REVIEW_TEST: "1",

@@ -21,6 +21,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # The .vsix holds what the backend needs to start (backend/static, python/, …).
+      - run: npm run test:package
+      - run: npm run package
 
   python:
     # The extension's own Python (python/): the audio player's WAV decoding.

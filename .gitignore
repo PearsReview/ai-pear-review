@@ -8,3 +8,4 @@ dist-test/
 media/chat/codicons/
 .pytest_cache/
 __pycache__/
+.ruff_cache/

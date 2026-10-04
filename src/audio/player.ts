@@ -59,7 +59,16 @@ export class AudioPlayer implements vscode.Disposable {
 
   private launch(): void {
     const script = path.join(this.extensionPath, "python", "player.py");
-    const proc = spawn(resolvePython(this.extensionPath), ["-u", script], { windowsHide: true });
+    let python: string;
+    try {
+      python = resolvePython(this.extensionPath);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log(`Player: ${message}`);
+      this.events.fire({ event: "error", message });
+      return;
+    }
+    const proc = spawn(python, ["-u", script], { windowsHide: true });
     this.proc = proc;
     let buffered = "";
     proc.stdout?.on("data", (chunk: Buffer) => {

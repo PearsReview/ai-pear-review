@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 
 import { Speaking } from "./audio/speaking.ts";
 import { BackendManager } from "./backend/manager.ts";
+import { setStorageDir } from "./backend/python.ts";
 import { output } from "./log.ts";
 import { readingPlugin, type MarkdownItLike } from "./review/markdownReading.ts";
 import { read, testMode } from "./testProbe.ts";
@@ -15,6 +16,7 @@ import * as files from "./ui/files.ts";
 import * as hunkTree from "./ui/hunkTree.ts";
 import * as notices from "./ui/notices.ts";
 import * as preferences from "./ui/prefs.ts";
+import * as pythonSetup from "./ui/pythonSetup.ts";
 import * as repositories from "./ui/repositories.ts";
 import * as selectionContext from "./ui/selection.ts";
 import * as settings from "./ui/settings.ts";
@@ -32,6 +34,7 @@ export function activate(context: vscode.ExtensionContext): {
   extendMarkdownIt(md: MarkdownItLike): MarkdownItLike;
   read?: typeof read;
 } {
+  setStorageDir(context.globalStorageUri.fsPath);
   backend = new BackendManager(context.extensionPath, context.secrets);
   const repos = repositories.register(backend);
   const prefs = preferences.register(context, backend);
@@ -50,6 +53,7 @@ export function activate(context: vscode.ExtensionContext): {
     ...notices.register(backend),
     ...review.disposables,
     ...repos.disposables,
+    ...pythonSetup.register(context),
     ...hunkTree.register(backend, review.comments, repoFiles.reader, repos.repos),
     ...diffView.register(backend),
     ...selection.disposables,
