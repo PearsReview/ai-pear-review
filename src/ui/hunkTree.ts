@@ -7,13 +7,14 @@ import { fileChange, hunkLabel } from "../review/hunks.ts";
 import { publish } from "../testProbe.ts";
 import type { Comments } from "./comments.ts";
 import type { Reader } from "./files.ts";
+import type { Repos } from "./repositories.ts";
 import { showPreview } from "./previewTabs.ts";
 
 type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: ProgressHunk; file: ProgressFile };
 
 // Files → hunks, from review_progress (which the backend resends on every move and
 // every reviewed toggle), with the hunk on screen marked and revealed.
-export function register(backend: Backend, comments: Comments, reader: Reader): vscode.Disposable[] {
+export function register(backend: Backend, comments: Comments, reader: Reader, repos: Repos): vscode.Disposable[] {
   const provider = new HunkTreeProvider(
     () => backend.repoPath,
     () => reader.state,
@@ -53,6 +54,8 @@ export function register(backend: Backend, comments: Comments, reader: Reader): 
   let progress: ReviewProgress | undefined;
   const describe = (): void => {
     const parts = progress?.total ? [`${progress.reviewed_count}/${progress.total} reviewed`] : [];
+    // With several repositories open, which one this is.
+    if (repos.multi && backend.repoPath) parts.unshift(path.basename(backend.repoPath));
     if (comments.count) parts.push(`${comments.count} comment${comments.count === 1 ? "" : "s"}`);
     view.description = parts.join(" · ") || undefined;
   };
@@ -76,6 +79,7 @@ export function register(backend: Backend, comments: Comments, reader: Reader): 
       if (uri) void vscode.commands.executeCommand("pearReview.readAloud", uri);
     }),
     comments.onDidChangeCount(describe),
+    repos.onDidChange(describe),
     backend.on("review_progress", (p) => {
       progress = p;
       void vscode.commands.executeCommand("setContext", "pearReview.reviewStarted", p.review_started);

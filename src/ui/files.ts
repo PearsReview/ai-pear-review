@@ -5,7 +5,7 @@ import { AudioPlayer } from "../audio/player.ts";
 import type { Speaking } from "../audio/speaking.ts";
 import type { Backend } from "../backend/backend.ts";
 import { CANCELLING_MESSAGES } from "../backend/protocol.ts";
-import { repositoryRoots, reviewLocation } from "../git.ts";
+import { repoContaining, repositoryRoots, reviewLocation } from "../git.ts";
 import { log, showError } from "../log.ts";
 import type { ReadingSpot } from "../review/markdownReading.ts";
 import { blockAtFraction, type SpokenBlock } from "../review/reading.ts";
@@ -235,19 +235,14 @@ export function register(
       showError("Remote workspaces aren't supported. Open the repository locally.");
       return undefined;
     }
-    const repos = await repositoryRoots();
-    const root = repos.filter((r) => reviewLocation(uri, r)).sort((a, b) => b.length - a.length)[0];
+    const root = repoContaining(uri, await repositoryRoots());
     if (!root) {
       showError("That file isn't in a git repository VS Code has open.");
       return undefined;
     }
-    if (backend.state === "ready" && backend.repoPath && path.relative(backend.repoPath, root) !== "") {
-      showError(
-        `Pear Review is running for ${path.basename(backend.repoPath)}. Stop it first to use another repository.`,
-      );
-      return undefined;
-    }
-    if (backend.state !== "ready") {
+    // The file's repository becomes the one shown (each keeps its own backend).
+    const shown = backend.repoPath && path.relative(backend.repoPath, root) === "";
+    if (backend.state !== "ready" || !shown) {
       await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Window, title: "Pear Review: starting backend" },
         () => backend.start(root),

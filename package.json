@@ -276,6 +276,12 @@
         "title": "Getting speech… (click to cancel)",
         "category": "Pear Review",
         "icon": "$(loading~spin)"
+      },
+      {
+        "command": "pearReview.switchRepository",
+        "title": "Switch Repository",
+        "category": "Pear Review",
+        "icon": "$(repo)"
       }
     ],
     "keybindings": [
@@ -334,11 +340,22 @@
     "viewsWelcome": [
       {
         "view": "pearReview.hunks",
-        "contents": "Browse your uncommitted changes and ask about them, or start a review to have the reviewer explain each one.\n[Open Changes](command:pearReview.openChanges)\n[Start Review](command:pearReview.startReview)"
+        "when": "pearReview.noRepo",
+        "contents": "Pear Review walks through a git repository's uncommitted changes. Open a folder that is a git repository to start a review.\n[Open Folder](command:workbench.action.files.openFolder)"
+      },
+      {
+        "view": "pearReview.hunks",
+        "contents": "Browse your uncommitted changes and ask about them, or start a review to have the reviewer explain each one.\n[Open Changes](command:pearReview.openChanges)\n[Start Review](command:pearReview.startReview)",
+        "when": "!pearReview.noRepo"
       }
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "pearReview.switchRepository",
+          "when": "view == pearReview.hunks && pearReview.multiRepo",
+          "group": "navigation@0"
+        },
         {
           "command": "pearReview.startReview",
           "when": "view == pearReview.hunks && !pearReview.reviewStarted",
@@ -528,6 +545,10 @@
         {
           "command": "pearReview.cancelReading",
           "when": "pearReview.reading"
+        },
+        {
+          "command": "pearReview.switchRepository",
+          "when": "pearReview.multiRepo"
         }
       ],
       "comments/commentThread/context": [

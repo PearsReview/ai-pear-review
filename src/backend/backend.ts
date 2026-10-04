@@ -51,6 +51,8 @@ export class PythonBackend implements Backend, vscode.Disposable {
   private readonly states = new vscode.EventEmitter<BackendState>();
   private readonly sends = new vscode.EventEmitter<ClientMessageType>();
   readonly onDidSend = this.sends.event;
+  // Every validated message, for BackendManager to forward.
+  readonly onMessage = this.messages.event;
   private connectQuery: () => string = () => "";
 
   constructor(
@@ -118,6 +120,36 @@ export class PythonBackend implements Backend, vscode.Disposable {
     this.port = undefined;
     await proc?.stop();
     if (this._state !== "error") this.setState("stopped");
+  }
+
+  // Whether the process is up and listening, connected or not.
+  get running(): boolean {
+    return this.process !== undefined && this.port !== undefined;
+  }
+
+  // Drops the connection but keeps the process: another repository's backend has the UI
+  // (BackendManager). resume() connects again.
+  disconnect(): void {
+    const old = this.client;
+    // Cleared first, so the close isn't taken for a dropped connection.
+    this.client = undefined;
+    old?.close();
+    if (this._state === "ready") this.setState("stopped");
+  }
+
+  // Connects to the running process again: a fresh session, which resends the review's
+  // whole state (progress, comments, the hunk on screen).
+  async resume(): Promise<void> {
+    if (!this.running) throw new Error("The review backend isn't running.");
+    if (this.client) return;
+    this.setState("starting");
+    try {
+      await this.connect();
+      this.setState("ready");
+    } catch (err) {
+      this.setState("error");
+      throw err;
+    }
   }
 
   send<T extends ClientMessageType>(type: T, payload: ClientPayloads[T]): void {

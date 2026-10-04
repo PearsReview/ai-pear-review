@@ -94,15 +94,7 @@ export function prepareBackend(work: string, repo: string, options: BackendOptio
   }
   writeFileSync(configPath, patched);
 
-  const settings: Record<string, unknown> = {
-    tts: { endpoint: `${options.fakeUrl}/speech` },
-    stt: { endpoint: `${options.fakeUrl}/transcribe` },
-  };
-  if (!options.liveModel) {
-    settings.provider = "ollama";
-    settings.ollama = { base_url: options.fakeUrl, model: FAKE_MODEL };
-  }
-  write(repo, path.join(".review", "ui_settings.json"), JSON.stringify(settings, null, 2));
+  writeRepoSettings(repo, options);
 
   // The backend reads the agent's model from Cline's settings file; point it at a
   // fixture, never the developer's real one, which holds real keys.
@@ -115,6 +107,34 @@ export function prepareBackend(work: string, repo: string, options: BackendOptio
     }),
   );
   return copy;
+}
+
+// The repo-level settings that point the model and the speech service at the fakes
+// (the same keys the settings panel saves). Every repository a run reviews needs them.
+export function writeRepoSettings(repo: string, options: BackendOptions): void {
+  const settings: Record<string, unknown> = {
+    tts: { endpoint: `${options.fakeUrl}/speech` },
+    stt: { endpoint: `${options.fakeUrl}/transcribe` },
+  };
+  if (!options.liveModel) {
+    settings.provider = "ollama";
+    settings.ollama = { base_url: options.fakeUrl, model: FAKE_MODEL };
+  }
+  write(repo, path.join(".review", "ui_settings.json"), JSON.stringify(settings, null, 2));
+}
+
+// A second, smaller repository for the multi-root run: one changed file.
+export function seedSmallRepo(repo: string): void {
+  mkdirSync(repo, { recursive: true });
+  git(repo, "init", "-q", "-b", "main");
+  git(repo, "config", "user.email", "tests@example.com");
+  git(repo, "config", "user.name", "Pear Tests");
+  git(repo, "config", "core.autocrlf", "false");
+  write(repo, path.join(".git", "info", "exclude"), ".review/\n.briefing/\n.context/\n");
+  write(repo, "tools.py", "def double(x):\n    return x * 2\n");
+  git(repo, "add", ".");
+  git(repo, "commit", "-qm", "initial");
+  write(repo, "tools.py", "def double(x):\n    return x * 2\n\n\ndef triple(x):\n    return x * 3\n");
 }
 
 export function cleanup(work: string): void {

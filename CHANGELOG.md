@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Several repositories in one window: each gets its own backend and its own
+  review. **Switch Repository** (on the Changes view when there's more than
+  one) or Ask Pear / Read Aloud on a file in another repository changes which
+  one is shown; the others keep running, and switching back resumes that review
+  where it was. The Changes view names the repository shown. Closing a
+  repository's folder stops its backend. With several repositories, nothing
+  opens on its own unless the active editor's file is in one.
+- A folder that isn't a git repository gets a welcome that says so, with Open
+  Folder, and no backend starts.
+
 - Act Now's proposal is locked while the agent refines it, or while it's being
   applied: Apply, Refine and Discard (in the notification and the diff's title
   bar) wait for the answer, so the old proposal can't be applied mid-refine.

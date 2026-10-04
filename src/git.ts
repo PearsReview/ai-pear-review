@@ -8,7 +8,8 @@ interface GitApi {
   state: "uninitialized" | "initialized";
   onDidChangeState: vscode.Event<"uninitialized" | "initialized">;
   repositories: { rootUri: vscode.Uri }[];
-  onDidOpenRepository: vscode.Event<unknown>;
+  onDidOpenRepository: vscode.Event<{ rootUri: vscode.Uri }>;
+  onDidCloseRepository: vscode.Event<{ rootUri: vscode.Uri }>;
   toGitUri(uri: vscode.Uri, ref: string): vscode.Uri;
 }
 
@@ -60,6 +61,11 @@ export async function pickRepository(): Promise<string | undefined> {
   }
   if (roots.length === 1) return roots[0];
   return vscode.window.showQuickPick(roots, { placeHolder: "Which repository do you want to review?" });
+}
+
+// The innermost of these repositories that holds a file (a nested repo wins).
+export function repoContaining(uri: vscode.Uri, roots: string[]): string | undefined {
+  return roots.filter((r) => reviewLocation(uri, r)).sort((a, b) => b.length - a.length)[0];
 }
 
 // Which reviewed file, and which side of its diff, an editor document is. The git

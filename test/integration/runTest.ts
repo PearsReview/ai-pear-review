@@ -7,14 +7,14 @@
 // The coding agent and the speech service are always fakes; the microphone is a fake
 // sounddevice that records a tone.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 
 import { runTests } from "@vscode/test-electron";
 
 import { startFakeServices } from "./fakeServices.ts";
-import { cleanup, prepareBackend, seedRepo } from "./fixtures.ts";
+import { cleanup, prepareBackend, seedRepo, seedSmallRepo, writeRepoSettings } from "./fixtures.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const liveModel = process.env.PEAR_TEST_MODEL === "ollama" || process.argv.includes("--ollama");
@@ -55,33 +55,64 @@ const work = mkdtempSync(path.join(tmpdir(), "pear-it-"));
 const repo = path.join(work, "repo");
 const fake = await startFakeServices();
 let failed = false;
-try {
-  seedRepo(repo);
-  const backend = prepareBackend(work, repo, { fakeUrl: fake.url, liveModel, python });
-  console.log(`Integration run: ${liveModel ? "real Ollama" : "fake model"}; scratch dir ${work}`);
-  if (liveModel) await warmUpOllama(backend, python);
+
+// One VS Code instance per workspace, each with its own user data and test files
+// (suite/index.ts picks them by PEAR_TEST_SUITE).
+async function run(suite: string, workspace: string, backend: string, env: Record<string, string> = {}): Promise<void> {
+  console.log(`\n— ${suite} run: ${workspace}`);
   await runTests({
     extensionDevelopmentPath: ROOT,
     extensionTestsPath: path.join(ROOT, "dist-test", "suite", "index.js"),
     launchArgs: [
-      repo,
+      workspace,
       "--disable-extensions",
       "--disable-workspace-trust",
       "--skip-welcome",
       "--skip-release-notes",
       "--user-data-dir",
-      path.join(work, "user-data"),
+      path.join(work, `user-data-${suite}`),
     ],
     extensionTestsEnv: {
       PEAR_REVIEW_TEST: "1",
+      PEAR_TEST_SUITE: suite,
       PEAR_REVIEW_BACKEND_DIR: backend,
       PEAR_TEST_FAKE_URL: fake.url,
       PEAR_TEST_LIVE_MODEL: liveModel ? "1" : "",
       PEAR_TEST_REPO: repo,
       PYTHONPATH: path.join(ROOT, "test", "integration", "fake_modules"),
       CLINE_PROVIDER_SETTINGS_PATH: path.join(work, "cline_providers.json"),
+      ...env,
     },
   });
+}
+
+try {
+  seedRepo(repo);
+  const options = { fakeUrl: fake.url, liveModel, python };
+  const backend = prepareBackend(work, repo, options);
+  console.log(`Integration run: ${liveModel ? "real Ollama" : "fake model"}; scratch dir ${work}`);
+  if (liveModel) await warmUpOllama(backend, python);
+  await run("main", repo, backend);
+
+  if (!liveModel) {
+    // Two repositories in one window: each has its own backend and its own .review/.
+    const multi = path.join(work, "multi");
+    const first = path.join(multi, "first");
+    const second = path.join(multi, "second");
+    seedRepo(first);
+    seedSmallRepo(second);
+    writeRepoSettings(first, options);
+    writeRepoSettings(second, options);
+    const workspaceFile = path.join(multi, "two.code-workspace");
+    writeFileSync(workspaceFile, JSON.stringify({ folders: [{ path: "first" }, { path: "second" }] }));
+    await run("multi", workspaceFile, backend, { PEAR_TEST_REPO: first, PEAR_TEST_REPO_B: second });
+
+    // A folder that isn't a git repository: the welcome says so, and nothing starts.
+    const plain = path.join(work, "plain");
+    mkdirSync(plain, { recursive: true });
+    writeFileSync(path.join(plain, "notes.md"), "# Not a repository\n");
+    await run("nogit", plain, backend, { PEAR_TEST_REPO: plain });
+  }
 } catch (err) {
   failed = true;
   console.error(err instanceof Error ? err.message : err);

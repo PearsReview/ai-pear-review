@@ -2,7 +2,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
-import { pickRepository, repositoryRoots } from "../git.ts";
+import { pickRepository, repoContaining, repositoryRoots } from "../git.ts";
 import { output, showError } from "../log.ts";
 import type { Prefs } from "./prefs.ts";
 import { showPreview } from "./previewTabs.ts";
@@ -38,11 +38,14 @@ export function register(
     }
     let repo: string | undefined;
     if (quiet) {
+      // With several repositories, the one the active editor's file is in, if any;
+      // otherwise nothing opens until the reviewer picks one.
       const roots = await repositoryRoots();
-      if (roots.length !== 1) return false;
-      repo = roots[0];
+      const file = vscode.window.activeTextEditor?.document.uri;
+      repo = roots.length === 1 ? roots[0] : file ? repoContaining(file, roots) : undefined;
     } else {
-      repo = await pickRepository();
+      // The repository already chosen (stopped, or its backend failed) before asking.
+      repo = backend.repoPath ?? (await pickRepository());
     }
     if (!repo) return false;
     try {
