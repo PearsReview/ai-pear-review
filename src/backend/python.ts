@@ -4,12 +4,9 @@ import * as vscode from "vscode";
 
 import { SETUP_PYTHON } from "../log.ts";
 
-// Which interpreter runs the backend and the audio player, in order:
-// 1. the pearReview.pythonPath setting;
-// 2. the environment "Set Up Python Environment" made, in the extension's global storage;
-// 3. the extension's own .venv (the development setup, README "Developing").
-// Nothing else: a Python found on PATH rarely has the backend's packages, and failing
-// on a missing import is worse than saying how to set one up.
+// Which interpreter runs the backend and the audio player. Never a guess from PATH: a
+// Python found there rarely has the backend's packages, and failing on a missing import
+// is worse than saying how to set one up.
 
 let storageDir: string | undefined;
 

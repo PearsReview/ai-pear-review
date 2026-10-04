@@ -206,8 +206,8 @@ export class PythonBackend implements Backend, vscode.Disposable {
   private async connect(): Promise<void> {
     const client = new WsClient(
       (message) => {
-        // Errors are shown in the chat panel too; logging them means a closed panel
-        // never hides one.
+        // Logged as well as shown (notices.ts), so a dismissed notification still
+        // leaves a record in "Show Log".
         if (message.type === "error" || message.type === "notice") log(`Backend ${message.type}: ${message.payload.message}`);
         this.messages.fire(message);
       },

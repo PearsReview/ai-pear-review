@@ -31,3 +31,5 @@ backend/.env*
 .prettierrc.json
 backend/.git*
 tsconfig.webview.json
+TODO.md
+ruff.toml

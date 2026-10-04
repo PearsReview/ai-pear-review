@@ -47,7 +47,13 @@ export function activate(context: vscode.ExtensionContext): {
   const reading = readingHighlight.register(backend);
   const reader = readAloud.register(context, backend, reading.highlight, speaking);
   const review = comments.register(backend, selection.selection);
-  const recorder = voice.register(backend, selection.selection, agent.actNow, target.target, review.comments);
+  const recorder = voice.register({
+    backend,
+    selection: selection.selection,
+    actNow: agent.actNow,
+    target: target.target,
+    comments: review.comments,
+  });
   context.subscriptions.push(
     output,
     backend,
@@ -68,16 +74,15 @@ export function activate(context: vscode.ExtensionContext): {
     ...prefs.disposables,
     ...settings.register(context, backend, prefs.prefs),
     ...recorder.disposables,
-    ...chatPanel.register(
-      context,
+    ...chatPanel.register(context, {
       backend,
-      recorder.voice,
-      selection.selection,
-      agent.actNow,
-      target.target,
-      prefs.prefs,
+      voice: recorder.voice,
+      selection: selection.selection,
+      actNow: agent.actNow,
+      target: target.target,
+      prefs: prefs.prefs,
       speaking,
-    ),
+    }),
     ...commands.register(context, backend, recorder.voice, prefs.prefs),
   );
   const samePath = (a: string, b: string): boolean =>

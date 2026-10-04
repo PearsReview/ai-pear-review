@@ -37,19 +37,17 @@ below.
 2. Open the **Pear Review** view from the activity bar. It opens your changes
    straight away: browse the diffs and ask about them in the chat, which opens
    as a **Pear Review** tab in the secondary side bar, beside other chat
-   extensions such as Claude Code. Press
-   **Start Review** when you want the reviewer to explain each change as you
-   go, and to mark changes reviewed and leave comments.
+   extensions such as Claude Code. Press **Start Review** to mark changes
+   reviewed, leave comments and get a summary at the end.
 3. The **Changes** tree lists every changed file and its hunks. The current
    hunk opens as a diff (HEAD ↔ working file) with its lines highlighted.
    Click any hunk to jump to it; use the ↑/↓ buttons on the tree for
    Prev/Next, and ✓ on the current hunk to mark it reviewed.
 4. Press ✨ in the **Chat** view to have the reviewer explain the change on
-   screen (or choose **Explain changes: Automatically** in ⚙ to explain each
-   one as you reach it). Suggested questions sit above the message box; a
-   click puts one in the box to edit or send. Reply by typing, or press **Ctrl+Alt+Space** (**Cmd+Alt+Space** on macOS) to start
-   recording and again to send. VS Code has no key-release event, so
-   push-to-talk is press-to-start, press-to-stop.
+   screen, or choose **Explain changes: Automatically** in ⚙. Ask by typing
+   (suggested questions sit above the message box), or press
+   **Ctrl+Alt+Space** (**Cmd+Alt+Space** on macOS) to start speaking and again
+   to send.
 5. To ask about particular lines, select them in the diff (either side)
    before you ask. The chat shows "Asking about calc.py, lines 2–4"; the
    selection goes with that one question.
@@ -74,15 +72,9 @@ below.
    chat to the review.
 10. **Read Aloud** on a markdown file: the speaker on its row in the Changes
     view, in its editor's or preview's title bar, or on right-click in the
-    Explorer. While it reads, that same place shows **pause**, **play** and
-    **stop**. The passage being read is highlighted, and kept in view, in the
-    markdown preview and in the file's text, whichever is open.
-    To read only part of it, select that text in the file first. (Reading the
-    text selected in a preview works too, with `pearReview.readPreviewSelection`
-    on; it goes through the clipboard, which is why it's off by default.) Read
-    Aloud plays WAV speech from your text-to-speech service; it never plays at
-    the same time as the chat. (To preview a markdown file, press
-    Ctrl+Shift+V, or Ctrl+K V for a side-by-side preview.)
+    Explorer. While it reads, the same place shows pause, play and stop, and
+    the passage being read is highlighted. Select lines in the file first to
+    read only those. It needs a text-to-speech service that returns WAV.
 11. **Create Plan** (the checklist button on the Changes view) writes all
     comments to `.review/review_<time>.md`, optionally as an `/apply-review`
     skill too, and gives you the line to hand your coding agent.
@@ -91,14 +83,10 @@ below.
     sums it up: how much was reviewed, the comments waiting, and buttons to
     create the plan, open the last plan, or start a new review.
 
-While a reply is read aloud, the sentence being spoken is highlighted in it.
-The chat holds the conversation; what you do (an Act Now proposal, a review
-ending, a notice or an error) is shown in VS Code's notifications and status
-bar. The filter in the chat's toolbar shows only the conversation about the
-current file. If a change is too large for the model, the chat says so and offers the
-request to copy into your coding agent. The status bar's **Pear** item names
-any service that's down; hover it for the model, speech, coding agent and the
-session's token use.
+The chat holds the conversation. Act Now proposals, the review's end, notices
+and errors appear as VS Code notifications. The status bar's **Pear** item
+names any service that's down; hover it for the model, speech, coding agent and
+token use.
 
 **Settings**: the ⚙ in the chat is the one place for settings. It opens the same
 settings as the web app's panel:
@@ -138,8 +126,7 @@ Python Environment** made, then this repo's `.venv`.
 
 ```
 npm run lint && npm run typecheck && npm test
-python -m pytest test/python      # the audio player's WAV decoding
-npm run package                   # the .vsix; npm run test:package checks its contents
+npm run package
 ```
 
 The backend is a submodule, read-only from here (docs/STYLE.md §7): a change it
@@ -147,13 +134,13 @@ needs is made in the AI_Pear_Reviewer repository and the pin is bumped.
 
 ### Tests
 
-Three layers, replacing the web app's Playwright suite for this front end:
-
-| Command                           | What runs                                                                                                                                                                                 | Time    |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `npm test`                        | Unit tests of the pure helpers, and DOM tests of the chat panel's script under jsdom (clicks, rendering, audio states)                                                                    | seconds |
-| `npm run test:integration`        | A real VS Code (downloaded once into `.vscode-test/`) with the extension and a real backend, in three workspaces: a scratch repo, two repos in one window, and a folder that isn't a repo | ~1 min  |
-| `npm run test:integration:ollama` | The same suite with your real local Ollama as the reviewer model                                                                                                                          | minutes |
+| Command                           | What runs                                                                                                                                                | Time    |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `npm test`                        | Unit tests of the pure helpers, and DOM tests of the chat panel's script under jsdom                                                                     | seconds |
+| `python -m pytest test/python`    | The audio player's WAV decoding                                                                                                                          | seconds |
+| `npm run test:package`            | The `.vsix` holds what the backend needs to start                                                                                                        | seconds |
+| `npm run test:integration`        | A real VS Code with the extension and a real backend, in three workspaces: a scratch repo, two repos in one window, and a folder that isn't a repository | ~1 min  |
+| `npm run test:integration:ollama` | The scratch-repo workspace only, with your local Ollama as the reviewer model                                                                            | minutes |
 
 In the integration suite everything the backend calls out to is a fake
 (`test/integration/`): a local server stands in for Ollama and the speech

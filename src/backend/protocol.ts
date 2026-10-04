@@ -277,6 +277,23 @@ export interface ServiceStatus {
   act_now?: ActNowStatus;
 }
 
+// Something was answered without the whole change in front of the model
+// (narration.py's send_fallback_notice, explore.py's handle_explore_reply). Read by
+// the chat, which offers handoff_text to copy into a coding agent.
+export interface ContextTooLarge {
+  // "hunk" for a change; absent when the question was about a whole file.
+  kind?: "hunk";
+  // Only for a hunk: the diff can't fit, or the call failed and the briefing answered.
+  reason?: "too_large" | "call_failed";
+  file_path: string;
+  // The reviewer's question; null for an explanation nobody asked a question for.
+  question: string | null;
+  estimated_tokens: number;
+  budget_tokens: number | null;
+  answered_from_briefing?: boolean;
+  handoff_text: string;
+}
+
 export interface ServerPayloads {
   presenting: Presenting;
   narration: Turn;
@@ -303,7 +320,7 @@ export interface ServerPayloads {
   settings: Settings;
   recording_state: { recording: boolean };
   recording_result: { audio_base64: string; mime_type: string; duration_seconds: number };
-  context_too_large: Unknown;
+  context_too_large: ContextTooLarge;
   service_status: ServiceStatus;
   // `event` says what a notice reports, for acting on it rather than its wording
   // (wire-protocol.md, "Fields shared across messages").

@@ -17,13 +17,20 @@ export interface Voice {
 // be push-to-talk. The server records (webviews can't open the microphone) and hands
 // the clip back; it goes out as an ordinary voiced `reply` (`act_now` in act mode,
 // `explore_reply` while the chat is about a file), as the browser's does.
-export function register(
-  backend: Backend,
-  selection: SelectionContext,
-  actNow: ActNow,
-  target: ChatTarget,
-  comments: Comments,
-): { voice: Voice; disposables: vscode.Disposable[] } {
+// What a recording can become: a comment, an Act Now instruction, a question about a
+// file, or a reply.
+export interface VoiceDeps {
+  backend: Backend;
+  selection: SelectionContext;
+  actNow: ActNow;
+  target: ChatTarget;
+  comments: Comments;
+}
+
+export function register({ backend, selection, actNow, target, comments }: VoiceDeps): {
+  voice: Voice;
+  disposables: vscode.Disposable[];
+} {
   let recording = false;
   const changes = new vscode.EventEmitter<boolean>();
   const indicator = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 49);

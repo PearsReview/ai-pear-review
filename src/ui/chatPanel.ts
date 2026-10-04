@@ -54,7 +54,8 @@ type FromWebview =
 const COMMANDS = ["explain", "toggleRecording", "interrupt", "settings", "createPlan", "newReview"] as const;
 type ChatCommand = (typeof COMMANDS)[number];
 
-// Server messages the chat shows; the rest arrive as their UI is built.
+// Server messages the chat shows: the conversation. The rest are shown where they
+// belong (notices.ts, the Changes tree, the diff, comment threads).
 const FORWARDED = new Set<ServerMessage["type"]>([
   "presenting",
   "narration",
@@ -67,26 +68,19 @@ const FORWARDED = new Set<ServerMessage["type"]>([
   "context_too_large",
 ]);
 
-export function register(
-  context: vscode.ExtensionContext,
-  backend: Backend,
-  voice: Voice,
-  selection: SelectionContext,
-  actNow: ActNow,
-  target: ChatTarget,
-  prefs: Prefs,
-  speaking: Speaking,
-): vscode.Disposable[] {
-  const provider = new ChatViewProvider(
-    context.extensionUri,
-    backend,
-    voice,
-    selection,
-    actNow,
-    target,
-    prefs,
-    speaking,
-  );
+// The surfaces the chat reads from and acts on.
+export interface ChatDeps {
+  backend: Backend;
+  voice: Voice;
+  selection: SelectionContext;
+  actNow: ActNow;
+  target: ChatTarget;
+  prefs: Prefs;
+  speaking: Speaking;
+}
+
+export function register(context: vscode.ExtensionContext, deps: ChatDeps): vscode.Disposable[] {
+  const provider = new ChatViewProvider(context.extensionUri, deps);
   return [
     vscode.window.registerWebviewViewProvider("pearReview.chat", provider, {
       // Keeps the transcript when the view is hidden; it lives only in the webview.
@@ -102,16 +96,23 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
   // Everything posted to the webview, for the integration tests (testProbe.ts).
   private readonly posted: ToWebview[] = [];
 
+  private readonly backend: Backend;
+  private readonly selection: SelectionContext;
+  private readonly actNow: ActNow;
+  private readonly target: ChatTarget;
+  private readonly prefs: Prefs;
+  private readonly speaking: Speaking;
+
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly backend: Backend,
-    voice: Voice,
-    private readonly selection: SelectionContext,
-    private readonly actNow: ActNow,
-    private readonly target: ChatTarget,
-    private readonly prefs: Prefs,
-    private readonly speaking: Speaking,
+    { backend, voice, selection, actNow, target, prefs, speaking }: ChatDeps,
   ) {
+    this.backend = backend;
+    this.selection = selection;
+    this.actNow = actNow;
+    this.target = target;
+    this.prefs = prefs;
+    this.speaking = speaking;
     this.subscriptions.push(prefs.onDidChange((values) => this.post({ kind: "prefs", prefs: values })));
     publish("chat.posted", () => this.posted);
     publish("chat.receive", () => (raw: unknown) => this.receive(raw));

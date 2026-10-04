@@ -49,8 +49,7 @@ src/ui/*  →  Backend interface  →  BackendManager (src/backend/manager.ts)
 ## 3. Module shape
 
 - One file per UI surface or job (`chatPanel`, `hunkTree`, `diffView`, `comments`,
-  `readAloud`, `repositories`, …). A module that grows a second job is split, as
-  `files.ts` was into `repoFiles`, `readAloud` and `readingHighlight`.
+  `readAloud`, `repositories`, …). A module that grows a second job is split.
 - Each exports `register(...)`, which returns its disposables, plus a small API
   object when another surface needs one (`voice` does).
 - [src/extension.ts](../src/extension.ts) only wires surfaces together. It holds no logic.
