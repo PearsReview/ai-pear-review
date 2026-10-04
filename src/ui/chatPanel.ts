@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 
 import type { Backend, BackendState } from "../backend/backend.ts";
 import type { ServerMessage } from "../backend/protocol.ts";
-import { showError } from "../log.ts";
+import { log, showError } from "../log.ts";
 import { publish, testMode } from "../testProbe.ts";
 import type { ActNow } from "./actNow.ts";
 import { chatHtml } from "./chatHtml.ts";
@@ -39,6 +39,7 @@ type FromWebview =
   | { kind: "setActMode"; on: boolean }
   | { kind: "openPlan"; file: string }
   | { kind: "copy"; text: string }
+  | { kind: "audioBlocked" }
   | { kind: "proposal"; action: "apply" | "discard" }
   | { kind: "proposal"; action: "refine"; text: string }
   | { kind: "proposal"; action: "open"; file_path: string }
@@ -211,6 +212,9 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
         case "openPlan":
           void vscode.commands.executeCommand("pearReview.openPlan", message.file);
           return;
+        case "audioBlocked":
+          log("Chat: audio is waiting for a click in the chat panel (the panel may not play sound before one).");
+          return;
         case "copy":
           void vscode.env.clipboard
             .writeText(message.text)
@@ -266,6 +270,7 @@ function parseFromWebview(raw: unknown): FromWebview | undefined {
   const index = typeof m.index === "number" && Number.isInteger(m.index) && m.index >= 0 ? m.index : undefined;
   switch (m.kind) {
     case "ready":
+    case "audioBlocked":
     case "clearContext":
     case "backToReview":
     case "readingDone":

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Read Aloud on a markdown preview's title bar too. Audio the chat may not play
+  yet (no click in the panel so far) now says so beside its ▶, and the log
+  records it.
 - The web app's extras: the read-along highlight of the sentence being spoken
   (and, reading a file, of the block in the editor); a filter for the current
   file's conversation; a hand-off card when a change is too large for the

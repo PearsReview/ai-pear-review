@@ -58,8 +58,20 @@ export function register(
 
   // The file a command was invoked on: the Explorer passes its URI; from the Command
   // Palette it's the active editor's.
-  const targetUri = (arg: unknown): vscode.Uri | undefined =>
-    arg instanceof vscode.Uri ? arg : vscode.window.activeTextEditor?.document.uri;
+  // A markdown preview passes nothing and has no text editor; its tab is labelled
+  // "Preview <file name>", so the document is the open markdown file of that name.
+  const targetUri = (arg: unknown): vscode.Uri | undefined => {
+    if (arg instanceof vscode.Uri) return arg;
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    if (tab?.input instanceof vscode.TabInputWebview && tab.input.viewType.includes("markdown.preview")) {
+      const name = tab.label.replace(/^\[?Preview\]? ?/, "").trim();
+      const doc = vscode.workspace.textDocuments.find(
+        (d) => d.languageId === "markdown" && path.basename(d.uri.fsPath) === name,
+      );
+      if (doc) return doc.uri;
+    }
+    return vscode.window.activeTextEditor?.document.uri;
+  };
 
   // Asking about a file works before a review starts, so this starts the backend for
   // the file's repository if it isn't running, without starting the review.

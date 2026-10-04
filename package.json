@@ -491,6 +491,11 @@
           "command": "pearReview.readAloud",
           "when": "resourceLangId == markdown && resourceScheme == file",
           "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "activeWebviewPanelId == 'markdown.preview'",
+          "group": "navigation@10"
         }
       ],
       "explorer/context": [

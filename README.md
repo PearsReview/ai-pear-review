@@ -59,9 +59,12 @@ still works on its own.
    before a review starts. Ask by text or voice, with selected lines as
    context. **Back to review**, or moving to another change, returns the
    chat to the review.
-10. **Read Aloud** on a markdown file (the speaker button in its title bar,
-    or right-click it) reads it through the chat's audio bar, highlighting
-    the passage being read. Select lines first to read only those.
+10. **Read Aloud** on a markdown file (the speaker button in the title bar of
+    the file or its preview, or right-click it) reads it through the chat,
+    highlighting the passage being read. Select lines first to read only those.
+    VS Code's panels can't play sound until they've been clicked once, so the
+    first time, press ▶ on the chat's "Reading" line. (To preview a markdown
+    file, press Ctrl+Shift+V, or Ctrl+K V for a side-by-side preview.)
 11. **Create Plan** (the checklist button on the Changes view) writes all
     comments to `.review/review_<time>.md`, optionally as an `/apply-review`
     skill too, and gives you the line to hand your coding agent.

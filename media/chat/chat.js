@@ -528,8 +528,22 @@
         queue.unshift(next);
         paused = true;
         if (owner) setSpeakState(owner, "paused");
+        showBlockedHint(true);
+        post({ kind: "audioBlocked" });
       }
     });
+  }
+
+  // Audio started from outside the panel (Read Aloud in the editor, automatic narration
+  // before any click here) is refused until the panel has been clicked once. Say so
+  // beside the button that is waiting, rather than leave a silent play icon.
+  function showBlockedHint(on) {
+    document.querySelectorAll(".audio-hint").forEach((el) => el.remove());
+    if (!on || !owner) return;
+    const hint = document.createElement("span");
+    hint.className = "audio-hint";
+    hint.textContent = "Press ▶ to start: the chat needs one click before it can play sound.";
+    owner.after(hint);
   }
 
   function pause() {
@@ -540,6 +554,7 @@
 
   function resume() {
     paused = false;
+    showBlockedHint(false);
     if (owner) setSpeakState(owner, "playing");
     if (player.src && !player.ended && player.currentTime > 0) void player.play();
     else playNext();
@@ -556,6 +571,7 @@
     paused = false;
     setReading(null);
     readAlong.highlight(null);
+    showBlockedHint(false);
     clip = { segments: [], blocks: null, file: null, at: null };
     if (owner) setSpeakState(owner, "idle");
     owner = null;

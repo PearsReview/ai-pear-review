@@ -213,9 +213,15 @@ void describe("chat webview", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     const speak = chat.doc.querySelector<HTMLButtonElement>("button.speak");
     assert.equal(speak?.dataset.mode, "paused");
+    assert.match(chat.doc.querySelector(".audio-hint")?.textContent ?? "", /needs one click/);
+    assert.ok(
+      chat.posts.some((m) => m.kind === "audioBlocked"),
+      "the extension is told, for its log",
+    );
     speak?.click();
     assert.equal(FakeAudio.last?.paused, false, "the click starts playback");
     assert.equal(speak?.dataset.mode, "playing");
+    assert.equal(chat.doc.querySelector(".audio-hint"), null, "the hint goes once it plays");
   });
 
   void test("the gear opens settings, and voice input off disables the mic", () => {
