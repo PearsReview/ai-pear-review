@@ -7,7 +7,6 @@ import { log, showError } from "../log.ts";
 import { publish, testMode } from "../testProbe.ts";
 import type { ActNow } from "./actNow.ts";
 import { chatHtml } from "./chatHtml.ts";
-import type { ReadAloud } from "./files.ts";
 import type { Prefs, PrefValues } from "./prefs.ts";
 import type { SelectionContext } from "./selection.ts";
 import type { ChatTarget } from "./target.ts";
@@ -22,8 +21,9 @@ type ToWebview =
   | { kind: "actMode"; on: boolean }
   | { kind: "target"; file_path: string | null }
   | { kind: "prefs"; prefs: PrefValues }
-  // An Act Now proposal, without its diffs (those open as editor tabs).
-  | { kind: "proposal"; agent: string; summary: string; files: { file_path: string; status: string }[] };
+  // Something ended a wait (an error, an agent stopping, a proposal arriving): the
+  // chat drops its thinking dots. What happened is shown outside it (notices.ts).
+  | { kind: "settle" };
 
 // Webview → extension. Validated in parseFromWebview: the webview is a separate
 // context, so its messages are checked like any other input.
@@ -31,7 +31,6 @@ type FromWebview =
   | { kind: "ready" }
   | { kind: "send"; text: string }
   | { kind: "speak"; text: string }
-  | { kind: "speakFile"; file_path: string }
   | { kind: "lookDeeper"; index: number; question?: string }
   | { kind: "jump"; index: number }
   | { kind: "clearContext" }
@@ -45,8 +44,6 @@ type FromWebview =
   | { kind: "proposal"; action: "open"; file_path: string }
   | { kind: "backToReview" }
   | { kind: "openFile"; file_path: string }
-  | { kind: "reading"; file_path: string; start_line: number; end_line: number }
-  | { kind: "readingDone" }
   | { kind: "command"; command: ChatCommand };
 
 const COMMANDS = ["explain", "toggleRecording", "interrupt", "settings", "createPlan", "newReview"] as const;
@@ -59,14 +56,9 @@ const FORWARDED = new Set<ServerMessage["type"]>([
   "human_turn",
   "reviewer_turn",
   "deeper_turn",
-  "agent_stopped",
-  "act_now_cleared",
   "audio_chunk",
   "turn_audio_chunk",
-  "file_audio_chunk",
   "service_status",
-  "notice",
-  "error",
   "context_too_large",
 ]);
 
@@ -77,19 +69,9 @@ export function register(
   selection: SelectionContext,
   actNow: ActNow,
   target: ChatTarget,
-  readAloud: ReadAloud,
   prefs: Prefs,
 ): vscode.Disposable[] {
-  const provider = new ChatViewProvider(
-    context.extensionUri,
-    backend,
-    voice,
-    selection,
-    actNow,
-    target,
-    readAloud,
-    prefs,
-  );
+  const provider = new ChatViewProvider(context.extensionUri, backend, voice, selection, actNow, target, prefs);
   return [
     vscode.window.registerWebviewViewProvider("pearReview.chat", provider, {
       // Keeps the transcript when the view is hidden; it lives only in the webview.
@@ -112,7 +94,6 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     private readonly selection: SelectionContext,
     private readonly actNow: ActNow,
     private readonly target: ChatTarget,
-    private readonly readAloud: ReadAloud,
     private readonly prefs: Prefs,
   ) {
     this.subscriptions.push(prefs.onDidChange((values) => this.post({ kind: "prefs", prefs: values })));
@@ -121,14 +102,10 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
     this.subscriptions.push(
       target.onDidChange((file) => this.post({ kind: "target", file_path: file ?? null })),
       actNow.onDidChangeActive((on) => this.post({ kind: "actMode", on })),
-      backend.on("act_now_preview", (p) =>
-        this.post({
-          kind: "proposal",
-          agent: p.agent,
-          summary: p.summary,
-          files: p.files.map((f) => ({ file_path: f.file_path, status: f.status })),
-        }),
-      ),
+      backend.on("act_now_preview", () => this.post({ kind: "settle" })),
+      backend.on("act_now_cleared", () => this.post({ kind: "settle" })),
+      backend.on("agent_stopped", () => this.post({ kind: "settle" })),
+      backend.on("error", () => this.post({ kind: "settle" })),
       backend.onStateChange((state) => this.post({ kind: "backend", state })),
       voice.onDidChange((recording) => this.post({ kind: "recording", recording })),
       selection.onDidChange((label) => this.post({ kind: "context", label: label ?? null })),
@@ -187,9 +164,6 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
         case "speak":
           this.backend.send("speak_turn", { text: message.text });
           return;
-        case "speakFile":
-          this.backend.send("speak_file", { file_path: message.file_path });
-          return;
         case "lookDeeper":
           this.backend.send(
             "look_deeper",
@@ -225,16 +199,6 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
           return;
         case "openFile":
           void vscode.commands.executeCommand("pearReview.openRepoFile", message.file_path);
-          return;
-        case "reading":
-          this.readAloud.highlight({
-            filePath: message.file_path,
-            startLine: message.start_line,
-            endLine: message.end_line,
-          });
-          return;
-        case "readingDone":
-          this.readAloud.highlight(undefined);
           return;
         case "proposal":
           if (message.action === "open") {
@@ -273,17 +237,9 @@ function parseFromWebview(raw: unknown): FromWebview | undefined {
     case "audioBlocked":
     case "clearContext":
     case "backToReview":
-    case "readingDone":
       return { kind: m.kind };
     case "openFile":
-    case "speakFile":
-      return typeof m.file_path === "string" ? { kind: m.kind, file_path: m.file_path } : undefined;
-    case "reading": {
-      const { file_path, start_line, end_line } = m;
-      return typeof file_path === "string" && typeof start_line === "number" && typeof end_line === "number"
-        ? { kind: "reading", file_path, start_line, end_line }
-        : undefined;
-    }
+      return typeof m.file_path === "string" ? { kind: "openFile", file_path: m.file_path } : undefined;
     case "send":
     case "speak":
     case "actNow":

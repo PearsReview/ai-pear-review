@@ -264,6 +264,8 @@ export interface FileAudioChunk extends AudioChunk {
   start_line: number;
   end_line: number;
   content_hash: string;
+  // The clip's blocks with their lines and spoken weight (markdown_speech.chunk_block_to_payload).
+  blocks?: { block_index: number; start_line: number; end_line: number; weight: number; partial: boolean }[];
 }
 
 export interface ServiceStatus {

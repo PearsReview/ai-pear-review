@@ -252,6 +252,30 @@
         "title": "Read Aloud",
         "category": "Pear Review",
         "icon": "$(unmute)"
+      },
+      {
+        "command": "pearReview.pauseReading",
+        "title": "Pause Reading",
+        "category": "Pear Review",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "pearReview.resumeReading",
+        "title": "Resume Reading",
+        "category": "Pear Review",
+        "icon": "$(play)"
+      },
+      {
+        "command": "pearReview.stopReading",
+        "title": "Stop Reading",
+        "category": "Pear Review",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "pearReview.cancelReading",
+        "title": "Getting speech… (click to cancel)",
+        "category": "Pear Review",
+        "icon": "$(loading~spin)"
       }
     ],
     "keybindings": [
@@ -364,8 +388,13 @@
         },
         {
           "command": "pearReview.tree.preview",
-          "when": "view == pearReview.hunks && viewItem == file.markdown",
+          "when": "view == pearReview.hunks && viewItem =~ /^file\\.markdown/",
           "group": "inline@1"
+        },
+        {
+          "command": "pearReview.tree.preview",
+          "when": "view == pearReview.hunks && viewItem =~ /^file\\.markdown/",
+          "group": "markdown@1"
         },
         {
           "command": "pearReview.tree.readAloud",
@@ -373,9 +402,24 @@
           "group": "inline@2"
         },
         {
-          "command": "pearReview.tree.preview",
-          "when": "view == pearReview.hunks && viewItem == file.markdown",
-          "group": "markdown@1"
+          "command": "pearReview.cancelReading",
+          "when": "view == pearReview.hunks && viewItem == file.markdown.loading",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "view == pearReview.hunks && viewItem == file.markdown.playing",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "view == pearReview.hunks && viewItem == file.markdown.paused",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "view == pearReview.hunks && viewItem =~ /^file\\.markdown\\.(playing|paused)$/",
+          "group": "inline@3"
         },
         {
           "command": "pearReview.tree.readAloud",
@@ -463,6 +507,22 @@
         {
           "command": "pearReview.tree.readAloud",
           "when": "false"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "pearReview.reading"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "pearReview.reading"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "pearReview.reading"
+        },
+        {
+          "command": "pearReview.cancelReading",
+          "when": "pearReview.reading"
         }
       ],
       "comments/commentThread/context": [
@@ -529,13 +589,53 @@
         },
         {
           "command": "pearReview.readAloud",
-          "when": "resourceLangId == markdown && resourceScheme == file",
+          "when": "resourceLangId == markdown && resourceScheme == file && !(resource in pearReview.readingResources)",
           "group": "navigation@10"
         },
         {
-          "command": "pearReview.readAloud",
-          "when": "activeWebviewPanelId == 'markdown.preview'",
+          "command": "pearReview.cancelReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == loading",
           "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == playing",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == paused",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus != loading",
+          "group": "navigation@11"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "activeWebviewPanelId == 'markdown.preview' && !(activeWebviewPanelId == 'markdown.preview' && pearReview.reading)",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.cancelReading",
+          "when": "activeWebviewPanelId == 'markdown.preview' && pearReview.reading && pearReview.readingStatus == loading",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "activeWebviewPanelId == 'markdown.preview' && pearReview.reading && pearReview.readingStatus == playing",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "activeWebviewPanelId == 'markdown.preview' && pearReview.reading && pearReview.readingStatus == paused",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "activeWebviewPanelId == 'markdown.preview' && pearReview.reading && pearReview.readingStatus != loading",
+          "group": "navigation@11"
         }
       ],
       "explorer/context": [
@@ -546,8 +646,23 @@
         },
         {
           "command": "pearReview.readAloud",
-          "when": "resourceExtname == .md && resourceScheme == file",
+          "when": "resourceExtname == .md && resourceScheme == file && !(resource in pearReview.readingResources)",
           "group": "pearReview@2"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == playing",
+          "group": "pearReview@2"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == paused",
+          "group": "pearReview@2"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "resource in pearReview.readingResources",
+          "group": "pearReview@3"
         }
       ],
       "editor/context": [

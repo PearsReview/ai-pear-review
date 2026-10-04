@@ -4,7 +4,16 @@
 import assert from "node:assert/strict";
 import * as vscode from "vscode";
 
-import { ensureReviewStarted, fakeRequests, mark, nextServerMessage, posted, scriptFake, waitFor } from "./helpers.ts";
+import {
+  ensureReviewStarted,
+  fakeRequests,
+  mark,
+  nextServerMessage,
+  posted,
+  probe,
+  scriptFake,
+  waitFor,
+} from "./helpers.ts";
 
 describe("voice", () => {
   before(ensureReviewStarted);
@@ -35,7 +44,9 @@ describe("voice", () => {
       (await posted()).slice(from).some((m) => m.kind === "recording" && m.recording === true),
     );
     await vscode.commands.executeCommand("pearReview.toggleRecording");
-    const error = await nextServerMessage("error", from);
-    assert.match(String(error.message), /too short/i);
+    await waitFor("a too-short notice", async () =>
+      (await probe<{ kind: string; message: string }[]>("notices.shown")).some((n) => /too short/i.test(n.message)),
+    );
+    assert.equal(from >= 0, true);
   });
 });

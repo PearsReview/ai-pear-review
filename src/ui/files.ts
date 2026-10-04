@@ -1,14 +1,16 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 
+import { AudioPlayer } from "../audio/player.ts";
 import type { Backend } from "../backend/backend.ts";
 import { repositoryRoots, reviewLocation } from "../git.ts";
 import { showError } from "../log.ts";
+import { blockAtFraction, type SpokenBlock } from "../review/reading.ts";
 import { publish } from "../testProbe.ts";
 import { lineSpan } from "./selection.ts";
 import type { ChatTarget } from "./target.ts";
 
-// Where a markdown file is being read aloud: the clip playing now, for the highlight.
+// Where a markdown file is being read aloud: the passage being read, for the highlight.
 export interface ReadingPosition {
   filePath: string;
   // 1-based, inclusive.
@@ -16,35 +18,63 @@ export interface ReadingPosition {
   endLine: number;
 }
 
-export interface ReadAloud {
-  // Called by the chat as each clip starts playing, and with undefined when reading stops.
-  highlight(position: ReadingPosition | undefined): void;
+// A read in progress: fetching speech, playing, or paused.
+export interface ReadingState {
+  filePath: string;
+  uri: vscode.Uri;
+  status: "loading" | "playing" | "paused";
+}
+
+export interface Reader {
+  readonly state: ReadingState | undefined;
+  readonly onDidChange: vscode.Event<ReadingState | undefined>;
+}
+
+interface Read extends ReadingState {
+  clips: Map<number, { blocks: SpokenBlock[]; startLine: number; endLine: number }>;
+  received: number;
+  total: number | undefined;
+  finished: number;
 }
 
 // Two ways into the repo beyond the changes under review: asking the reviewer about
-// any file (explore_reply), and reading a markdown file aloud (speak_file) with the
-// passage being read highlighted in the editor.
+// any file (explore_reply), and reading a markdown file aloud (speak_file).
+//
+// Read aloud is controlled where it's started: the speaker on the file's row (Changes
+// view, Explorer) or its editor's title bar becomes pause, play and stop while it reads.
+// The extension plays the audio itself (audio/player.ts) — a webview won't play sound
+// before it has been clicked — and highlights the passage being read in the file's text.
 export function register(
+  context: vscode.ExtensionContext,
   backend: Backend,
   target: ChatTarget,
-): { readAloud: ReadAloud; disposables: vscode.Disposable[] } {
+): { reader: Reader; disposables: vscode.Disposable[] } {
+  const player = new AudioPlayer(context.extensionPath);
+  const changes = new vscode.EventEmitter<ReadingState | undefined>();
   const decoration = vscode.window.createTextEditorDecorationType({
     isWholeLine: true,
-    backgroundColor: new vscode.ThemeColor("editor.findMatchHighlightBackground"),
-    overviewRulerColor: new vscode.ThemeColor("editor.findMatchHighlightBackground"),
+    backgroundColor: new vscode.ThemeColor("editor.findMatchBackground"),
+    borderStyle: "solid",
+    borderColor: new vscode.ThemeColor("editor.findMatchBorder"),
+    borderWidth: "0 0 0 3px",
+    overviewRulerColor: new vscode.ThemeColor("editor.findMatchBackground"),
     overviewRulerLane: vscode.OverviewRulerLane.Center,
   });
-  let reading: ReadingPosition | undefined;
-  publish("files.reading", () => reading);
+  let read: Read | undefined;
+  let position: ReadingPosition | undefined;
+  publish("files.reading", () => position);
+  publish("files.read", () => read && { filePath: read.filePath, status: read.status });
+
+  // --- the highlight ---------------------------------------------------------------------
 
   const decorate = (editor: vscode.TextEditor, reveal: boolean): void => {
     const root = backend.repoPath;
     const location = root ? reviewLocation(editor.document.uri, root) : undefined;
-    if (!reading || location?.side !== "new" || location.filePath !== reading.filePath) {
+    if (!position || location?.side !== "new" || location.filePath !== position.filePath) {
       editor.setDecorations(decoration, []);
       return;
     }
-    const range = new vscode.Range(reading.startLine - 1, 0, reading.endLine - 1, 0);
+    const range = new vscode.Range(position.startLine - 1, 0, position.endLine - 1, 0);
     editor.setDecorations(decoration, [range]);
     if (!reveal) return;
     editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
@@ -60,14 +90,14 @@ export function register(
 
   // The highlight needs the file's text on screen. Read from a preview (or with the file
   // closed), the text opens beside it once per read, without taking focus.
-  let openedFor: string | undefined;
+  let textShownFor: string | undefined;
   const ensureTextVisible = async (filePath: string): Promise<void> => {
     const root = backend.repoPath;
-    if (!root || openedFor === filePath) return;
+    if (!root || textShownFor === filePath) return;
+    textShownFor = filePath;
     const shown = vscode.window.visibleTextEditors.some(
-      (e) => reviewLocation(e.document.uri, root)?.filePath === filePath && e.document.uri.scheme === "file",
+      (e) => e.document.uri.scheme === "file" && reviewLocation(e.document.uri, root)?.filePath === filePath,
     );
-    openedFor = filePath;
     if (shown) return;
     await vscode.window.showTextDocument(vscode.Uri.file(path.join(root, filePath)), {
       viewColumn: vscode.ViewColumn.Beside,
@@ -76,26 +106,74 @@ export function register(
     });
   };
 
-  const readAloud: ReadAloud = {
-    highlight(position) {
-      reading = position;
-      if (!position) {
-        openedFor = undefined;
-        for (const editor of vscode.window.visibleTextEditors) decorate(editor, false);
-        return;
-      }
-      void ensureTextVisible(position.filePath).then(() => {
-        for (const editor of vscode.window.visibleTextEditors) decorate(editor, true);
-      });
-    },
+  const highlight = (next: ReadingPosition | undefined): void => {
+    const same =
+      next &&
+      position &&
+      next.filePath === position.filePath &&
+      next.startLine === position.startLine &&
+      next.endLine === position.endLine;
+    if (same) return;
+    position = next;
+    if (!next) {
+      textShownFor = undefined;
+      for (const editor of vscode.window.visibleTextEditors) decorate(editor, false);
+      return;
+    }
+    void ensureTextVisible(next.filePath).then(() => {
+      for (const editor of vscode.window.visibleTextEditors) decorate(editor, true);
+    });
   };
 
-  // The file a command was invoked on: the Explorer passes its URI; from the Command
-  // Palette it's the active editor's.
-  // A markdown preview passes nothing and has no text editor; its tab is labelled
-  // "Preview <file name>", so the document is the open markdown file of that name.
-  // A preview opened straight from the Explorer may have no text document open, so
-  // the name is looked for in open documents, then open tabs, then the workspace.
+  // --- the read's state, published as context keys for the menus' icons -----------------
+
+  const update = (): void => {
+    const state = read && { filePath: read.filePath, uri: read.uri, status: read.status };
+    void vscode.commands.executeCommand("setContext", "pearReview.reading", !!read);
+    void vscode.commands.executeCommand("setContext", "pearReview.readingStatus", read?.status ?? "");
+    void vscode.commands.executeCommand("setContext", "pearReview.readingResources", read ? [read.uri.toString()] : []);
+    changes.fire(state);
+  };
+
+  const finish = (): void => {
+    read = undefined;
+    highlight(undefined);
+    update();
+  };
+
+  const stopReading = (): void => {
+    if (!read) return;
+    player.stop();
+    // Still synthesising the rest of the file: stop that too.
+    if (read.total === undefined || read.received < read.total) {
+      try {
+        backend.send("stop", {});
+      } catch {
+        // The backend is gone; nothing left to stop.
+      }
+    }
+    finish();
+  };
+
+  const pauseReading = (): void => {
+    if (read?.status !== "playing") return;
+    player.pause();
+    read.status = "paused";
+    update();
+  };
+
+  const resumeReading = (): void => {
+    if (read?.status !== "paused") return;
+    player.resume();
+    read.status = "playing";
+    update();
+  };
+
+  // --- which file a command means ---------------------------------------------------------
+
+  // The Explorer and editor menus pass the file's URI; a markdown preview passes nothing
+  // and its tab is labelled "Preview <file name>", so the file is looked for in open
+  // documents, then open tabs, then the workspace; otherwise the active editor's.
   const targetUri = async (arg: unknown): Promise<vscode.Uri | undefined> => {
     if (arg instanceof vscode.Uri) return arg;
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
@@ -158,38 +236,106 @@ export function register(
     await vscode.commands.executeCommand("pearReview.chat.focus");
   };
 
+  // The speaker: reads the file, or, pressed on the file being read, pauses, resumes,
+  // or (while speech is still being made) cancels.
   const readFileAloud = async (arg: unknown): Promise<void> => {
     const uri = await targetUri(arg);
-    if (!uri || uri.scheme !== "file" || !uri.fsPath.toLowerCase().endsWith(".md")) {
+    if (!uri || uri.scheme !== "file" || !/\.(md|markdown)$/i.test(uri.fsPath)) {
       showError("Read Aloud works on markdown (.md) files.");
+      return;
+    }
+    if (read && read.uri.toString() === uri.toString()) {
+      if (read.status === "playing") pauseReading();
+      else if (read.status === "paused") resumeReading();
+      else stopReading();
       return;
     }
     const filePath = await ensureBackendFor(uri);
     if (!filePath) return;
+    stopReading();
     // A selection in that file reads just the blocks it touches.
     const editor = vscode.window.activeTextEditor;
     const selected =
       editor && editor.document.uri.toString() === uri.toString() && !editor.selection.isEmpty
         ? lineSpan(editor.selection)
         : undefined;
+    read = { filePath, uri, status: "loading", clips: new Map(), received: 0, total: undefined, finished: 0 };
+    update();
     backend.send(
       "speak_file",
       selected
         ? { file_path: filePath, start_line: selected.startLine, end_line: selected.endLine }
         : { file_path: filePath },
     );
-    await vscode.commands.executeCommand("pearReview.chat.focus");
   };
 
   const run = (fn: (arg: unknown) => Promise<void>) => (arg: unknown) =>
     fn(arg).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
 
+  const reader: Reader = {
+    get state() {
+      return read && { filePath: read.filePath, uri: read.uri, status: read.status };
+    },
+    onDidChange: changes.event,
+  };
+
   return {
-    readAloud,
+    reader,
     disposables: [
+      player,
+      changes,
       decoration,
+      // Each clip of the file goes to the player as it arrives.
+      backend.on("file_audio_chunk", (p) => {
+        if (!read || p.file_path !== read.filePath) return;
+        const id = player.play(p.audio_base64);
+        const blocks: SpokenBlock[] = p.blocks ?? [];
+        read.clips.set(id, { blocks, startLine: p.start_line, endLine: p.end_line });
+        read.received += 1;
+        read.total = p.chunk_count;
+      }),
+      player.onEvent((e) => {
+        if (!read) return;
+        if (e.event === "error") {
+          showError(e.message);
+          finish();
+          return;
+        }
+        if (e.event === "idle") {
+          if (read.total !== undefined && read.finished >= read.total) finish();
+          return;
+        }
+        const clip = read.clips.get(e.id);
+        if (!clip) return;
+        if (e.event === "start") {
+          if (read.status === "loading") {
+            read.status = "playing";
+            update();
+          }
+          const first = clip.blocks[0];
+          highlight({
+            filePath: read.filePath,
+            startLine: first?.start_line ?? clip.startLine,
+            endLine: first?.end_line ?? clip.endLine,
+          });
+        } else if (e.event === "progress") {
+          const block = blockAtFraction(clip.blocks, e.fraction);
+          if (block) highlight({ filePath: read.filePath, startLine: block.start_line, endLine: block.end_line });
+        } else if (e.event === "done") {
+          read.finished += 1;
+        }
+      }),
+      // Speech that never comes (the speech service is down, nothing readable): the
+      // backend says so with an error, which ends a read still waiting for it.
+      backend.on("error", ({ message }) => {
+        if (read?.status === "loading" && read.received === 0 && /read|speech/i.test(message)) finish();
+      }),
       vscode.commands.registerCommand("pearReview.askAboutFile", run(askAboutFile)),
       vscode.commands.registerCommand("pearReview.readAloud", run(readFileAloud)),
+      vscode.commands.registerCommand("pearReview.pauseReading", pauseReading),
+      vscode.commands.registerCommand("pearReview.resumeReading", resumeReading),
+      vscode.commands.registerCommand("pearReview.stopReading", stopReading),
+      vscode.commands.registerCommand("pearReview.cancelReading", stopReading),
       vscode.commands.registerCommand("pearReview.openRepoFile", (filePath: unknown) => {
         if (typeof filePath === "string" && backend.repoPath) {
           void vscode.window.showTextDocument(vscode.Uri.file(path.join(backend.repoPath, filePath)));
@@ -198,7 +344,7 @@ export function register(
       // Decorations belong to an editor instance; reopening the file makes a new one.
       vscode.window.onDidChangeVisibleTextEditors((editors) => editors.forEach((e) => decorate(e, false))),
       backend.onStateChange((state) => {
-        if (state !== "ready") readAloud.highlight(undefined);
+        if (state !== "ready") stopReading();
       }),
     ],
   };

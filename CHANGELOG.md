@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Read Aloud plays through the extension (a small player using sounddevice), so
+  it no longer waits for a click in the chat. It's controlled where it's
+  started: the speaker on the file's row, editor or preview title bar, or
+  Explorer menu becomes pause, play and stop. The highlight follows the
+  player's position. The chat's "Reading" line is gone.
+- The chat holds the conversation only: Act Now proposals, the review's
+  summary, notices, errors and agent stops are VS Code notifications or status
+  bar messages, with their buttons.
+- Fixed: the Changes view and the chat appearing together could start two
+  backends.
 - Read Aloud from a markdown preview opens the file's text beside it, with the
   passage being read highlighted and the cursor on it, so the preview scrolls
   along. Fixed: Read Aloud from a preview whose text wasn't open did nothing.

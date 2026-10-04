@@ -6,13 +6,17 @@ import type { ProgressFile, ProgressHunk, ReviewProgress } from "../backend/prot
 import { fileChange, hunkLabel } from "../review/hunks.ts";
 import { publish } from "../testProbe.ts";
 import type { Comments } from "./comments.ts";
+import type { Reader } from "./files.ts";
 
 type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: ProgressHunk; file: ProgressFile };
 
 // Files → hunks, from review_progress (which the backend resends on every move and
 // every reviewed toggle), with the hunk on screen marked and revealed.
-export function register(backend: Backend, comments: Comments): vscode.Disposable[] {
-  const provider = new HunkTreeProvider(() => backend.repoPath);
+export function register(backend: Backend, comments: Comments, reader: Reader): vscode.Disposable[] {
+  const provider = new HunkTreeProvider(
+    () => backend.repoPath,
+    () => reader.state,
+  );
   const view = vscode.window.createTreeView("pearReview.hunks", { treeDataProvider: provider });
   // Showing the view opens the changes (pearReview.openChanges, quietly): browsing and
   // the chat don't wait for Start Review.
@@ -59,6 +63,8 @@ export function register(backend: Backend, comments: Comments): vscode.Disposabl
     view,
     provider,
     view.onDidChangeVisibility(openWhenShown),
+    // A markdown row's speaker follows its read: pause, play, stop.
+    reader.onDidChange(() => provider.refresh()),
     // The row passes its node; these hand its file to VS Code's preview and to Read Aloud.
     vscode.commands.registerCommand("pearReview.tree.preview", (node: Node) => {
       const uri = fileUri(node);
@@ -110,7 +116,14 @@ class HunkTreeProvider implements vscode.TreeDataProvider<Node>, vscode.Disposab
   private files: Node[] = [];
   private byIndex = new Map<number, Node>();
 
-  constructor(private readonly repoPath: () => string | undefined) {}
+  constructor(
+    private readonly repoPath: () => string | undefined,
+    private readonly reading: () => { filePath: string; status: string } | undefined,
+  ) {}
+
+  refresh(): void {
+    this.changes.fire();
+  }
 
   setProgress(progress: ReviewProgress | undefined): void {
     this.progress = progress;
@@ -154,7 +167,13 @@ class HunkTreeProvider implements vscode.TreeDataProvider<Node>, vscode.Disposab
       // Markdown that still exists gets Preview and Read Aloud on its row.
       const markdown = /\.(md|markdown)$/i.test(file.file_path);
       const deleted = file.hunks.some((h) => fileChange(h.header) === "deleted");
-      item.contextValue = markdown && !deleted ? "file.markdown" : "file";
+      const read = this.reading();
+      item.contextValue =
+        markdown && !deleted
+          ? read?.filePath === file.file_path
+            ? `file.markdown.${read.status}`
+            : "file.markdown"
+          : "file";
       return item;
     }
     const { hunk } = node;

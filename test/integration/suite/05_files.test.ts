@@ -47,25 +47,54 @@ describe("ask about a file", () => {
   });
 });
 
+// Read aloud plays through the extension's own player (python/player.py, with the fake
+// sounddevice taking real time), controlled from the file's speaker.
+interface Read {
+  filePath: string;
+  status: "loading" | "playing" | "paused";
+}
+const readState = (): Promise<Read | undefined> => probe<Read | undefined>("files.read");
+const reading = (): Promise<{ filePath: string; startLine: number; endLine: number } | undefined> =>
+  probe("files.reading");
+
+async function stopRead(): Promise<void> {
+  await vscode.commands.executeCommand("pearReview.stopReading");
+  await waitFor("the read to stop", async () => !(await readState()));
+}
+
 describe("read aloud", () => {
   before(ensureReviewStarted);
+  afterEach(stopRead);
 
-  it("reads a markdown file through the chat's audio", async () => {
+  it("plays a markdown file, and the speaker pauses, resumes and stops it", async () => {
     await vscode.window.showTextDocument(repoUri("NOTES.md"));
     clearSelection();
-    const from = await mark();
     await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
-    const clip = await nextServerMessage("file_audio_chunk", from);
-    assert.equal(clip.file_path, "NOTES.md");
-    assert.equal(clip.start_line, 1);
+    await waitFor("playing", async () => (await readState())?.status === "playing");
+    const at = await waitFor("the passage being read", reading);
+    assert.equal(at.filePath, "NOTES.md");
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("paused", async () => (await readState())?.status === "paused");
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("playing again", async () => (await readState())?.status === "playing");
+    await vscode.commands.executeCommand("pearReview.stopReading");
+    await waitFor("stopped", async () => !(await readState()));
+    assert.equal(await reading(), undefined, "the highlight goes when the read stops");
   });
 
   it("reads only the selected lines", async () => {
     await selectLines("NOTES.md", 5, 8);
-    const from = await mark();
     await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
-    const clip = await nextServerMessage("file_audio_chunk", from);
-    assert.equal(clip.start_line, 5);
+    const at = await waitFor("the passage being read", reading);
+    assert.ok(at.startLine >= 5, `read from line ${at.startLine}`);
+  });
+
+  it("highlights the passage in the open file as the player reaches it", async () => {
+    const editor = await vscode.window.showTextDocument(repoUri("NOTES.md"));
+    clearSelection();
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    const at = await waitFor("the passage being read", reading);
+    await waitFor("the cursor on the passage", () => editor.selection.active.line === at.startLine - 1);
   });
 
   it("opens a markdown file's preview, and reads it, from the Changes tree", async () => {
@@ -77,28 +106,12 @@ describe("read aloud", () => {
         .flatMap((g) => g.tabs)
         .some((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.includes("markdown.preview")),
     );
-    const from = await mark();
     clearSelection();
     await vscode.commands.executeCommand("pearReview.tree.readAloud", node);
-    const clip = await nextServerMessage("file_audio_chunk", from);
-    assert.equal(clip.file_path, "NOTES.md");
-  });
-
-  it("highlights the passage being read in the open file, end to end", async () => {
-    await vscode.window.showTextDocument(repoUri("NOTES.md"));
-    clearSelection();
-    await vscode.commands.executeCommand("pearReview.chat.focus");
-    await fromChat({ kind: "readingDone" });
-    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
-    // The chat panel itself reports the passage as its player takes the clip.
-    const reading = await waitFor("the chat to report the passage", async () =>
-      probe<{ filePath: string; startLine: number } | undefined>("files.reading"),
-    );
-    assert.equal(reading.filePath, "NOTES.md");
+    await waitFor("the file to be read", async () => (await readState())?.filePath === "NOTES.md");
   });
 
   it("reading from a preview opens the text beside it, cursor on the passage", async () => {
-    await fromChat({ kind: "readingDone" });
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
     await vscode.commands.executeCommand("markdown.showPreview", repoUri("NOTES.md"));
     // The preview command returns before its tab exists.
@@ -110,17 +123,19 @@ describe("read aloud", () => {
     const editor = await waitFor("NOTES.md's text beside the preview", () =>
       vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === repoUri("NOTES.md").fsPath),
     );
-    const reading = await waitFor("the passage being read", async () =>
-      probe<{ startLine: number } | undefined>("files.reading"),
-    );
-    await waitFor("the cursor on the passage", () => editor.selection.active.line === reading.startLine - 1);
+    const at = await waitFor("the passage being read", reading);
+    await waitFor("the cursor on the passage", () => editor.selection.active.line === at.startLine - 1);
   });
 
-  it("highlights the passage the chat says it is playing", async () => {
-    await vscode.window.showTextDocument(repoUri("NOTES.md"));
-    await fromChat({ kind: "reading", file_path: "NOTES.md", start_line: 5, end_line: 8 });
-    assert.deepEqual(await probe("files.reading"), { filePath: "NOTES.md", startLine: 5, endLine: 8 });
-    await fromChat({ kind: "readingDone" });
-    assert.equal(await probe("files.reading"), undefined);
+  it("leaves the chat out of it", async () => {
+    const from = await mark();
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("playing", async () => (await readState())?.status === "playing");
+    const chat = (await posted()).slice(from).filter((m) => m.kind === "server");
+    assert.deepEqual(
+      chat.map((m) => m.message?.type).filter((t) => t !== "service_status"),
+      [],
+      "no read-aloud messages reach the chat",
+    );
   });
 });

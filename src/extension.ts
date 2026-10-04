@@ -10,6 +10,7 @@ import * as comments from "./ui/comments.ts";
 import * as diffView from "./ui/diffView.ts";
 import * as files from "./ui/files.ts";
 import * as hunkTree from "./ui/hunkTree.ts";
+import * as notices from "./ui/notices.ts";
 import * as preferences from "./ui/prefs.ts";
 import * as selectionContext from "./ui/selection.ts";
 import * as settings from "./ui/settings.ts";
@@ -28,15 +29,16 @@ export function activate(context: vscode.ExtensionContext): { read: typeof read 
   const selection = selectionContext.register(backend);
   const agent = actNow.register(backend);
   const target = chatTarget.register(backend);
-  const repoFiles = files.register(backend, target.target);
+  const repoFiles = files.register(context, backend, target.target);
   const review = comments.register(backend, selection.selection);
   const recorder = voice.register(backend, selection.selection, agent.actNow, target.target, review.comments);
   context.subscriptions.push(
     output,
     backend,
     ...statusBar.register(backend),
+    ...notices.register(backend),
     ...review.disposables,
-    ...hunkTree.register(backend, review.comments),
+    ...hunkTree.register(backend, review.comments, repoFiles.reader),
     ...diffView.register(backend),
     ...selection.disposables,
     ...agent.disposables,
@@ -52,7 +54,6 @@ export function activate(context: vscode.ExtensionContext): { read: typeof read 
       selection.selection,
       agent.actNow,
       target.target,
-      repoFiles.readAloud,
       prefs.prefs,
     ),
     ...commands.register(context, backend, recorder.voice, prefs.prefs),

@@ -45,3 +45,23 @@ class RawInputStream:
 
     def close(self):
         self._running = False
+
+
+class RawOutputStream:
+    """Plays nothing, but takes as long as the audio would, so the extension's player
+    reports progress in real time (python/player.py)."""
+
+    def __init__(self, samplerate, channels, dtype):
+        self._bytes_per_second = int(samplerate) * int(channels) * 2
+
+    def start(self):
+        pass
+
+    def write(self, data):
+        time.sleep(len(data) / self._bytes_per_second)
+
+    def stop(self):
+        pass
+
+    def close(self):
+        pass

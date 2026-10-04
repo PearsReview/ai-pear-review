@@ -59,16 +59,13 @@ still works on its own.
    before a review starts. Ask by text or voice, with selected lines as
    context. **Back to review**, or moving to another change, returns the
    chat to the review.
-10. **Read Aloud** on a markdown file (the speaker button in the title bar of
-    the file or its preview, or right-click it) reads it through the chat,
-    highlighting the passage being read in the file's text. Read from a preview,
-    the text opens beside it and the preview follows along. Select lines first
-    to read only those.
-    VS Code's panels can't play sound until they've been clicked once, so the
-    first time, press ▶ on the chat's "Reading" line. (To preview a markdown
-    file, press Ctrl+Shift+V, or Ctrl+K V for a side-by-side preview; a
-    changed markdown file also has preview and read-aloud buttons on its row in
-    the Changes view.)
+10. **Read Aloud** on a markdown file: the speaker on its row in the Changes
+    view, in its editor's or preview's title bar, or on right-click in the
+    Explorer. While it reads, that same place shows **pause**, **play** and
+    **stop**. The passage being read is highlighted in the file's text; read
+    from a preview, the text opens beside it and the preview follows along.
+    Select lines first to read only those. (To preview a markdown file, press
+    Ctrl+Shift+V, or Ctrl+K V for a side-by-side preview.)
 11. **Create Plan** (the checklist button on the Changes view) writes all
     comments to `.review/review_<time>.md`, optionally as an `/apply-review`
     skill too, and gives you the line to hand your coding agent.
@@ -78,8 +75,10 @@ still works on its own.
     create the plan, open the last plan, or start a new review.
 
 While a reply is read aloud, the sentence being spoken is highlighted in it.
-The filter in the chat's toolbar shows only the conversation about the current
-file. If a change is too large for the model, the chat says so and offers the
+The chat holds the conversation; what you do (an Act Now proposal, a review
+ending, a notice or an error) is shown in VS Code's notifications and status
+bar. The filter in the chat's toolbar shows only the conversation about the
+current file. If a change is too large for the model, the chat says so and offers the
 request to copy into your coding agent. The status bar's **Pear** item names
 any service that's down; hover it for the model, speech, coding agent and the
 session's token use.

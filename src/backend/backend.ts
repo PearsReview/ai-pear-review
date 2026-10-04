@@ -42,6 +42,8 @@ export class PythonBackend implements Backend, vscode.Disposable {
   private client: WsClient | undefined;
   private port: number | undefined;
   private reconnecting = false;
+  private starting: Promise<void> | undefined;
+  private startingFor: string | undefined;
   private readonly messages = new vscode.EventEmitter<ServerMessage>();
   private readonly states = new vscode.EventEmitter<BackendState>();
   private connectQuery: () => string = () => "";
@@ -59,8 +61,20 @@ export class PythonBackend implements Backend, vscode.Disposable {
     return this._repoPath;
   }
 
-  async start(repoPath: string): Promise<void> {
-    if (this._repoPath === repoPath && (this._state === "ready" || this._state === "starting")) return;
+  // Calls that overlap share one start: the Changes tree and the chat can both ask for
+  // the backend as they appear, and two starts raced to two processes on one port.
+  start(repoPath: string): Promise<void> {
+    if (this._repoPath === repoPath && this._state === "ready") return Promise.resolve();
+    if (this.starting && this.startingFor === repoPath) return this.starting;
+    this.startingFor = repoPath;
+    this.starting = this.doStart(repoPath).finally(() => {
+      this.starting = undefined;
+      this.startingFor = undefined;
+    });
+    return this.starting;
+  }
+
+  private async doStart(repoPath: string): Promise<void> {
     await this.stop();
     this._repoPath = repoPath;
     this.setState("starting");

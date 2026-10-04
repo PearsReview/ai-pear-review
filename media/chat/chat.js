@@ -350,138 +350,22 @@
     card.scrollIntoView({ block: "end" });
   }
 
-  // --- the summary screen (send_summary_screen): where the review stands, what's next ---
-
-  function showSummary(p) {
-    clearThinking();
-    document.querySelector(".turn.summary")?.remove();
-    const card = document.createElement("div");
-    card.className = "turn summary";
-    const label = document.createElement("div");
-    label.className = "role";
-    label.textContent = p.ended_early ? "Review ended" : "Review finished";
-    const body = document.createElement("div");
-    body.className = "turn-body";
-    const pending = p.pending_comment_count || 0;
-    const parts = [`${p.reviewed_count ?? 0} of ${p.total} changes reviewed`];
-    if (pending) parts.push(`${pending} comment${pending === 1 ? "" : "s"} waiting for a plan`);
-    body.textContent = parts.join(" · ");
-    const actions = document.createElement("div");
-    actions.className = "turn-actions";
-    if (pending) {
-      const plan = pill("checklist", "Create plan", "strong");
-      plan.addEventListener("click", () => post({ kind: "command", command: "createPlan" }));
-      actions.appendChild(plan);
-    }
-    if (p.review_plan) {
-      const open = pill("file", "Open plan");
-      open.title = p.review_plan;
-      open.addEventListener("click", () => post({ kind: "openPlan", file: p.review_plan }));
-      actions.appendChild(open);
-    }
-    const again = pill("refresh", "Start new review", "subtle");
-    again.addEventListener("click", () => post({ kind: "command", command: "newReview" }));
-    actions.appendChild(again);
-    card.append(label, body, actions);
-    transcript.appendChild(card);
-    card.scrollIntoView({ block: "end" });
-  }
-
-  // --- Act Now proposal ---------------------------------------------------------------
-  // One card per proposal; a refined proposal replaces the live card's contents.
-
-  let proposalCard = /** @type {HTMLElement | null} */ (null);
-
-  function showProposal(p) {
-    clearThinking();
-    if (!proposalCard) {
-      proposalCard = document.createElement("div");
-      proposalCard.className = "turn proposal";
-      transcript.appendChild(proposalCard);
-    }
-    const card = proposalCard;
-    card.replaceChildren();
-    const label = document.createElement("div");
-    label.className = "role";
-    label.textContent = `Proposed by ${p.agent} · not applied yet`;
-    const summary = document.createElement("div");
-    summary.className = "turn-body";
-    summary.textContent = p.summary || "Proposed changes:";
-    const files = document.createElement("div");
-    files.className = "proposal-files";
-    for (const f of p.files) {
-      const glyph = f.status === "added" ? "diff-added" : f.status === "deleted" ? "diff-removed" : "diff-modified";
-      const b = pill(glyph, `${f.status} · ${f.file_path}`, "file-link");
-      b.title = "Open this file's proposed diff";
-      b.addEventListener("click", () => post({ kind: "proposal", action: "open", file_path: f.file_path }));
-      files.appendChild(b);
-    }
-    const actions = document.createElement("div");
-    actions.className = "turn-actions";
-    const apply = pill("check", "Apply", "strong");
-    apply.title = "Write the proposed change to your working tree";
-    apply.addEventListener("click", () => {
-      post({ kind: "proposal", action: "apply" });
-      setProposalDone("applying…", false);
-    });
-    const refineInput = document.createElement("input");
-    refineInput.className = "refine";
-    refineInput.placeholder = "What should change about it?";
-    const refine = pill("edit", "Refine");
-    const sendRefine = () => {
-      const text = refineInput.value.trim();
-      if (!text) return refineInput.focus();
-      post({ kind: "proposal", action: "refine", text });
-      showAgentWorking("is refining its proposal");
-    };
-    refine.addEventListener("click", sendRefine);
-    refineInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") sendRefine();
-    });
-    const discard = pill("discard", "Discard", "subtle");
-    discard.addEventListener("click", () => {
-      post({ kind: "proposal", action: "discard" });
-      setProposalDone("discarded");
-    });
-    // The refine box takes its own row; the three actions share the next.
-    actions.append(refineInput, apply, refine, discard);
-    card.append(label, summary, files, actions);
-    card.scrollIntoView({ block: "end" });
-  }
-
-  // Locks the live card with a final status. `final` false keeps it live (Applying…),
-  // so the success notice or an error can still settle it.
-  function setProposalDone(status, final = true) {
-    if (!proposalCard) return;
-    const card = proposalCard;
-    card.querySelectorAll("button:not(.file-link), input").forEach((el) => {
-      /** @type {HTMLButtonElement} */ (el).disabled = true;
-    });
-    const label = card.querySelector(".role");
-    if (label) label.textContent = (label.textContent || "").replace(/ · .*$/, ` · ${status}`);
-    if (final) proposalCard = null;
-  }
-
   // --- audio: one message's clips play back to back -----------------------------------
   // chunk_index 0 starts a message, and its button takes the player; later clips that
-  // belong to a message no longer playing are dropped. A markdown file read aloud carries
-  // each clip's line range, which the editor highlights.
+  // belong to a message no longer playing are dropped. (A markdown file read aloud is the
+  // extension's: python/player.py.)
 
   const player = new Audio();
-  /** @type {{ url: string, reading: any, sentences: any[] | null, blocks: any[] | null }[]} */
+  /** @type {{ url: string, sentences: any[] | null }[]} */
   let queue = [];
   let paused = false;
-  let reading = /** @type {any} */ (null); // the file passage playing now, if any
-  // The clip playing now: its sentences found in the message (read-along), or for a
-  // file read, its blocks with their lines.
-  let clip = /** @type {{ segments: any[], blocks: any[] | null, file: string | null, at: any }} */ ({
+  // The clip playing now: its sentences found in the message, for the read-along.
+  let clip = /** @type {{ segments: any[], at: any }} */ ({
     segments: [],
-    blocks: null,
-    file: null,
     at: null,
   });
 
-  function enqueue(payload, button, readingInfo = null) {
+  function enqueue(payload, button) {
     if (payload.chunk_index === 0) {
       clearQueue();
       player.pause();
@@ -494,31 +378,20 @@
     const bytes = Uint8Array.from(atob(payload.audio_base64), (c) => c.charCodeAt(0));
     queue.push({
       url: URL.createObjectURL(new Blob([bytes], { type: payload.mime_type })),
-      reading: readingInfo,
       sentences: Array.isArray(payload.sentences) ? payload.sentences : null,
-      blocks: Array.isArray(payload.blocks) ? payload.blocks : null,
     });
     if (owner && owner.dataset.mode !== "paused") setSpeakState(owner, "playing");
     if (player.paused && !paused) playNext();
-  }
-
-  function setReading(info) {
-    if (!info && !reading) return;
-    reading = info;
-    post(info ? { kind: "reading", ...info } : { kind: "readingDone" });
   }
 
   function playNext() {
     const next = queue.shift();
     if (!next) return;
     player.src = next.url;
-    setReading(next.reading);
     // Resolve this clip's sentences against the message its button belongs to.
     const body = owner?.closest(".turn")?.querySelector(".turn-body");
     clip = {
       segments: next.sentences && body ? readAlong.resolveSentences(body, next.sentences) : [],
-      blocks: next.blocks,
-      file: next.reading ? next.reading.file_path : null,
       at: null,
     };
     player.play().catch((err) => {
@@ -569,10 +442,9 @@
     clearQueue();
     player.pause();
     paused = false;
-    setReading(null);
     readAlong.highlight(null);
     showBlockedHint(false);
-    clip = { segments: [], blocks: null, file: null, at: null };
+    clip = { segments: [], at: null };
     if (owner) setSpeakState(owner, "idle");
     owner = null;
   }
@@ -589,13 +461,6 @@
       readAlong.highlight(clip.segments[i]?.range ?? null);
       const turn = owner?.closest(".turn");
       if (turn instanceof HTMLElement) turn.dataset.readingSentence = String(i);
-    } else if (clip.blocks && clip.blocks.length && clip.file) {
-      // A file read: move the editor's highlight to the block being read.
-      const i = readAlong.blockAtFraction(clip.blocks, fraction);
-      if (i === clip.at) return;
-      clip.at = i;
-      const block = clip.blocks.find((b) => b.block_index === i);
-      if (block) setReading({ file_path: clip.file, start_line: block.start_line, end_line: block.end_line });
     }
   }
 
@@ -606,25 +471,6 @@
     if (queue.length) playNext();
     else stopAudio();
   });
-
-  // --- a markdown file read aloud gets a line of its own, with the same button ---------
-
-  const readingTurns = new Map(); // file path -> its "Reading" button, while it is live
-
-  function readingTurn(filePath) {
-    clearThinking();
-    const turn = document.createElement("div");
-    turn.className = "turn system reading";
-    const label = document.createElement("span");
-    label.className = "grow";
-    label.textContent = `Reading ${filePath}`;
-    const button = speakButton({ kind: "speakFile", file_path: filePath });
-    turn.append(icon("book"), label, button);
-    transcript.appendChild(turn);
-    turn.scrollIntoView({ block: "end" });
-    readingTurns.set(filePath, button);
-    return button;
-  }
 
   // --- extension → webview -----------------------------------------------------------
 
@@ -638,7 +484,6 @@
             ? "End of the changes."
             : "No changes to review.";
         state.ended = !!p.ended || state.ended;
-        if (p.ended) showSummary(p);
       } else {
         state.current = p.index;
         state.started = !!p.review_started;
@@ -649,12 +494,6 @@
         state.reviewFile = p.file_path;
         applyFilter();
         if (state.narrating) showThinking();
-        else if (!state.started && !transcript.querySelector(".turn")) {
-          appendTurn(
-            "system",
-            "Ask about this change below. To have the reviewer explain each change as you go, start the review from the Changes view (▶).",
-          );
-        }
       }
       updateControls();
     },
@@ -673,11 +512,6 @@
     },
     reviewer_turn: (p) => appendTurn("presenter", p.text, p),
     deeper_turn: (p) => appendTurn("deeper", p.text, p),
-    agent_stopped: (p) => appendTurn("system", p.message),
-    act_now_cleared(p) {
-      setProposalDone("no changes left");
-      appendTurn("system", p.message);
-    },
     service_status(p) {
       if (p.tts === false) stopAudio();
       if (p.act_now) {
@@ -689,43 +523,6 @@
     audio_chunk: (p) => enqueue(p, latestSpeak),
     // A message read aloud on request: under the button that asked.
     turn_audio_chunk: (p) => enqueue(p, p.chunk_index === 0 ? (owner ?? latestSpeak) : owner),
-    file_audio_chunk(p) {
-      const button = readingTurns.get(p.file_path) ?? readingTurn(p.file_path);
-      if (p.chunk_index === 0 && owner !== button) {
-        owner = button;
-      }
-      enqueue(p, button, { file_path: p.file_path, start_line: p.start_line, end_line: p.end_line });
-    },
-    notice(p) {
-      // speak_file brackets a read with these two; its own line replaces them.
-      const starting = /^Reading (.+)\.\.\.$/.exec(p.message);
-      if (starting) {
-        // Re-read from an existing line: that line takes the audio, no new one.
-        const reuse = owner?.dataset.mode === "loading" && owner.closest(".reading") ? owner : undefined;
-        const button = reuse ?? readingTurn(starting[1]);
-        readingTurns.set(starting[1], button);
-        owner = button;
-        setSpeakState(button, "loading");
-        return;
-      }
-      if (/^Finished reading /.test(p.message)) return;
-      if (p.level === "success" && proposalCard && p.message.startsWith("Applied the change")) {
-        proposalCard.classList.add("applied");
-        setProposalDone("applied");
-      }
-      appendTurn("system", p.message);
-    },
-    error(p) {
-      state.narrating = false;
-      if (owner?.dataset.mode === "loading") stopAudio();
-      if (proposalCard) {
-        proposalCard.querySelectorAll("button, input").forEach((el) => {
-          /** @type {HTMLButtonElement} */ (el).disabled = false;
-        });
-      }
-      appendTurn("error", p.message);
-      updateControls();
-    },
     context_too_large: (p) => showTooLarge(p),
   };
 
@@ -753,8 +550,11 @@
     } else if (msg.kind === "actMode") {
       state.actMode = msg.on;
       updateControls();
-    } else if (msg.kind === "proposal") {
-      showProposal(msg);
+    } else if (msg.kind === "settle") {
+      clearThinking();
+      state.narrating = false;
+      if (owner?.dataset.mode === "loading") stopAudio();
+      updateControls();
     } else if (msg.kind === "context") {
       $("context").hidden = !msg.label;
       $("context-label").textContent = msg.label ? `Asking about ${msg.label}` : "";

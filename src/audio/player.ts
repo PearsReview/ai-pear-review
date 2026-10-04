@@ -1,0 +1,88 @@
+import { spawn, type ChildProcess } from "node:child_process";
+import * as path from "node:path";
+import * as vscode from "vscode";
+
+import { resolvePython } from "../backend/python.ts";
+import { log } from "../log.ts";
+
+// Speech played by the extension rather than a webview (python/player.py): a webview
+// won't play sound until it has been clicked, and Read Aloud is started from the editor
+// or the Explorer. The process starts on first use and plays clips in order.
+
+export type PlayerEvent =
+  | { event: "start"; id: number }
+  | { event: "progress"; id: number; fraction: number }
+  | { event: "done"; id: number }
+  | { event: "idle" }
+  | { event: "error"; message: string };
+
+export class AudioPlayer implements vscode.Disposable {
+  private proc: ChildProcess | undefined;
+  private nextId = 1;
+  private readonly events = new vscode.EventEmitter<PlayerEvent>();
+  readonly onEvent = this.events.event;
+
+  constructor(private readonly extensionPath: string) {}
+
+  // Queues a 16-bit WAV clip; returns its id for the events that follow.
+  play(wavBase64: string): number {
+    const id = this.nextId++;
+    this.send({ cmd: "play", id, wav: wavBase64 });
+    return id;
+  }
+
+  pause(): void {
+    this.send({ cmd: "pause" }, false);
+  }
+
+  resume(): void {
+    this.send({ cmd: "resume" }, false);
+  }
+
+  stop(): void {
+    this.send({ cmd: "stop" }, false);
+  }
+
+  dispose(): void {
+    this.send({ cmd: "quit" }, false);
+    this.proc?.kill();
+    this.proc = undefined;
+    this.events.dispose();
+  }
+
+  // `start`: whether to launch the player for this command (only playing needs it).
+  private send(command: Record<string, unknown>, start = true): void {
+    if (!this.proc && start) this.launch();
+    this.proc?.stdin?.write(JSON.stringify(command) + "\n");
+  }
+
+  private launch(): void {
+    const script = path.join(this.extensionPath, "python", "player.py");
+    const proc = spawn(resolvePython(this.extensionPath), ["-u", script], { windowsHide: true });
+    this.proc = proc;
+    let buffered = "";
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      buffered += chunk.toString("utf8");
+      let newline: number;
+      while ((newline = buffered.indexOf("\n")) >= 0) {
+        const line = buffered.slice(0, newline).trim();
+        buffered = buffered.slice(newline + 1);
+        if (!line) continue;
+        try {
+          this.events.fire(JSON.parse(line) as PlayerEvent);
+        } catch {
+          log(`Player: unreadable line ${line.slice(0, 120)}`);
+        }
+      }
+    });
+    proc.stderr?.on("data", (chunk: Buffer) => log(`Player: ${chunk.toString("utf8").trimEnd()}`));
+    proc.on("exit", (code) => {
+      if (this.proc !== proc) return;
+      this.proc = undefined;
+      if (code) {
+        log(`Player exited (code ${code}).`);
+        this.events.fire({ event: "error", message: `The audio player stopped (code ${code}). See the log.` });
+      }
+    });
+  }
+}

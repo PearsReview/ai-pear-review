@@ -51,10 +51,10 @@ export function instanceOf(schema: unknown): unknown {
   }
 }
 
-// A 0.25 s silent 16-bit mono WAV: what /speech returns.
+// A 2 s silent 16-bit mono WAV: what /speech returns. Long enough to pause a read in.
 function silentWav(): Buffer {
   const rate = 22_050;
-  const samples = Math.round(rate * 0.25);
+  const samples = Math.round(rate * 2);
   const data = samples * 2;
   const header = Buffer.alloc(44);
   header.write("RIFF", 0);

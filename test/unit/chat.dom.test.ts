@@ -234,29 +234,6 @@ void describe("chat webview", () => {
     assert.match(chat.$("mic").title, /Voice input is off/);
   });
 
-  void test("the review's summary offers the plan, the last plan and a new review", () => {
-    chat.server("presenting", {
-      index: 0,
-      total: 5,
-      done: true,
-      ended: true,
-      ended_early: true,
-      reviewed_count: 3,
-      pending_comment_count: 2,
-      review_plan: ".review/review_1.md",
-    });
-    const card = chat.doc.querySelector(".turn.summary");
-    assert.match(card?.textContent ?? "", /Review ended/);
-    assert.match(card?.textContent ?? "", /3 of 5 changes reviewed · 2 comments waiting for a plan/);
-    const buttons = [...(card?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
-    buttons.find((b) => b.textContent === "Create plan")?.click();
-    assert.deepEqual(lastPost(chat), { kind: "command", command: "createPlan" });
-    buttons.find((b) => b.textContent === "Open plan")?.click();
-    assert.deepEqual(lastPost(chat), { kind: "openPlan", file: ".review/review_1.md" });
-    buttons.find((b) => b.textContent === "Start new review")?.click();
-    assert.deepEqual(lastPost(chat), { kind: "command", command: "newReview" });
-  });
-
   void test("the read-along follows the voice through a reply's sentences", () => {
     chat.server("presenting", hunk);
     chat.server("reviewer_turn", {
@@ -282,28 +259,6 @@ void describe("chat webview", () => {
     assert.equal(turn?.dataset.readingSentence, "0");
     FakeAudio.last?.seek(8);
     assert.equal(turn?.dataset.readingSentence, "1");
-  });
-
-  void test("a file read moves the editor highlight block by block", () => {
-    chat.server("notice", { level: "info", message: "Reading NOTES.md..." });
-    chat.server("file_audio_chunk", {
-      audio_base64: AUDIO,
-      mime_type: "audio/wav",
-      chunk_index: 0,
-      chunk_count: 1,
-      file_path: "NOTES.md",
-      start_line: 1,
-      end_line: 8,
-      content_hash: "x",
-      blocks: [
-        { block_index: 0, start_line: 1, end_line: 1, weight: 1, partial: false },
-        { block_index: 1, start_line: 5, end_line: 8, weight: 3, partial: false },
-      ],
-    });
-    FakeAudio.last?.seek(1);
-    assert.deepEqual(lastPost(chat), { kind: "reading", file_path: "NOTES.md", start_line: 1, end_line: 1 });
-    FakeAudio.last?.seek(7);
-    assert.deepEqual(lastPost(chat), { kind: "reading", file_path: "NOTES.md", start_line: 5, end_line: 8 });
   });
 
   void test("the filter shows only the current file's conversation", () => {
@@ -346,6 +301,30 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "copy", text: "In this repo, look at calc.py…" });
   });
 
+  void test("an error or a stopped agent ends the wait, and stays out of the chat", () => {
+    chat.server("presenting", hunk);
+    chat.click("explain");
+    assert.ok(chat.doc.querySelector(".turn.thinking"));
+    chat.send({ kind: "settle" });
+    assert.equal(chat.doc.querySelector(".turn.thinking"), null);
+    chat.server("error", { message: "Model unavailable" });
+    chat.server("notice", { level: "success", message: "Applied the change to calc.py." });
+    assert.equal(chat.doc.querySelectorAll(".turn").length, 0, "only conversation turns go in the chat");
+  });
+
+  void test("the review's end is reported outside the chat", () => {
+    chat.server("presenting", {
+      index: 0,
+      total: 5,
+      done: true,
+      ended: true,
+      reviewed_count: 5,
+      pending_comment_count: 0,
+    });
+    assert.equal(chat.doc.querySelectorAll("#transcript > *").length, 0);
+    assert.match(chat.$("hunk").textContent ?? "", /ended/);
+  });
+
   void test("sends a typed question on Enter", () => {
     chat.server("presenting", hunk);
     const input = chat.$("input") as HTMLTextAreaElement;
@@ -368,26 +347,6 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "actNow", text: "Add a guard" });
   });
 
-  void test("a proposal card applies, and settles when the backend confirms", () => {
-    chat.server("presenting", hunk);
-    chat.send({
-      kind: "proposal",
-      agent: "Cline",
-      summary: "Added a guard.",
-      files: [{ file_path: "calc.py", status: "modified" }],
-    });
-    const card = chat.doc.querySelector(".turn.proposal");
-    assert.ok(card);
-    assert.match(card.textContent ?? "", /modified · calc\.py/);
-    card.querySelector<HTMLButtonElement>(".proposal-files button")?.click();
-    assert.deepEqual(lastPost(chat), { kind: "proposal", action: "open", file_path: "calc.py" });
-    [...card.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Apply")?.click();
-    assert.deepEqual(lastPost(chat), { kind: "proposal", action: "apply" });
-    chat.server("notice", { level: "success", message: "Applied the change to calc.py." });
-    assert.match(card.querySelector(".role")?.textContent ?? "", /applied/);
-    assert.ok(card.classList.contains("applied"));
-  });
-
   void test("asking about a file shows a banner and enables the composer without a hunk", () => {
     assert.equal((chat.$("send") as HTMLButtonElement).disabled, true);
     chat.send({ kind: "target", file_path: "NOTES.md" });
@@ -406,44 +365,10 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "openFile", file_path: "NOTES.md" });
   });
 
-  void test("a file read aloud gets its own line, reports each passage, and pauses", () => {
+  void test("reading a file aloud leaves the chat alone", () => {
     chat.server("notice", { level: "info", message: "Reading NOTES.md..." });
-    const line = chat.doc.querySelector(".turn.reading");
-    assert.match(line?.textContent ?? "", /Reading NOTES\.md/);
-    const speak = line?.querySelector<HTMLButtonElement>("button.speak");
-    assert.equal(speak?.dataset.mode, "loading");
-    chat.server("file_audio_chunk", {
-      audio_base64: AUDIO,
-      mime_type: "audio/wav",
-      chunk_index: 0,
-      chunk_count: 2,
-      file_path: "NOTES.md",
-      start_line: 1,
-      end_line: 3,
-      content_hash: "x",
-    });
-    assert.deepEqual(lastPost(chat), { kind: "reading", file_path: "NOTES.md", start_line: 1, end_line: 3 });
-    assert.equal(speak?.dataset.mode, "playing");
-    speak?.click();
-    assert.equal(speak?.dataset.mode, "paused");
     chat.server("notice", { level: "success", message: "Finished reading NOTES.md." });
-    assert.equal(
-      chat.doc.querySelectorAll(".turn.system:not(.reading)").length,
-      0,
-      "the read's notices stay out of the chat",
-    );
-  });
-
-  void test("finishing a read aloud doesn't mark a proposal applied", () => {
-    chat.send({
-      kind: "proposal",
-      agent: "Cline",
-      summary: "x",
-      files: [{ file_path: "calc.py", status: "modified" }],
-    });
-    chat.server("notice", { level: "success", message: "Finished reading NOTES.md." });
-    const card = chat.doc.querySelector(".turn.proposal");
-    assert.equal(card?.classList.contains("applied"), false);
+    assert.equal(chat.doc.querySelectorAll("#transcript > *").length, 0);
   });
 
   void test("shows the selection that goes with the next question, and can drop it", () => {
@@ -454,14 +379,5 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "clearContext" });
     chat.send({ kind: "context", label: null });
     assert.equal(chat.$("context").hidden, true);
-  });
-
-  void test("an error replaces the thinking bubble", () => {
-    chat.server("presenting", hunk);
-    chat.click("explain");
-    assert.ok(chat.doc.querySelector(".turn.thinking"));
-    chat.server("error", { message: "Model unavailable" });
-    assert.equal(chat.doc.querySelector(".turn.thinking"), null);
-    assert.equal(chat.doc.querySelector(".turn.error .turn-body")?.textContent, "Model unavailable");
   });
 });

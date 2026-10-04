@@ -75,16 +75,19 @@ describe("coding agent", () => {
       [["sample.py", "modified"]],
     );
     await waitFor("the proposal's diff tab", () => proposalTabs().length > 0);
-    assert.ok(
-      (await posted()).some((m) => m.kind === "proposal" && m.agent === "Cline"),
-      "the chat shows the proposal card",
+    await waitFor("the proposal's notification", async () =>
+      (await probe<{ message: string }[]>("notices.shown")).some((n) =>
+        /Cline proposes a change to sample\.py/.test(n.message),
+      ),
     );
+    assert.ok(!(await posted()).some((m) => m.kind === "proposal"), "the proposal stays out of the chat");
   });
 
   it("applies the proposal to the working tree", async () => {
-    const from = await mark();
     await vscode.commands.executeCommand("pearReview.actNow.apply");
-    await nextServerMessage("notice", from);
+    await waitFor("the applied notice", async () =>
+      (await probe<{ message: string }[]>("notices.shown")).some((n) => /^Applied the change/.test(n.message)),
+    );
     const sample = readFileSync(path.join(repo, "sample.py"), "utf8");
     assert.ok(sample.startsWith("# Reviewed with Act Now"), `sample.py was not changed:\n${sample}`);
     await waitFor("the proposal to clear", async () => !(await actState()).proposal);
