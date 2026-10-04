@@ -189,7 +189,10 @@ def _preview_entry(change: ProposedChange) -> dict | None:
 @handler("confirm_act_now")
 async def handle_confirm_act_now(ws: WebSocket, session: Session, payload: dict) -> None:
     """Writes exactly what the last "act_now" previewed — never re-runs the
-    agent, never trusts content from the client at this step."""
+    agent, never trusts content from the client at this step.
+
+    Success is a "notice" with "event": "act_now_applied" and the written
+    "files", the one signal a client can clear its proposal on."""
     if session.review_ended:
         # A preview generated before End Review isn't cleared by ending, so a
         # stale confirm bar or a crafted request could otherwise still write
@@ -208,6 +211,15 @@ async def handle_confirm_act_now(ws: WebSocket, session: Session, payload: dict)
         await send_error(ws, f"Act Now change not applied: {exc}")
         return
 
-    names = ", ".join(change.file_path for change in pending)
-    await send_json(ws, "notice", {"level": "success", "message": f"Applied the change to {names}."})
+    files = [change.file_path for change in pending]
+    await send_json(
+        ws,
+        "notice",
+        {
+            "level": "success",
+            "message": f"Applied the change to {', '.join(files)}.",
+            "event": "act_now_applied",
+            "files": files,
+        },
+    )
     await refresh_diff(ws, session)

@@ -144,8 +144,14 @@ async def send_json(ws: WebSocket, msg_type: str, payload: dict) -> None:
     await ws.send_json({"type": msg_type, "payload": payload})
 
 
-async def send_error(ws: WebSocket, message: str) -> None:
-    await send_json(ws, "error", {"message": message})
+async def send_error(ws: WebSocket, message: str, source: str | None = None) -> None:
+    """`source` names the action that failed (e.g. "speak_file"), for a
+    client that has to end that action's own state on the error rather
+    than guess from the message wording."""
+    payload = {"message": message}
+    if source:
+        payload["source"] = source
+    await send_json(ws, "error", payload)
 
 
 async def send_agent_stopped(ws: WebSocket, kind: str, message: str) -> None:

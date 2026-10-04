@@ -108,3 +108,5 @@ this table and the registry disagree.
 | `weight` / `partial` | `file_audio_chunk` blocks | `utils/markdown_speech.py`'s `ChunkBlock` |
 | `sentences` (`text`, `weight`) | `audio_chunk`, `turn_audio_chunk`, `tour_audio_chunk` | `utils/speech_text.py`'s `sentence_segments` — the chat read-along highlight |
 | `spoken` | `narration`, `reviewer_turn`, `deeper_turn` | the sanitised text a turn's speaker button sends back as `speak_turn` |
+| `event` | `notice` | what the notice reports, for a client acting on it rather than showing it: `reading_started` / `reading_finished` (`voice.handle_speak_file`), `act_now_applied` with `files` (`act_now.handle_confirm_act_now`) |
+| `source` | `error` | the action that failed (`speak_file`), so its client-side state can end — `web/runtime.py`'s `send_error` |
