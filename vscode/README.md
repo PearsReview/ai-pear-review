@@ -115,8 +115,8 @@ setting it offers to restart the backend so it takes effect.
 ## Developing
 
 ```
-git clone <this repo>
-cd vscode
+git clone https://github.com/PearsReview/ai-pear-review.git
+cd ai-pear-review/vscode
 npm install
 python -m venv .venv
 .venv/Scripts/python -m pip install -r ../requirements.txt "sounddevice>=0.4,<1.0"
@@ -135,8 +135,9 @@ npm run lint && npm run typecheck && npm test
 npm run package
 ```
 
-The backend is a submodule, read-only from here (docs/STYLE.md §7): a change it
-needs is made in the AI_Pear_Reviewer repository and the pin is bumped.
+The backend is this repo's root (`app/`, `static/`, `run.py`), so a change it
+needs goes in the same pull request. It must pass the root checks (`pytest tests/`,
+`ruff`, `mypy`) and leave the web app working (docs/STYLE.md §7).
 
 ### Tests
 

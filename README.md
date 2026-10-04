@@ -6,7 +6,8 @@
 > file formats may change between releases — see
 > [Known issues](#known-issues-and-limitations).
 
-A local web app that walks you through your own uncommitted git changes
+A local web app (there is also a [VS Code extension](vscode/README.md))
+that walks you through your own uncommitted git changes
 one hunk at a time, with an AI persona narrating each change, answering
 questions about it, and (optionally) applying small edits you agree on —
 all running against your own working tree, in your own browser.
@@ -77,6 +78,13 @@ Now and Look deeper use whatever model and credentials you gave Cline.
   endpoint (e.g. [stt_tts](https://github.com/PearsReview/stt_tts)), and
   [Claude Code](https://claude.com/claude-code) or Cline for
   the prep skills
+
+## VS Code extension
+
+The same review runs inside VS Code: the Changes tree, the native diff, and a
+chat with voice. It lives in [`vscode/`](vscode/) and carries a copy of this
+backend; see [vscode/README.md](vscode/README.md). The rest of this README is
+about the web app.
 
 ## Install
 

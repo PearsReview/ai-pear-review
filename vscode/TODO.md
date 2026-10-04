@@ -1,6 +1,6 @@
 # To do
 
-## Move to the backend (AI_Pear_Reviewer), then re-pin
+## Backend-side refactors
 
 - [ ] **Launching for the extension.** `python/launch.py` imports `run.py`'s
       internals (`parse_args`, `find_free_port`, `REPO_PATH_ENV`), the preflight
@@ -21,11 +21,12 @@
 
 ## Before sharing
 
-- [ ] Push `feature/vscode-recording` (at `2f658f1`): the submodule pin isn't on
-      GitHub, so a fresh clone and CI can't fetch `backend/`.
-- [ ] A remote for this repository, then `repository` in package.json (and drop
-      `--allow-missing-repository` / `--no-rewrite-relative-links`).
-- [ ] A 128×128 PNG icon, and a publisher, for the Marketplace.
+- [ ] `repository`, `bugs` and `homepage` in package.json (the remote is
+      https://github.com/PearsReview/ai-pear-review), then drop
+      `--allow-missing-repository` / `--no-rewrite-relative-links`.
+- [ ] Remove `"private": true` from package.json (`vsce publish` refuses it).
+- [ ] A 128×128 PNG icon (`icon` in package.json), and the `PearsReview` publisher
+      created on the Marketplace, with a PAT for `vsce login`.
 - [ ] The backend's 22 mypy errors (all pre-existing): its CI runs mypy.
 
 ## Not yet verified

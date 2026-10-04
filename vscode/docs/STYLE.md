@@ -97,11 +97,12 @@ src/ui/*  →  Backend interface  →  BackendManager (src/backend/manager.ts)
 
 ## 7. Backend changes
 
-The backend is a git submodule and is **read-only from this repo**. A change it
-needs is made in the AI_Pear_Reviewer repo on its own branch, following that
-repo's STYLE.md, ruff, mypy and its §3.4 "adding a message type" checklist (which
-includes the wire-protocol.md row). It must leave the browser UI working. Once
-merged, bump the submodule pin here.
+The backend is the repo root (`app/`, `static/`, `run.py`), and the web app is a
+second client of it. A backend change follows the root `docs/STYLE.md`, ruff, mypy
+and its §3.4 "adding a message type" checklist (which includes the
+wire-protocol.md row), and must leave the web app working. `npm run sync-backend`
+copies the backend into `vscode/backend/` for the `.vsix`: a new top-level file or
+folder the backend needs has to be added to `scripts/syncBackend.mjs`.
 
 ## 8. Tests and definition of done
 
@@ -122,6 +123,7 @@ merged, bump the submodule pin here.
 - Every message type the UI sends has a test path. A new feature adds an integration
   test, and a DOM test if it changes the chat panel.
 - A change is done when:
-  - [ ] lint, typecheck, `npm test` and `npm run test:integration` pass;
+  - [ ] lint, typecheck, `npm test` and `npm run test:integration` pass (and
+        `pytest tests/`, ruff and mypy at the root, if the backend changed);
   - [ ] the README and CHANGELOG are updated if behaviour changed;
   - [ ] the manual F5 walkthrough still works (README, "Developing").
