@@ -5,8 +5,12 @@
 - Internal: Read Aloud, its highlight, and asking about a file are separate
   modules (`readAloud.ts`, `readingHighlight.ts`, `repoFiles.ts`); the chat's
   audio player is its own script (`media/chat/audio.js`); and the webview's
-  scripts are type-checked (`tsconfig.webview.json`, part of `npm run
-  typecheck`).
+  scripts are type-checked by `tsconfig.webview.json`, as part of
+  `npm run typecheck`.
+- Docs: STYLE.md covers the backend manager, why the extension runs locally
+  (`extensionKind: ui`), where the Python comes from, and the three integration
+  workspaces; the README covers setting up Python, several repositories, Get
+  Started, suggested questions, explain-when-asked and Read Aloud's limits.
 
 - Suggested questions above the message box, as in the web app: for the change
   on screen, for selected lines, for a file asked about, and instructions in

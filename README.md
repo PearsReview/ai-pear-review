@@ -3,7 +3,8 @@
 > **Early development (0.0.x).** The review loop works end to end: the
 > Changes tree, the native diff, the chat with voice, Look deeper, inline
 > comments, Create Plan and Act Now, plus questions about any file and
-> markdown read aloud. Packaging comes next.
+> markdown read aloud. `npm run package` builds a `.vsix`; it isn't on the
+> Marketplace yet.
 
 A VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
 It walks you through your uncommitted git changes one hunk at a time, with an AI
@@ -13,16 +14,26 @@ still works on its own.
 
 ## Requirements
 
-- VS Code 1.106 or later, with a **local** workspace. Remote, WSL and Codespaces
-  windows aren't supported.
-- Python 3.10+ with the backend's requirements and `sounddevice` for the mic.
+- VS Code 1.106 or later, with a **local**, trusted workspace. Remote, WSL and
+  Codespaces windows aren't supported: the mic and the speaker are on your
+  machine, and the extension has to run beside them.
+- Python 3.10 or later. Run **Pear Review: Set Up Python Environment** once: it
+  makes a private environment with the backend's packages and `sounddevice` (for
+  the mic and for reading aloud). Or point `pearReview.pythonPath` at an
+  interpreter that already has them.
 - The model and speech services the backend is configured for (by default,
   Ollama, plus a local STT/TTS service on port 8000). See the backend's
   [README](backend/README.md).
 
 ## Using it
 
-1. Open a git repository that has uncommitted changes.
+**Pear Review: Get Started** (also in the chat's ⚙) walks through the steps
+below.
+
+1. Open a git repository that has uncommitted changes. With several
+   repositories in the window, **Switch Repository** on the Changes view picks
+   the one to review; each keeps its own backend and its own review, and
+   switching back resumes it where it was.
 2. Open the **Pear Review** view from the activity bar. It opens your changes
    straight away: browse the diffs and ask about them in the chat, which opens
    as a **Pear Review** tab in the secondary side bar, beside other chat
@@ -33,8 +44,10 @@ still works on its own.
    hunk opens as a diff (HEAD ↔ working file) with its lines highlighted.
    Click any hunk to jump to it; use the ↑/↓ buttons on the tree for
    Prev/Next, and ✓ on the current hunk to mark it reviewed.
-4. The reviewer explains each change in the **Chat** view. Reply by typing,
-   or press **Ctrl+Alt+Space** (**Cmd+Alt+Space** on macOS) to start
+4. Press ✨ in the **Chat** view to have the reviewer explain the change on
+   screen (or choose **Explain changes: Automatically** in ⚙ to explain each
+   one as you reach it). Suggested questions sit above the message box; a
+   click puts one in the box to edit or send. Reply by typing, or press **Ctrl+Alt+Space** (**Cmd+Alt+Space** on macOS) to start
    recording and again to send. VS Code has no key-release event, so
    push-to-talk is press-to-start, press-to-stop.
 5. To ask about particular lines, select them in the diff (either side)
@@ -64,15 +77,18 @@ still works on its own.
     Explorer. While it reads, that same place shows **pause**, **play** and
     **stop**. The passage being read is highlighted, and kept in view, in the
     markdown preview and in the file's text, whichever is open.
-    To read only part of it, select that text first, in the file or in its
-    preview. (To preview a markdown file, press
+    To read only part of it, select that text in the file first. (Reading the
+    text selected in a preview works too, with `pearReview.readPreviewSelection`
+    on; it goes through the clipboard, which is why it's off by default.) Read
+    Aloud plays WAV speech from your text-to-speech service; it never plays at
+    the same time as the chat. (To preview a markdown file, press
     Ctrl+Shift+V, or Ctrl+K V for a side-by-side preview.)
 11. **Create Plan** (the checklist button on the Changes view) writes all
     comments to `.review/review_<time>.md`, optionally as an `/apply-review`
     skill too, and gives you the line to hand your coding agent.
 12. When every change is marked reviewed (one at a time, or all at once with
-    ✓✓ on the Changes view), or you choose **End Review**, the chat shows a
-    summary: how much was reviewed, the comments waiting, and buttons to
+    ✓✓ on the Changes view), or you choose **End Review**, a notification
+    sums it up: how much was reviewed, the comments waiting, and buttons to
     create the plan, open the last plan, or start a new review.
 
 While a reply is read aloud, the sentence being spoken is highlighted in it.
@@ -104,8 +120,8 @@ the web app keeps them.
 
 To use the Anthropic API instead of a local model, set the key under
 **Reviewer model** in settings (⚙), then choose Anthropic as the model. The key
-is kept in VS Code's secret storage and passed to the backend on its next
-start.
+is kept in VS Code's secret storage and passed to the backend when it starts;
+setting it offers to restart the backend so it takes effect.
 
 ## Developing
 
@@ -116,23 +132,28 @@ python -m venv .venv
 .venv/Scripts/python -m pip install -r backend/requirements.txt "sounddevice>=0.4,<1.0"
 ```
 
-Press **F5** to launch an Extension Development Host. The extension uses this
-repo's `.venv` when there is one. Otherwise it uses the `pearReview.pythonPath`
-setting, then `python` on PATH.
+Press **F5** to launch an Extension Development Host. The extension uses the
+`pearReview.pythonPath` setting if it's set, then the environment **Set Up
+Python Environment** made, then this repo's `.venv`.
 
 ```
 npm run lint && npm run typecheck && npm test
+python -m pytest test/python      # the audio player's WAV decoding
+npm run package                   # the .vsix; npm run test:package checks its contents
 ```
+
+The backend is a submodule, read-only from here (docs/STYLE.md §7): a change it
+needs is made in the AI_Pear_Reviewer repository and the pin is bumped.
 
 ### Tests
 
 Three layers, replacing the web app's Playwright suite for this front end:
 
-| Command                           | What runs                                                                                                                         | Time    |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `npm test`                        | Unit tests of the pure helpers, and DOM tests of the chat panel's script under jsdom (clicks, rendering, audio states)            | seconds |
-| `npm run test:integration`        | A real VS Code (downloaded once into `.vscode-test/`) with the extension, opened on a scratch repo, with a real backend behind it | ~15 s   |
-| `npm run test:integration:ollama` | The same suite with your real local Ollama as the reviewer model                                                                  | minutes |
+| Command                           | What runs                                                                                                                                                                                 | Time    |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `npm test`                        | Unit tests of the pure helpers, and DOM tests of the chat panel's script under jsdom (clicks, rendering, audio states)                                                                    | seconds |
+| `npm run test:integration`        | A real VS Code (downloaded once into `.vscode-test/`) with the extension and a real backend, in three workspaces: a scratch repo, two repos in one window, and a folder that isn't a repo | ~1 min  |
+| `npm run test:integration:ollama` | The same suite with your real local Ollama as the reviewer model                                                                                                                          | minutes |
 
 In the integration suite everything the backend calls out to is a fake
 (`test/integration/`): a local server stands in for Ollama and the speech
