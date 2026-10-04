@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Read Aloud from a markdown preview opens the file's text beside it, with the
+  passage being read highlighted and the cursor on it, so the preview scrolls
+  along. Fixed: Read Aloud from a preview whose text wasn't open did nothing.
 - Changed markdown files have Open Preview and Read Aloud on their row in the
   Changes view (inline and in the right-click menu).
 - Read Aloud on a markdown preview's title bar too. Audio the chat may not play

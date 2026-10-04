@@ -84,6 +84,38 @@ describe("read aloud", () => {
     assert.equal(clip.file_path, "NOTES.md");
   });
 
+  it("highlights the passage being read in the open file, end to end", async () => {
+    await vscode.window.showTextDocument(repoUri("NOTES.md"));
+    clearSelection();
+    await vscode.commands.executeCommand("pearReview.chat.focus");
+    await fromChat({ kind: "readingDone" });
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    // The chat panel itself reports the passage as its player takes the clip.
+    const reading = await waitFor("the chat to report the passage", async () =>
+      probe<{ filePath: string; startLine: number } | undefined>("files.reading"),
+    );
+    assert.equal(reading.filePath, "NOTES.md");
+  });
+
+  it("reading from a preview opens the text beside it, cursor on the passage", async () => {
+    await fromChat({ kind: "readingDone" });
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await vscode.commands.executeCommand("markdown.showPreview", repoUri("NOTES.md"));
+    // The preview command returns before its tab exists.
+    await waitFor("the preview tab", () => {
+      const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+      return tab?.input instanceof vscode.TabInputWebview ? tab : undefined;
+    });
+    await vscode.commands.executeCommand("pearReview.readAloud");
+    const editor = await waitFor("NOTES.md's text beside the preview", () =>
+      vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === repoUri("NOTES.md").fsPath),
+    );
+    const reading = await waitFor("the passage being read", async () =>
+      probe<{ startLine: number } | undefined>("files.reading"),
+    );
+    await waitFor("the cursor on the passage", () => editor.selection.active.line === reading.startLine - 1);
+  });
+
   it("highlights the passage the chat says it is playing", async () => {
     await vscode.window.showTextDocument(repoUri("NOTES.md"));
     await fromChat({ kind: "reading", file_path: "NOTES.md", start_line: 5, end_line: 8 });

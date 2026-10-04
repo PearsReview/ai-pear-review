@@ -61,7 +61,9 @@ still works on its own.
    chat to the review.
 10. **Read Aloud** on a markdown file (the speaker button in the title bar of
     the file or its preview, or right-click it) reads it through the chat,
-    highlighting the passage being read. Select lines first to read only those.
+    highlighting the passage being read in the file's text. Read from a preview,
+    the text opens beside it and the preview follows along. Select lines first
+    to read only those.
     VS Code's panels can't play sound until they've been clicked once, so the
     first time, press ▶ on the chat's "Reading" line. (To preview a markdown
     file, press Ctrl+Shift+V, or Ctrl+K V for a side-by-side preview; a

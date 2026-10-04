@@ -46,13 +46,47 @@ export function register(
     }
     const range = new vscode.Range(reading.startLine - 1, 0, reading.endLine - 1, 0);
     editor.setDecorations(decoration, [range]);
-    if (reveal) editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    if (!reveal) return;
+    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    // A collapsed cursor at the passage: VS Code's markdown preview marks the cursor's
+    // line and scrolls with the editor, so a preview open beside it follows the reading
+    // (extensions can't highlight inside the preview itself). Collapsed, it never reads
+    // as a selection for the chat's context.
+    const start = range.start;
+    if (!editor.selection.isEmpty || !editor.selection.active.isEqual(start)) {
+      editor.selection = new vscode.Selection(start, start);
+    }
+  };
+
+  // The highlight needs the file's text on screen. Read from a preview (or with the file
+  // closed), the text opens beside it once per read, without taking focus.
+  let openedFor: string | undefined;
+  const ensureTextVisible = async (filePath: string): Promise<void> => {
+    const root = backend.repoPath;
+    if (!root || openedFor === filePath) return;
+    const shown = vscode.window.visibleTextEditors.some(
+      (e) => reviewLocation(e.document.uri, root)?.filePath === filePath && e.document.uri.scheme === "file",
+    );
+    openedFor = filePath;
+    if (shown) return;
+    await vscode.window.showTextDocument(vscode.Uri.file(path.join(root, filePath)), {
+      viewColumn: vscode.ViewColumn.Beside,
+      preserveFocus: true,
+      preview: true,
+    });
   };
 
   const readAloud: ReadAloud = {
     highlight(position) {
       reading = position;
-      for (const editor of vscode.window.visibleTextEditors) decorate(editor, true);
+      if (!position) {
+        openedFor = undefined;
+        for (const editor of vscode.window.visibleTextEditors) decorate(editor, false);
+        return;
+      }
+      void ensureTextVisible(position.filePath).then(() => {
+        for (const editor of vscode.window.visibleTextEditors) decorate(editor, true);
+      });
     },
   };
 
@@ -60,15 +94,23 @@ export function register(
   // Palette it's the active editor's.
   // A markdown preview passes nothing and has no text editor; its tab is labelled
   // "Preview <file name>", so the document is the open markdown file of that name.
-  const targetUri = (arg: unknown): vscode.Uri | undefined => {
+  // A preview opened straight from the Explorer may have no text document open, so
+  // the name is looked for in open documents, then open tabs, then the workspace.
+  const targetUri = async (arg: unknown): Promise<vscode.Uri | undefined> => {
     if (arg instanceof vscode.Uri) return arg;
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
     if (tab?.input instanceof vscode.TabInputWebview && tab.input.viewType.includes("markdown.preview")) {
       const name = tab.label.replace(/^\[?Preview\]? ?/, "").trim();
-      const doc = vscode.workspace.textDocuments.find(
-        (d) => d.languageId === "markdown" && path.basename(d.uri.fsPath) === name,
-      );
+      const named = (uri: vscode.Uri): boolean => path.basename(uri.fsPath) === name;
+      const doc = vscode.workspace.textDocuments.find((d) => d.uri.scheme === "file" && named(d.uri));
       if (doc) return doc.uri;
+      const tabUri = vscode.window.tabGroups.all
+        .flatMap((g) => g.tabs)
+        .map((t) => (t.input instanceof vscode.TabInputText ? t.input.uri : undefined))
+        .find((u) => u && u.scheme === "file" && named(u));
+      if (tabUri) return tabUri;
+      const found = await vscode.workspace.findFiles(`**/${name}`, "**/node_modules/**", 2);
+      if (found.length === 1) return found[0];
     }
     return vscode.window.activeTextEditor?.document.uri;
   };
@@ -102,7 +144,7 @@ export function register(
   };
 
   const askAboutFile = async (arg: unknown): Promise<void> => {
-    const uri = targetUri(arg);
+    const uri = await targetUri(arg);
     if (!uri || uri.scheme !== "file") {
       showError("Open or select a file in the repository first.");
       return;
@@ -117,7 +159,7 @@ export function register(
   };
 
   const readFileAloud = async (arg: unknown): Promise<void> => {
-    const uri = targetUri(arg);
+    const uri = await targetUri(arg);
     if (!uri || uri.scheme !== "file" || !uri.fsPath.toLowerCase().endsWith(".md")) {
       showError("Read Aloud works on markdown (.md) files.");
       return;
