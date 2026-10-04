@@ -3,7 +3,7 @@ import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
 import type { ProgressFile, ProgressHunk, ReviewProgress } from "../backend/protocol.ts";
-import { hunkLabel } from "../review/hunks.ts";
+import { fileChange, hunkLabel } from "../review/hunks.ts";
 import { publish } from "../testProbe.ts";
 import type { Comments } from "./comments.ts";
 
@@ -52,10 +52,22 @@ export function register(backend: Backend, comments: Comments): vscode.Disposabl
     view.description = parts.join(" · ") || undefined;
   };
 
+  const fileUri = (node: Node | undefined): vscode.Uri | undefined =>
+    node && backend.repoPath ? vscode.Uri.file(path.join(backend.repoPath, node.file.file_path)) : undefined;
+
   return [
     view,
     provider,
     view.onDidChangeVisibility(openWhenShown),
+    // The row passes its node; these hand its file to VS Code's preview and to Read Aloud.
+    vscode.commands.registerCommand("pearReview.tree.preview", (node: Node) => {
+      const uri = fileUri(node);
+      if (uri) void vscode.commands.executeCommand("markdown.showPreview", uri);
+    }),
+    vscode.commands.registerCommand("pearReview.tree.readAloud", (node: Node) => {
+      const uri = fileUri(node);
+      if (uri) void vscode.commands.executeCommand("pearReview.readAloud", uri);
+    }),
     comments.onDidChangeCount(describe),
     backend.on("review_progress", (p) => {
       progress = p;
@@ -139,7 +151,10 @@ class HunkTreeProvider implements vscode.TreeDataProvider<Node>, vscode.Disposab
       item.description = `${dir === "." ? "" : `${dir}  `}${file.reviewed_count}/${file.hunk_count}`;
       const root = this.repoPath();
       if (root) item.resourceUri = vscode.Uri.file(path.join(root, file.file_path));
-      item.contextValue = "file";
+      // Markdown that still exists gets Preview and Read Aloud on its row.
+      const markdown = /\.(md|markdown)$/i.test(file.file_path);
+      const deleted = file.hunks.some((h) => fileChange(h.header) === "deleted");
+      item.contextValue = markdown && !deleted ? "file.markdown" : "file";
       return item;
     }
     const { hunk } = node;

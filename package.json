@@ -240,6 +240,18 @@
         "title": "Stop recording and add the comment",
         "category": "Pear Review",
         "icon": "$(mic-filled)"
+      },
+      {
+        "command": "pearReview.tree.preview",
+        "title": "Open Preview",
+        "category": "Pear Review",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "pearReview.tree.readAloud",
+        "title": "Read Aloud",
+        "category": "Pear Review",
+        "icon": "$(unmute)"
       }
     ],
     "keybindings": [
@@ -349,6 +361,26 @@
           "command": "pearReview.toggleReviewed",
           "when": "view == pearReview.hunks && viewItem == hunk.current",
           "group": "inline"
+        },
+        {
+          "command": "pearReview.tree.preview",
+          "when": "view == pearReview.hunks && viewItem == file.markdown",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.tree.readAloud",
+          "when": "view == pearReview.hunks && viewItem == file.markdown",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.tree.preview",
+          "when": "view == pearReview.hunks && viewItem == file.markdown",
+          "group": "markdown@1"
+        },
+        {
+          "command": "pearReview.tree.readAloud",
+          "when": "view == pearReview.hunks && viewItem == file.markdown",
+          "group": "markdown@2"
         }
       ],
       "commandPalette": [
@@ -422,6 +454,14 @@
         },
         {
           "command": "pearReview.comment.voiceStop",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.tree.preview",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.tree.readAloud",
           "when": "false"
         }
       ],

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Changed markdown files have Open Preview and Read Aloud on their row in the
+  Changes view (inline and in the right-click menu).
 - Read Aloud on a markdown preview's title bar too. Audio the chat may not play
   yet (no click in the panel so far) now says so beside its ▶, and the log
   records it.

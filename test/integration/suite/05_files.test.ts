@@ -68,6 +68,22 @@ describe("read aloud", () => {
     assert.equal(clip.start_line, 5);
   });
 
+  it("opens a markdown file's preview, and reads it, from the Changes tree", async () => {
+    // What a markdown row passes its inline buttons.
+    const node = { kind: "file", file: { file_path: "NOTES.md", hunks: [] } };
+    await vscode.commands.executeCommand("pearReview.tree.preview", node);
+    await waitFor("the markdown preview", () =>
+      vscode.window.tabGroups.all
+        .flatMap((g) => g.tabs)
+        .some((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.includes("markdown.preview")),
+    );
+    const from = await mark();
+    clearSelection();
+    await vscode.commands.executeCommand("pearReview.tree.readAloud", node);
+    const clip = await nextServerMessage("file_audio_chunk", from);
+    assert.equal(clip.file_path, "NOTES.md");
+  });
+
   it("highlights the passage the chat says it is playing", async () => {
     await vscode.window.showTextDocument(repoUri("NOTES.md"));
     await fromChat({ kind: "reading", file_path: "NOTES.md", start_line: 5, end_line: 8 });
