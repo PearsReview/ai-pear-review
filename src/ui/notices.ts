@@ -27,9 +27,9 @@ export function register(backend: Backend): vscode.Disposable[] {
   let summarised = false;
 
   return [
-    backend.on("notice", ({ message, level }) => {
+    backend.on("notice", ({ message, level, event }) => {
       // Read aloud brackets a read with these; its own controls show it.
-      if (/^Reading .+\.\.\.$/.test(message) || /^Finished reading /.test(message)) return;
+      if (event === "reading_started" || event === "reading_finished") return;
       if (level === "success") void inform(message);
       else status(message);
     }),

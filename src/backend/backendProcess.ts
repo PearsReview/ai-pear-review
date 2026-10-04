@@ -38,26 +38,40 @@ export class BackendProcess {
     });
     this.child = child;
 
+    const deadline = Date.now() + READY_TIMEOUT_MS;
     const port = await new Promise<number>((resolve, reject) => {
+      // A launcher that hangs before choosing its port (a stuck import, a preflight
+      // check that never returns) would otherwise leave the backend "starting" forever.
+      const timer = setTimeout(() => {
+        reject(new Error(`The backend didn't start within ${READY_TIMEOUT_MS / 1000}s. See the log.`));
+        child.kill();
+      }, READY_TIMEOUT_MS);
       let buffered = "";
       const onData = (chunk: Buffer): void => {
         const text = chunk.toString("utf8");
         buffered += text;
         const match = PORT_LINE.exec(buffered);
-        if (match?.[1]) resolve(Number(match[1]));
+        if (match?.[1]) {
+          clearTimeout(timer);
+          resolve(Number(match[1]));
+        }
       };
       child.stdout?.on("data", onData);
       child.stdout?.on("data", (chunk: Buffer) => log(chunk.toString("utf8").trimEnd()));
       child.stderr?.on("data", (chunk: Buffer) => log(chunk.toString("utf8").trimEnd()));
-      child.once("error", (err) => reject(new Error(`Could not start ${options.python}: ${err.message}`)));
+      child.once("error", (err) => {
+        clearTimeout(timer);
+        reject(new Error(`Could not start ${options.python}: ${err.message}`));
+      });
       child.once("exit", (code) => {
+        clearTimeout(timer);
         reject(new Error(`The backend exited during startup (code ${code}). See the log for the reason.`));
         this.child = undefined;
         for (const listener of this.exitListeners) listener(code);
       });
     });
 
-    await waitUntilServing(port);
+    await waitUntilServing(port, deadline);
     return port;
   }
 
@@ -73,8 +87,8 @@ export class BackendProcess {
   }
 }
 
-async function waitUntilServing(port: number): Promise<void> {
-  const deadline = Date.now() + READY_TIMEOUT_MS;
+// The same deadline as the port line: startup as a whole gets READY_TIMEOUT_MS.
+async function waitUntilServing(port: number, deadline: number): Promise<void> {
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/`);

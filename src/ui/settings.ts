@@ -28,6 +28,10 @@ const PREP_LABELS: Record<string, string> = {
 
 interface MenuItem extends vscode.QuickPickItem {
   run?: () => void | Promise<void>;
+  // Reads or saves the backend's settings, so the changes must be open first.
+  needsBackend?: boolean;
+  // Leaves the menu instead of reopening it.
+  closes?: boolean;
 }
 
 export function register(context: vscode.ExtensionContext, backend: Backend, prefs: Prefs): vscode.Disposable[] {
@@ -212,9 +216,15 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
         },
         { label: "$(mic) Voice input", description: onOff(p.stt), run: () => prefs.set({ stt: !p.stt }) },
         { label: "Reviewer model", kind: vscode.QuickPickItemKind.Separator },
-        { label: "$(hubot) Model", description: live ? model : "open the changes to see", run: chooseModel },
+        {
+          label: "$(hubot) Model",
+          description: live ? model : "open the changes to see",
+          run: chooseModel,
+          needsBackend: true,
+        },
         {
           label: "$(settings) Limits",
+          needsBackend: true,
           description: s
             ? [
                 s.provider !== "anthropic" && s.ollama?.num_ctx ? `context ${s.ollama.num_ctx}` : "",
@@ -238,6 +248,7 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
         { label: "Speech", kind: vscode.QuickPickItemKind.Separator },
         {
           label: "$(unmute) Text-to-speech service",
+          needsBackend: true,
           description: current?.tts_settings?.endpoint ?? "",
           run: async () => {
             if (current) await speechService("tts", current);
@@ -245,6 +256,7 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
         },
         {
           label: "$(mic) Speech-to-text service",
+          needsBackend: true,
           description: current?.stt_settings?.endpoint ?? "",
           run: async () => {
             if (current) await speechService("stt", current);
@@ -253,6 +265,7 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
         { label: "Coding agent", kind: vscode.QuickPickItemKind.Separator },
         {
           label: "$(tools) Agent for Act Now and Look deeper",
+          needsBackend: true,
           description: harness
             ? `${AGENT_LABELS[harness.agent] ?? harness.agent}${harness.agent !== "none" && harness.model ? ` · ${harness.model}` : ""}`
             : "",
@@ -261,6 +274,7 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
         { label: "Review context", kind: vscode.QuickPickItemKind.Separator },
         {
           label: "$(book) Prep files",
+          needsBackend: true,
           description: current?.context_status
             ? Object.entries(current.context_status)
                 .map(([k, v]) => `${PREP_LABELS[k] ?? k}: ${!v.present ? "missing" : v.head_moved ? "stale" : "ok"}`)
@@ -273,6 +287,7 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
         {
           label: "$(output) Show log",
           run: () => output.show(),
+          closes: true,
         },
       ];
       const picked = await vscode.window.showQuickPick(items, {
@@ -282,12 +297,12 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
           : "Model, speech and agent settings appear once the changes are open",
       });
       if (!picked?.run) return;
-      if (!live && picked.run !== undefined && /Model|Limits|service|Agent|Prep/.test(picked.label)) {
+      if (!live && picked.needsBackend) {
         if (!(await ensureBackend())) return;
         continue;
       }
       await picked.run();
-      if (picked.label.includes("Show log")) return;
+      if (picked.closes) return;
     }
   };
 

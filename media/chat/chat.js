@@ -618,7 +618,9 @@
   });
 
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // isComposing: this Enter commits an IME candidate (Chinese, Japanese, Korean
+    // input), it doesn't send the half-typed message.
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       $("composer").dispatchEvent(new Event("submit", { cancelable: true }));
     }

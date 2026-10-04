@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Act Now's proposal is locked while the agent refines it, or while it's being
+  applied: Apply, Refine and Discard (in the notification and the diff's title
+  bar) wait for the answer, so the old proposal can't be applied mid-refine.
+- Fixed: pressing Enter to pick an IME candidate (Chinese, Japanese, Korean
+  input) sent the half-typed message.
+- Setting the Anthropic API key offers to restart the backend, which is when it
+  takes effect.
+- Read Aloud plays 8-, 24- and 32-bit and floating-point WAV speech, not only
+  16-bit.
+- Recognising an applied Act Now change, and the start and end of a file read,
+  no longer depends on the wording of the backend's notices.
+
 - Safer and sturdier Read Aloud. The backend no longer loads the reviewed
   repo's `.env` (its variables reached the coding agent). Reading no longer
   moves the cursor or selection. A read cancelled on the backend by another

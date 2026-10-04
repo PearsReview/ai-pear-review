@@ -6,3 +6,5 @@ __pycache__/
 .vscode-test/
 dist-test/
 media/chat/codicons/
+.pytest_cache/
+__pycache__/

@@ -22,6 +22,7 @@ const serverMessagesWithActNow = async (from: number): Promise<Record<string, un
 
 interface ActState {
   active: boolean;
+  busy: boolean;
   proposal?: { files: { file_path: string; status: string }[]; summary: string };
 }
 
@@ -103,5 +104,25 @@ describe("coding agent", () => {
     assert.equal((await actState()).proposal, undefined);
     await waitFor("its diff tabs to close", () => proposalTabs().length === 0);
     assert.equal(readFileSync(path.join(repo, "sample.py"), "utf8"), before);
+  });
+
+  it("locks the proposal while it's being refined", async () => {
+    const before = readFileSync(path.join(repo, "sample.py"), "utf8");
+    await fromChat({ kind: "setActMode", on: true });
+    await fromChat({ kind: "actNow", text: "Add a third comment" });
+    await waitFor("a proposal", async () => {
+      const s = await actState();
+      return s.proposal && !s.busy;
+    });
+    await vscode.commands.executeCommand("pearReview.actNow.refine", "Make it shorter");
+    assert.equal((await actState()).busy, true, "refining locks the proposal");
+    // Apply, as from the notification or the diff's title bar, while the agent refines.
+    await vscode.commands.executeCommand("pearReview.actNow.apply");
+    await vscode.commands.executeCommand("pearReview.actNow.discard");
+    assert.ok((await actState()).proposal, "discard waits for the refine too");
+    await waitFor("the refine to answer", async () => !(await actState()).busy);
+    assert.equal(readFileSync(path.join(repo, "sample.py"), "utf8"), before, "nothing was applied mid-refine");
+    await vscode.commands.executeCommand("pearReview.actNow.discard");
+    assert.equal((await actState()).proposal, undefined);
   });
 });

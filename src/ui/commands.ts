@@ -143,6 +143,26 @@ export function register(
       if (key === undefined) return;
       if (key.trim()) await context.secrets.store("pearReview.anthropicApiKey", key.trim());
       else await context.secrets.delete("pearReview.anthropicApiKey");
+      // The key reaches the backend in its environment, at start. A restart picks it up;
+      // the review resumes from its saved state.
+      const repo = backend.repoPath;
+      if (backend.state !== "ready" || !repo) return;
+      const choice = await vscode.window.showInformationMessage(
+        "Pear Review: the backend uses the new key once it restarts.",
+        "Restart Now",
+      );
+      if (choice !== "Restart Now") return;
+      try {
+        await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Window, title: "Pear Review: restarting backend" },
+          async () => {
+            await backend.stop();
+            await backend.start(repo);
+          },
+        );
+      } catch (err) {
+        showError(err instanceof Error ? err.message : String(err));
+      }
     }),
   ];
 }

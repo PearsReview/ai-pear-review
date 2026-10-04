@@ -334,6 +334,16 @@ void describe("chat webview", () => {
     assert.equal(input.value, "");
   });
 
+  void test("an Enter that commits an IME candidate doesn't send", () => {
+    chat.server("presenting", hunk);
+    const input = chat.$("input") as HTMLTextAreaElement;
+    input.value = "なぜ";
+    const before = chat.posts.length;
+    input.dispatchEvent(new chat.window.KeyboardEvent("keydown", { key: "Enter", isComposing: true }));
+    assert.equal(chat.posts.length, before);
+    assert.equal(input.value, "なぜ");
+  });
+
   void test("act mode sends the next message to the agent", () => {
     chat.server("presenting", hunk);
     chat.server("service_status", { act_now: { available: true, detail: "ok", agent: "Cline" } });

@@ -27,7 +27,16 @@ export function register(backend: Backend): { actNow: ActNow; disposables: vscod
   const activeChanges = new vscode.EventEmitter<boolean>();
   let active = false;
   let proposal: ActNowPreview | undefined;
-  publish("actNow.state", () => ({ active, proposal }));
+  // The agent is refining the proposal, or it's being applied: until that answers, the
+  // proposal on screen mustn't be applied, refined again or discarded under it.
+  let busy = false;
+  publish("actNow.state", () => ({ active, proposal, busy }));
+
+  const setBusy = (on: boolean): void => {
+    if (on === busy) return;
+    busy = on;
+    void vscode.commands.executeCommand("setContext", "pearReview.proposalBusy", on);
+  };
 
   const uriFor = (side: "before" | "after", filePath: string): vscode.Uri =>
     vscode.Uri.from({ scheme: SCHEME, path: `/${side}/${filePath}` });
@@ -60,6 +69,7 @@ export function register(backend: Backend): { actNow: ActNow; disposables: vscod
 
   const clear = (): void => {
     proposal = undefined;
+    setBusy(false);
     void vscode.commands.executeCommand("setContext", "pearReview.hasProposal", false);
     void closeProposalTabs();
   };
@@ -111,14 +121,18 @@ export function register(backend: Backend): { actNow: ActNow; disposables: vscod
           }
         }
         void vscode.commands.executeCommand("setContext", "pearReview.hasProposal", true);
+        setBusy(false);
         const first = preview.files[0];
         if (first) void openFile(first);
       }),
       backend.on("act_now_cleared", clear),
       backend.on("notice", (n) => {
-        // confirm_act_now's only success signal; the review diff refreshes on its own.
-        if (n.level === "success" && n.message.startsWith("Applied the change")) clear();
+        // confirm_act_now's success; the review diff refreshes on its own.
+        if (n.event === "act_now_applied") clear();
       }),
+      // A refine or an apply that failed or was stopped leaves the proposal as it was.
+      backend.on("error", () => setBusy(false)),
+      backend.on("agent_stopped", () => setBusy(false)),
       backend.onStateChange((state) => {
         if (state !== "ready") {
           clear();
@@ -127,10 +141,14 @@ export function register(backend: Backend): { actNow: ActNow; disposables: vscod
       }),
       vscode.commands.registerCommand("pearReview.actNow.toggle", () => setActive(!active)),
       vscode.commands.registerCommand("pearReview.actNow.apply", () => {
-        if (proposal) guarded(() => backend.send("confirm_act_now", {}));
+        if (!proposal || busy) return;
+        guarded(() => {
+          backend.send("confirm_act_now", {});
+          setBusy(true);
+        });
       }),
       vscode.commands.registerCommand("pearReview.actNow.refine", async (text?: unknown) => {
-        if (!proposal) return;
+        if (!proposal || busy) return;
         const instruction =
           typeof text === "string" && text.trim()
             ? text.trim()
@@ -139,9 +157,15 @@ export function register(backend: Backend): { actNow: ActNow; disposables: vscod
                 prompt: "What should change about it?",
                 ignoreFocusOut: true,
               });
-        if (instruction?.trim()) guarded(() => backend.send("refine_act_now", { text: instruction.trim() }));
+        if (!instruction?.trim() || !proposal || busy) return;
+        guarded(() => {
+          backend.send("refine_act_now", { text: instruction.trim() });
+          setBusy(true);
+        });
       }),
-      vscode.commands.registerCommand("pearReview.actNow.discard", clear),
+      vscode.commands.registerCommand("pearReview.actNow.discard", () => {
+        if (!busy) clear();
+      }),
       vscode.commands.registerCommand("pearReview.actNow.openFile", (filePath: unknown) => {
         const file = proposal?.files.find((f) => f.file_path === filePath);
         if (file) void openFile(file);

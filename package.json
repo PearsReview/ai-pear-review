@@ -159,21 +159,21 @@
         "title": "Act Now: Apply Proposal",
         "category": "Pear Review",
         "icon": "$(check)",
-        "enablement": "pearReview.hasProposal"
+        "enablement": "pearReview.hasProposal && !pearReview.proposalBusy"
       },
       {
         "command": "pearReview.actNow.refine",
         "title": "Act Now: Refine Proposal",
         "category": "Pear Review",
         "icon": "$(edit)",
-        "enablement": "pearReview.hasProposal"
+        "enablement": "pearReview.hasProposal && !pearReview.proposalBusy"
       },
       {
         "command": "pearReview.actNow.discard",
         "title": "Act Now: Discard Proposal",
         "category": "Pear Review",
         "icon": "$(close)",
-        "enablement": "pearReview.hasProposal"
+        "enablement": "pearReview.hasProposal && !pearReview.proposalBusy"
       },
       {
         "command": "pearReview.actNow.openFile",
@@ -727,7 +727,7 @@
     "@types/markdown-it": "^14.2.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.0.0",
-    "@types/vscode": "~1.95.0",
+    "@types/vscode": "~1.106.0",
     "@types/ws": "^8.5.0",
     "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.25.0",

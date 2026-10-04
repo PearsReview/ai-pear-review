@@ -22,6 +22,17 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  python:
+    # The extension's own Python (python/): the audio player's WAV decoding.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pytest
+      - run: python -m pytest test/python -q
+
   integration:
     # A real VS Code with the extension and a real backend; the model, speech service,
     # coding agent and microphone are fakes (test/integration/).

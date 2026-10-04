@@ -21,16 +21,74 @@ One JSON object per line on stdout:
 from __future__ import annotations
 
 import base64
-import io
 import json
+import struct
 import sys
 import threading
 import time
-import wave
+from array import array
 from collections import deque
 
 _BLOCK_SECONDS = 0.05
 _PROGRESS_EVERY = 0.15
+
+_PCM, _FLOAT, _EXTENSIBLE = 1, 3, 0xFFFE
+
+
+def _little_endian(samples: array) -> bytes:
+    """16-bit samples as the little-endian bytes the stream is given."""
+    if sys.byteorder == "big":
+        samples.byteswap()
+    return samples.tobytes()
+
+
+def to_pcm16(data: bytes) -> tuple[int, int, bytes]:
+    """A WAV clip as (sample rate, channels, 16-bit little-endian PCM).
+
+    Speech services differ: 16-bit is common, but 24- and 32-bit integer and
+    32-bit float WAVs are real too, and the wave module reads neither float nor
+    every extensible header. So the RIFF chunks are read here, and each sample
+    is cut down to 16 bits. A data chunk whose size is unknown (streamed, 0 or
+    0xFFFFFFFF) runs to the end of the clip."""
+    if len(data) < 12 or data[:4] != b"RIFF" or data[8:12] != b"WAVE":
+        raise ValueError("not a WAV clip")
+    at, fmt, samples = 12, None, None
+    while at + 8 <= len(data):
+        kind, size = data[at : at + 4], struct.unpack_from("<I", data, at + 4)[0]
+        body = at + 8
+        if kind == b"fmt ":
+            fmt = data[body : body + size]
+        elif kind == b"data":
+            end = len(data) if size in (0, 0xFFFFFFFF) else min(len(data), body + size)
+            samples = data[body:end]
+            break
+        at = body + size + (size & 1)
+    if fmt is None or len(fmt) < 16 or samples is None:
+        raise ValueError("WAV clip without a format or data chunk")
+    audio_format, channels, rate = struct.unpack_from("<HHI", fmt, 0)
+    bits = struct.unpack_from("<H", fmt, 14)[0]
+    if audio_format == _EXTENSIBLE and len(fmt) >= 26:
+        audio_format = struct.unpack_from("<H", fmt, 24)[0]
+    width = bits // 8
+    samples = samples[: len(samples) - len(samples) % (width * channels or 1)]
+    if audio_format == _PCM and bits == 16:
+        pcm = samples
+    elif audio_format == _PCM and bits == 8:
+        pcm = _little_endian(array("h", ((b - 128) << 8 for b in samples)))
+    elif audio_format == _PCM and bits in (24, 32):
+        # Little-endian: a sample's top two bytes are its last two.
+        out = bytearray(len(samples) // width * 2)
+        out[0::2] = samples[width - 2 :: width]
+        out[1::2] = samples[width - 1 :: width]
+        pcm = bytes(out)
+    elif audio_format == _FLOAT and bits == 32:
+        floats = array("f", samples)
+        if sys.byteorder == "big":
+            floats.byteswap()
+        pcm = _little_endian(array("h", (int(max(-1.0, min(1.0, x)) * 32767) for x in floats)))
+    else:
+        raise ValueError(f"unsupported WAV encoding (format {audio_format}, {bits}-bit)")
+    return rate, channels, pcm
 
 
 def emit(event: dict) -> None:
@@ -87,12 +145,8 @@ class Player:
                 emit({"event": "error", "message": str(exc)})
 
     def play(self, sounddevice, clip_id: int, data: bytes) -> None:
-        with wave.open(io.BytesIO(data), "rb") as wav:
-            rate, channels, width = wav.getframerate(), wav.getnchannels(), wav.getsampwidth()
-            pcm = wav.readframes(wav.getnframes())
-        if width != 2:
-            raise ValueError(f"only 16-bit WAV is supported (got {width * 8}-bit)")
-        frame_bytes = channels * width
+        rate, channels, pcm = to_pcm16(data)
+        frame_bytes = channels * 2
         total = len(pcm) // frame_bytes
         block = max(1, int(rate * _BLOCK_SECONDS))
         emit({"event": "start", "id": clip_id})

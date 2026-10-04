@@ -95,7 +95,12 @@ export function register(
     };
   };
 
+  // Bumped by clearThreads: a show() still awaiting its URI from before the clear (a
+  // sync, a finished plan) must not draw a thread afterwards.
+  let epoch = 0;
+
   const clearThreads = (): void => {
+    epoch += 1;
     for (const comment of threads.values()) comment.thread?.dispose();
     threads.clear();
   };
@@ -103,9 +108,11 @@ export function register(
   const show = async (data: ReviewComment): Promise<void> => {
     const root = backend.repoPath;
     if (!root) return;
-    threads.get(data.id)?.thread?.dispose();
+    const started = epoch;
     const range = anchorRange(data.anchor);
     const uri = await reviewUri(root, data.file_path, range.side);
+    if (started !== epoch) return;
+    threads.get(data.id)?.thread?.dispose();
     const comment = new PearComment(data);
     const thread = controller.createCommentThread(uri, new vscode.Range(range.startLine - 1, 0, range.endLine - 1, 0), [
       comment,
