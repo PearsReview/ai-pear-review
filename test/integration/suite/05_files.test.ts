@@ -111,7 +111,7 @@ describe("read aloud", () => {
     await waitFor("the file to be read", async () => (await readState())?.filePath === "NOTES.md");
   });
 
-  it("reading from a preview opens the text beside it, cursor on the passage", async () => {
+  it("reading from a preview highlights in the preview, without opening the text", async () => {
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
     await vscode.commands.executeCommand("markdown.showPreview", repoUri("NOTES.md"));
     // The preview command returns before its tab exists.
@@ -120,11 +120,18 @@ describe("read aloud", () => {
       return tab?.input instanceof vscode.TabInputWebview ? tab : undefined;
     });
     await vscode.commands.executeCommand("pearReview.readAloud");
-    const editor = await waitFor("NOTES.md's text beside the preview", () =>
-      vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === repoUri("NOTES.md").fsPath),
-    );
     const at = await waitFor("the passage being read", reading);
-    await waitFor("the cursor on the passage", () => editor.selection.active.line === at.startLine - 1);
+    await vscode.commands.executeCommand("pearReview.pauseReading");
+    // The preview renders through VS Code's markdown engine, which runs our plugin; the
+    // markdown extension's own render command uses the same engine.
+    const doc = await vscode.workspace.openTextDocument(repoUri("NOTES.md"));
+    const html = await vscode.commands.executeCommand<string>("markdown.api.render", doc);
+    assert.match(html, /class="[^"]*pear-reading/, `the passage at line ${at.startLine} is marked in the preview`);
+    assert.equal(
+      vscode.window.visibleTextEditors.some((e) => e.document.uri.fsPath === repoUri("NOTES.md").fsPath),
+      false,
+      "the text doesn't open beside the preview",
+    );
   });
 
   it("leaves the chat out of it", async () => {

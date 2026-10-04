@@ -1,7 +1,9 @@
+import * as path from "node:path";
 import * as vscode from "vscode";
 
 import { PythonBackend } from "./backend/backend.ts";
 import { output } from "./log.ts";
+import { readingPlugin, type MarkdownItLike } from "./review/markdownReading.ts";
 import { read, testMode } from "./testProbe.ts";
 import * as actNow from "./ui/actNow.ts";
 import * as chatPanel from "./ui/chatPanel.ts";
@@ -22,8 +24,12 @@ let backend: PythonBackend | undefined;
 
 // Wiring only. Nothing here blocks or spawns: the backend starts on the first
 // "Start Review".
-// Returns the test probe's reader when PEAR_REVIEW_TEST=1, and nothing otherwise.
-export function activate(context: vscode.ExtensionContext): { read: typeof read } | undefined {
+// Returns the markdown preview's plugin (contributes."markdown.markdownItPlugins": VS Code
+// asks for it when a preview opens), and the test probe's reader when PEAR_REVIEW_TEST=1.
+export function activate(context: vscode.ExtensionContext): {
+  extendMarkdownIt(md: MarkdownItLike): MarkdownItLike;
+  read?: typeof read;
+} {
   backend = new PythonBackend(context.extensionPath, context.secrets);
   const prefs = preferences.register(context, backend);
   const selection = selectionContext.register(backend);
@@ -58,7 +64,17 @@ export function activate(context: vscode.ExtensionContext): { read: typeof read 
     ),
     ...commands.register(context, backend, recorder.voice, prefs.prefs),
   );
-  return testMode ? { read } : undefined;
+  const samePath = (a: string, b: string): boolean =>
+    process.platform === "win32"
+      ? path.normalize(a).toLowerCase() === path.normalize(b).toLowerCase()
+      : path.normalize(a) === path.normalize(b);
+  return {
+    extendMarkdownIt(md: MarkdownItLike): MarkdownItLike {
+      readingPlugin(md, () => repoFiles.reader.spot, samePath);
+      return md;
+    },
+    ...(testMode ? { read } : {}),
+  };
 }
 
 export async function deactivate(): Promise<void> {

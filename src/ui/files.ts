@@ -5,6 +5,7 @@ import { AudioPlayer } from "../audio/player.ts";
 import type { Backend } from "../backend/backend.ts";
 import { repositoryRoots, reviewLocation } from "../git.ts";
 import { showError } from "../log.ts";
+import type { ReadingSpot } from "../review/markdownReading.ts";
 import { blockAtFraction, type SpokenBlock } from "../review/reading.ts";
 import { publish } from "../testProbe.ts";
 import { lineSpan } from "./selection.ts";
@@ -28,9 +29,13 @@ export interface ReadingState {
 export interface Reader {
   readonly state: ReadingState | undefined;
   readonly onDidChange: vscode.Event<ReadingState | undefined>;
+  // The passage being read, for the markdown preview's plugin (markdownReading.ts).
+  readonly spot: ReadingSpot | undefined;
 }
 
 interface Read extends ReadingState {
+  // The file's text when the read began: the preview of this file is the one rendering it.
+  text: string;
   clips: Map<number, { blocks: SpokenBlock[]; startLine: number; endLine: number }>;
   received: number;
   total: number | undefined;
@@ -98,12 +103,38 @@ export function register(
     const shown = vscode.window.visibleTextEditors.some(
       (e) => e.document.uri.scheme === "file" && reviewLocation(e.document.uri, root)?.filePath === filePath,
     );
-    if (shown) return;
+    if (shown || previewShowing(filePath)) return;
     await vscode.window.showTextDocument(vscode.Uri.file(path.join(root, filePath)), {
       viewColumn: vscode.ViewColumn.Beside,
       preserveFocus: true,
       preview: true,
     });
+  };
+
+  // A markdown preview of the file, open in a visible tab group. Its tab says
+  // "Preview <file name>".
+  const previewShowing = (filePath: string): boolean => {
+    const name = path.basename(filePath);
+    return vscode.window.tabGroups.all.some((group) => {
+      const tab = group.activeTab;
+      return (
+        tab?.input instanceof vscode.TabInputWebview &&
+        tab.input.viewType.includes("markdown.preview") &&
+        tab.label.replace(/^\[?Preview\]? ?/, "").trim() === name
+      );
+    });
+  };
+
+  // The preview marks the passage as it renders (markdownReading.ts), so it re-renders
+  // as the reading moves.
+  let refreshQueued = false;
+  const refreshPreview = (filePath: string | undefined): void => {
+    if (!filePath || !previewShowing(filePath) || refreshQueued) return;
+    refreshQueued = true;
+    setTimeout(() => {
+      refreshQueued = false;
+      void vscode.commands.executeCommand("markdown.preview.refresh");
+    }, 50);
   };
 
   const highlight = (next: ReadingPosition | undefined): void => {
@@ -114,7 +145,9 @@ export function register(
       next.startLine === position.startLine &&
       next.endLine === position.endLine;
     if (same) return;
+    const was = position?.filePath;
     position = next;
+    refreshPreview(next?.filePath ?? was);
     if (!next) {
       textShownFor = undefined;
       for (const editor of vscode.window.visibleTextEditors) decorate(editor, false);
@@ -259,7 +292,8 @@ export function register(
       editor && editor.document.uri.toString() === uri.toString() && !editor.selection.isEmpty
         ? lineSpan(editor.selection)
         : undefined;
-    read = { filePath, uri, status: "loading", clips: new Map(), received: 0, total: undefined, finished: 0 };
+    const text = (await vscode.workspace.openTextDocument(uri)).getText();
+    read = { filePath, uri, text, status: "loading", clips: new Map(), received: 0, total: undefined, finished: 0 };
     update();
     backend.send(
       "speak_file",
@@ -277,6 +311,17 @@ export function register(
       return read && { filePath: read.filePath, uri: read.uri, status: read.status };
     },
     onDidChange: changes.event,
+    get spot() {
+      const root = backend.repoPath;
+      return position && root && read
+        ? {
+            fsPath: path.join(root, position.filePath),
+            text: read.text,
+            startLine: position.startLine,
+            endLine: position.endLine,
+          }
+        : undefined;
+    },
   };
 
   return {

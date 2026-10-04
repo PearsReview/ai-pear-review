@@ -62,8 +62,8 @@ still works on its own.
 10. **Read Aloud** on a markdown file: the speaker on its row in the Changes
     view, in its editor's or preview's title bar, or on right-click in the
     Explorer. While it reads, that same place shows **pause**, **play** and
-    **stop**. The passage being read is highlighted in the file's text; read
-    from a preview, the text opens beside it and the preview follows along.
+    **stop**. The passage being read is highlighted, and kept in view, in the
+    markdown preview and in the file's text, whichever is open.
     Select lines first to read only those. (To preview a markdown file, press
     Ctrl+Shift+V, or Ctrl+K V for a side-by-side preview.)
 11. **Create Plan** (the checklist button on the Changes view) writes all

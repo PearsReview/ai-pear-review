@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The passage being read aloud is highlighted, and scrolled into view, in
+  VS Code's markdown preview itself (a markdown-it plugin plus a preview style
+  and script); reading from a preview no longer opens the text beside it.
 - Read Aloud plays through the extension (a small player using sounddevice), so
   it no longer waits for a click in the chat. It's controlled where it's
   started: the speaker on the file's row, editor or preview title bar, or

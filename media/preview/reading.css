@@ -1,0 +1,8 @@
+/* The passage being read aloud, in VS Code's markdown preview (src/review/markdownReading.ts
+   marks it). Theme colours, the same find-match pair the editor highlight uses. */
+.pear-reading {
+  background-color: var(--vscode-editor-findMatchBackground, rgba(234, 92, 0, 0.33));
+  box-shadow: -6px 0 0 var(--vscode-editor-findMatchBorder, rgba(234, 92, 0, 0.8));
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+}
