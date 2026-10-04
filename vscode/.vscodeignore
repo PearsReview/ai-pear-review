@@ -34,3 +34,4 @@ tsconfig.webview.json
 TODO.md
 ruff.toml
 scripts/**
+media/screenshot.png

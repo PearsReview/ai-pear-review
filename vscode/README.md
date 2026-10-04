@@ -13,6 +13,8 @@ lives in this repo's root (`app/`, `static/`, `run.py`); the extension is this
 `vscode/` folder, and the `.vsix` carries a copy of the backend. The web app is
 unaffected and still works on its own.
 
+![The Changes tree, the native diff of a change, and the reviewer's explanation of it in the chat.](media/screenshot.png)
+
 ## Requirements
 
 - VS Code 1.106 or later, with a **local**, trusted workspace. Remote, WSL and
