@@ -95,6 +95,6 @@
     return blocks[blocks.length - 1].block_index;
   }
 
-  // @ts-ignore — the one global this file exports, read by chat.js.
+  // The one global this file exports, read by audio.js and chat.js (types: globals.d.ts).
   window.PearReadAlong = { resolveSentences, blockAtFraction, highlight };
 })();

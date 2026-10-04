@@ -5,9 +5,7 @@
 // @ts-check
 (function () {
   const vscode = acquireVsCodeApi();
-  // @ts-ignore — set by blocks.js
   const { renderBlocks } = window.PearBlocks;
-  // @ts-ignore — set by readalong.js
   const readAlong = window.PearReadAlong;
   const $ = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
   const transcript = $("transcript");
@@ -176,9 +174,8 @@
 
   // Each spoken message carries its own speaker button, and it is the only audio
   // control: idle (speaker) → loading (spinner, while speech is made) → playing (pause)
-  // ⇄ paused (play) → idle when it finishes. The button whose audio is in the player is
-  // the "owner"; starting another message's audio hands ownership over.
-  let owner = /** @type {HTMLElement | null} */ (null);
+  // ⇄ paused (play) → idle when it finishes. The player (audio.js) knows which button's
+  // audio it holds.
   // The newest reply's button: automatic narration audio plays under it.
   let latestSpeak = /** @type {HTMLElement | null} */ (null);
 
@@ -196,21 +193,21 @@
     setIcon(button, glyph, label, mode === "loading");
   }
 
+  const audio = window.PearAudio.createAudio({ post, readAlong, setSpeakState });
+
   // `request` asks for this message's speech again (posted when idle is clicked).
   function speakButton(request) {
     const button = iconButton("unmute", "Read aloud", "icon-btn speak");
     setSpeakState(button, "idle");
     button.addEventListener("click", () => {
       const mode = button.dataset.mode;
-      if (mode === "playing") return pause();
-      if (mode === "paused") return resume();
+      if (mode === "playing") return audio.pause();
+      if (mode === "paused") return audio.resume();
       if (mode === "loading") {
         post({ kind: "command", command: "interrupt" });
-        return stopAudio();
+        return audio.stop();
       }
-      stopAudio();
-      owner = button;
-      setSpeakState(button, "loading");
+      audio.claim(button);
       post(request);
     });
     return button;
@@ -401,133 +398,6 @@
     card.scrollIntoView({ block: "end" });
   }
 
-  // --- audio: one message's clips play back to back -----------------------------------
-  // chunk_index 0 starts a message, and its button takes the player; later clips that
-  // belong to a message no longer playing are dropped. (A markdown file read aloud is the
-  // extension's: python/player.py.)
-
-  const player = new Audio();
-  /** @type {{ url: string, sentences: any[] | null }[]} */
-  let queue = [];
-  let paused = false;
-  // The clip playing now: its sentences found in the message, for the read-along.
-  let clip = /** @type {{ segments: any[], at: any }} */ ({
-    segments: [],
-    at: null,
-  });
-
-  function enqueue(payload, button) {
-    if (payload.chunk_index === 0) {
-      clearQueue();
-      player.pause();
-      if (owner && owner !== button) setSpeakState(owner, "idle");
-      owner = button;
-      paused = false;
-    } else if (button !== owner) {
-      return;
-    }
-    const bytes = Uint8Array.from(atob(payload.audio_base64), (c) => c.charCodeAt(0));
-    queue.push({
-      url: URL.createObjectURL(new Blob([bytes], { type: payload.mime_type })),
-      sentences: Array.isArray(payload.sentences) ? payload.sentences : null,
-    });
-    if (owner && owner.dataset.mode !== "paused") setSpeakState(owner, "playing");
-    if (player.paused && !paused) playNext();
-  }
-
-  function playNext() {
-    const next = queue.shift();
-    if (!next) return;
-    player.src = next.url;
-    // Resolve this clip's sentences against the message its button belongs to.
-    const body = owner?.closest(".turn")?.querySelector(".turn-body");
-    clip = {
-      segments: next.sentences && body ? readAlong.resolveSentences(body, next.sentences) : [],
-      at: null,
-    };
-    // Playing takes the voice: a file being read aloud stops (src/audio/speaking.ts).
-    player
-      .play()
-      .then(() => post({ kind: "audioStarted" }))
-      .catch((err) => {
-        if (err.name === "NotAllowedError") {
-          // The panel may not play sound until it has been clicked once: the button
-          // waits on Play, and that click is the permission.
-          queue.unshift(next);
-          paused = true;
-          if (owner) setSpeakState(owner, "paused");
-          showBlockedHint(true);
-          post({ kind: "audioBlocked" });
-        }
-      });
-  }
-
-  // Audio started from outside the panel (Read Aloud in the editor, automatic narration
-  // before any click here) is refused until the panel has been clicked once. Say so
-  // beside the button that is waiting, rather than leave a silent play icon.
-  function showBlockedHint(on) {
-    document.querySelectorAll(".audio-hint").forEach((el) => el.remove());
-    if (!on || !owner) return;
-    const hint = document.createElement("span");
-    hint.className = "audio-hint";
-    hint.textContent = "Press ▶ to start: the chat needs one click before it can play sound.";
-    owner.after(hint);
-  }
-
-  function pause() {
-    paused = true;
-    player.pause();
-    if (owner) setSpeakState(owner, "paused");
-  }
-
-  function resume() {
-    paused = false;
-    showBlockedHint(false);
-    if (owner) setSpeakState(owner, "playing");
-    if (player.src && !player.ended && player.currentTime > 0) {
-      void player.play().then(() => post({ kind: "audioStarted" }));
-    } else playNext();
-  }
-
-  function clearQueue() {
-    queue.forEach((entry) => URL.revokeObjectURL(entry.url));
-    queue = [];
-  }
-
-  function stopAudio() {
-    clearQueue();
-    player.pause();
-    paused = false;
-    readAlong.highlight(null);
-    showBlockedHint(false);
-    clip = { segments: [], at: null };
-    if (owner) setSpeakState(owner, "idle");
-    owner = null;
-  }
-
-  // Where the voice is, estimated from how far through the clip it has got.
-  function onTimeUpdate() {
-    const duration = player.duration;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-    const fraction = Math.min(1, Math.max(0, player.currentTime / duration));
-    if (clip.segments.length) {
-      const i = readAlong.blockAtFraction(clip.segments, fraction);
-      if (i === clip.at) return;
-      clip.at = i;
-      readAlong.highlight(clip.segments[i]?.range ?? null);
-      const turn = owner?.closest(".turn");
-      if (turn instanceof HTMLElement) turn.dataset.readingSentence = String(i);
-    }
-  }
-
-  player.addEventListener("timeupdate", onTimeUpdate);
-
-  player.addEventListener("ended", () => {
-    URL.revokeObjectURL(player.src);
-    if (queue.length) playNext();
-    else stopAudio();
-  });
-
   // --- extension → webview -----------------------------------------------------------
 
   const handlers = {
@@ -575,16 +445,16 @@
     reviewer_turn: (p) => appendTurn("presenter", p.text, p),
     deeper_turn: (p) => appendTurn("deeper", p.text, p),
     service_status(p) {
-      if (p.tts === false) stopAudio();
+      if (p.tts === false) audio.stop();
       if (p.act_now) {
         state.actNow = p.act_now;
         updateControls();
       }
     },
     // Narration and replies spoken automatically: under the newest reply's button.
-    audio_chunk: (p) => enqueue(p, latestSpeak),
+    audio_chunk: (p) => audio.enqueue(p, latestSpeak),
     // A message read aloud on request: under the button that asked.
-    turn_audio_chunk: (p) => enqueue(p, p.chunk_index === 0 ? (owner ?? latestSpeak) : owner),
+    turn_audio_chunk: (p) => audio.enqueue(p, p.chunk_index === 0 ? (audio.owner ?? latestSpeak) : audio.owner),
     context_too_large: (p) => showTooLarge(p),
   };
 
@@ -613,11 +483,11 @@
       state.actMode = msg.on;
       updateControls();
     } else if (msg.kind === "stopAudio") {
-      stopAudio();
+      audio.stop();
     } else if (msg.kind === "settle") {
       clearThinking();
       state.narrating = false;
-      if (owner?.dataset.mode === "loading") stopAudio();
+      if (audio.owner?.dataset.mode === "loading") audio.stop();
       updateControls();
     } else if (msg.kind === "context") {
       $("context").hidden = !msg.label;

@@ -10,7 +10,7 @@ import { JSDOM } from "jsdom";
 import { chatHtml } from "../../src/ui/chatHtml.ts";
 
 const media = (file: string): string => readFileSync(new URL(`../../media/chat/${file}`, import.meta.url), "utf8");
-const scripts = [media("blocks.js"), media("readalong.js"), media("chat.js")].join("\n");
+const scripts = [media("blocks.js"), media("readalong.js"), media("audio.js"), media("chat.js")].join("\n");
 
 // jsdom has no media playback; this stands in for HTMLAudioElement.
 class FakeAudio {

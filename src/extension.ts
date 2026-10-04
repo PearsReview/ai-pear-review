@@ -12,11 +12,13 @@ import * as chatPanel from "./ui/chatPanel.ts";
 import * as commands from "./ui/commands.ts";
 import * as comments from "./ui/comments.ts";
 import * as diffView from "./ui/diffView.ts";
-import * as files from "./ui/files.ts";
 import * as hunkTree from "./ui/hunkTree.ts";
 import * as notices from "./ui/notices.ts";
 import * as preferences from "./ui/prefs.ts";
 import * as pythonSetup from "./ui/pythonSetup.ts";
+import * as readAloud from "./ui/readAloud.ts";
+import * as readingHighlight from "./ui/readingHighlight.ts";
+import * as repoFiles from "./ui/repoFiles.ts";
 import * as repositories from "./ui/repositories.ts";
 import * as selectionContext from "./ui/selection.ts";
 import * as settings from "./ui/settings.ts";
@@ -42,7 +44,8 @@ export function activate(context: vscode.ExtensionContext): {
   const agent = actNow.register(backend);
   const target = chatTarget.register(backend);
   const speaking = new Speaking();
-  const repoFiles = files.register(context, backend, target.target, speaking);
+  const reading = readingHighlight.register(backend);
+  const reader = readAloud.register(context, backend, reading.highlight, speaking);
   const review = comments.register(backend, selection.selection);
   const recorder = voice.register(backend, selection.selection, agent.actNow, target.target, review.comments);
   context.subscriptions.push(
@@ -54,12 +57,14 @@ export function activate(context: vscode.ExtensionContext): {
     ...review.disposables,
     ...repos.disposables,
     ...pythonSetup.register(context),
-    ...hunkTree.register(backend, review.comments, repoFiles.reader, repos.repos),
+    ...hunkTree.register(backend, review.comments, reader.reader, repos.repos),
     ...diffView.register(backend),
     ...selection.disposables,
     ...agent.disposables,
     ...target.disposables,
-    ...repoFiles.disposables,
+    ...reading.disposables,
+    ...reader.disposables,
+    ...repoFiles.register(backend, target.target),
     ...prefs.disposables,
     ...settings.register(context, backend, prefs.prefs),
     ...recorder.disposables,
@@ -81,7 +86,7 @@ export function activate(context: vscode.ExtensionContext): {
       : path.normalize(a) === path.normalize(b);
   return {
     extendMarkdownIt(md: MarkdownItLike): MarkdownItLike {
-      readingPlugin(md, () => repoFiles.reader.spot, samePath);
+      readingPlugin(md, () => reader.reader.spot, samePath);
       return md;
     },
     ...(testMode ? { read } : {}),

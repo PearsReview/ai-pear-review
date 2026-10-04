@@ -6,7 +6,7 @@ import type { ProgressFile, ProgressHunk, ReviewProgress } from "../backend/prot
 import { fileChange, hunkLabel } from "../review/hunks.ts";
 import { publish } from "../testProbe.ts";
 import type { Comments } from "./comments.ts";
-import type { Reader } from "./files.ts";
+import type { Reader } from "./readAloud.ts";
 import type { Repos } from "./repositories.ts";
 import { showPreview } from "./previewTabs.ts";
 

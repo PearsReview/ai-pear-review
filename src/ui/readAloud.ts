@@ -5,23 +5,15 @@ import { AudioPlayer } from "../audio/player.ts";
 import type { Speaking } from "../audio/speaking.ts";
 import type { Backend } from "../backend/backend.ts";
 import { CANCELLING_MESSAGES } from "../backend/protocol.ts";
-import { repoContaining, repositoryRoots, reviewLocation } from "../git.ts";
 import { log, showError } from "../log.ts";
 import type { ReadingSpot } from "../review/markdownReading.ts";
 import { blockAtFraction, type SpokenBlock } from "../review/reading.ts";
 import { sourceLinesOf, type LineRange } from "../review/selectionLines.ts";
 import { publish } from "../testProbe.ts";
-import { previewFile, previewShowing, previewTab } from "./previewTabs.ts";
+import { previewTab } from "./previewTabs.ts";
+import type { ReadingHighlight } from "./readingHighlight.ts";
+import { ensureBackendFor, targetUri } from "./repoFiles.ts";
 import { lineSpan } from "./selection.ts";
-import type { ChatTarget } from "./target.ts";
-
-// Where a markdown file is being read aloud: the passage being read, for the highlight.
-export interface ReadingPosition {
-  filePath: string;
-  // 1-based, inclusive.
-  startLine: number;
-  endLine: number;
-}
 
 // A read in progress: fetching speech, playing, or paused.
 export interface ReadingState {
@@ -56,104 +48,23 @@ interface Read extends ReadingState {
   idle: boolean;
 }
 
-// Two ways into the repo beyond the changes under review: asking the reviewer about
-// any file (explore_reply), and reading a markdown file aloud (speak_file).
-//
-// Read aloud is controlled where it's started: the speaker on the file's row (Changes
-// view, Explorer) or its editor's title bar becomes pause, play and stop while it reads.
-// The extension plays the audio itself (audio/player.ts) — a webview won't play sound
-// before it has been clicked — and highlights the passage being read in the file's text.
+// Reading a markdown file aloud (speak_file). It's controlled where it's started: the
+// speaker on the file's row (Changes view, Explorer) or its editor's or preview's title
+// bar becomes pause, play and stop while it reads. The extension plays the audio itself
+// (audio/player.ts), since a webview won't play sound before it has been clicked, and
+// the passage being read is highlighted (readingHighlight.ts).
 export function register(
   context: vscode.ExtensionContext,
   backend: Backend,
-  target: ChatTarget,
+  highlight: ReadingHighlight,
   speaking: Speaking,
 ): { reader: Reader; disposables: vscode.Disposable[] } {
   const player = new AudioPlayer(context.extensionPath);
   const changes = new vscode.EventEmitter<ReadingState | undefined>();
-  const decoration = vscode.window.createTextEditorDecorationType({
-    isWholeLine: true,
-    backgroundColor: new vscode.ThemeColor("editor.findMatchBackground"),
-    borderStyle: "solid",
-    borderColor: new vscode.ThemeColor("editor.findMatchBorder"),
-    borderWidth: "0 0 0 3px",
-    overviewRulerColor: new vscode.ThemeColor("editor.findMatchBackground"),
-    overviewRulerLane: vscode.OverviewRulerLane.Center,
-  });
   let read: Read | undefined;
-  let position: ReadingPosition | undefined;
-  publish("files.reading", () => position);
   publish("files.read", () => read && { filePath: read.filePath, status: read.status });
 
-  // --- the highlight ---------------------------------------------------------------------
-
-  const decorate = (editor: vscode.TextEditor, reveal: boolean): void => {
-    const root = backend.repoPath;
-    const location = root ? reviewLocation(editor.document.uri, root) : undefined;
-    if (!position || location?.side !== "new" || location.filePath !== position.filePath) {
-      editor.setDecorations(decoration, []);
-      return;
-    }
-    const range = new vscode.Range(position.startLine - 1, 0, position.endLine - 1, 0);
-    editor.setDecorations(decoration, [range]);
-    // Scrolls, but never moves the cursor or selection: the reviewer may be working in
-    // the file while it's read. The preview follows on its own (markdownReading.ts).
-    if (reveal) editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-  };
-
-  // The highlight needs the file's text on screen. Read from a preview (or with the file
-  // closed), the text opens beside it once per read, without taking focus.
-  let textShownFor: string | undefined;
-  const ensureTextVisible = async (filePath: string): Promise<void> => {
-    const root = backend.repoPath;
-    if (!root || textShownFor === filePath) return;
-    textShownFor = filePath;
-    const shown = vscode.window.visibleTextEditors.some(
-      (e) => e.document.uri.scheme === "file" && reviewLocation(e.document.uri, root)?.filePath === filePath,
-    );
-    if (shown || previewShowing(filePath)) return;
-    await vscode.window.showTextDocument(vscode.Uri.file(path.join(root, filePath)), {
-      viewColumn: vscode.ViewColumn.Beside,
-      preserveFocus: true,
-      preview: true,
-    });
-  };
-
-  // The preview marks the passage as it renders (markdownReading.ts), so it re-renders
-  // as the reading moves.
-  let refreshQueued = false;
-  const refreshPreview = (filePath: string | undefined): void => {
-    if (!filePath || !previewShowing(filePath) || refreshQueued) return;
-    refreshQueued = true;
-    setTimeout(() => {
-      refreshQueued = false;
-      void vscode.commands.executeCommand("markdown.preview.refresh");
-    }, 50);
-  };
-
-  const highlight = (next: ReadingPosition | undefined): void => {
-    const same =
-      next &&
-      position &&
-      next.filePath === position.filePath &&
-      next.startLine === position.startLine &&
-      next.endLine === position.endLine;
-    if (same) return;
-    const was = position?.filePath;
-    position = next;
-    refreshPreview(next?.filePath ?? was);
-    if (!next) {
-      textShownFor = undefined;
-      for (const editor of vscode.window.visibleTextEditors) decorate(editor, false);
-      return;
-    }
-    void ensureTextVisible(next.filePath).then(() => {
-      for (const editor of vscode.window.visibleTextEditors) decorate(editor, true);
-    });
-  };
-
-  // --- the read's state, published as context keys for the menus' icons -----------------
-
+  // The read's state, published as context keys for the menus' icons.
   const update = (): void => {
     const state = read && { filePath: read.filePath, uri: read.uri, status: read.status };
     void vscode.commands.executeCommand("setContext", "pearReview.reading", !!read);
@@ -164,7 +75,7 @@ export function register(
 
   const finish = (): void => {
     read = undefined;
-    highlight(undefined);
+    highlight.set(undefined);
     update();
   };
 
@@ -208,70 +119,11 @@ export function register(
     update();
   };
 
-  // --- which file a command means ---------------------------------------------------------
-
-  const activeTabIsPreview = (): boolean => previewTab() !== undefined;
-
-  // The Explorer and editor menus pass the file's URI; a markdown preview passes nothing,
-  // so its file is worked out from the tab (previewTabs.ts); otherwise the active editor's.
-  const targetUri = async (arg: unknown): Promise<vscode.Uri | undefined> => {
-    if (arg instanceof vscode.Uri && arg.scheme === "file") return arg;
-    const tab = previewTab();
-    if (tab) {
-      const file = await previewFile(tab);
-      if (file) return file;
-      log(`Read Aloud: can't tell which file the preview "${tab.label}" shows.`);
-      throw new Error(
-        `Couldn't tell which file "${tab.label}" shows (more than one has that name). Open the file's text and use Read Aloud there.`,
-      );
-    }
-    return vscode.window.activeTextEditor?.document.uri;
-  };
-
-  // Asking about a file works before a review starts, so this starts the backend for
-  // the file's repository if it isn't running, without starting the review.
-  const ensureBackendFor = async (uri: vscode.Uri): Promise<string | undefined> => {
-    if (vscode.env.remoteName) {
-      showError("Remote workspaces aren't supported. Open the repository locally.");
-      return undefined;
-    }
-    const root = repoContaining(uri, await repositoryRoots());
-    if (!root) {
-      showError("That file isn't in a git repository VS Code has open.");
-      return undefined;
-    }
-    // The file's repository becomes the one shown (each keeps its own backend).
-    const shown = backend.repoPath && path.relative(backend.repoPath, root) === "";
-    if (backend.state !== "ready" || !shown) {
-      await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Window, title: "Pear Review: starting backend" },
-        () => backend.start(root),
-      );
-    }
-    return reviewLocation(uri, root)?.filePath;
-  };
-
-  const askAboutFile = async (arg: unknown): Promise<void> => {
-    const uri = await targetUri(arg);
-    if (!uri || uri.scheme !== "file") {
-      showError("Open or select a file in the repository first.");
-      return;
-    }
-    const filePath = await ensureBackendFor(uri);
-    if (!filePath) return;
-    if (vscode.window.activeTextEditor?.document.uri.toString() !== uri.toString()) {
-      await vscode.window.showTextDocument(uri, { preview: true });
-    }
-    target.setFile(filePath);
-    await vscode.commands.executeCommand("pearReview.chat.focus");
-  };
-
-  // The speaker: reads the file, or, pressed on the file being read, pauses, resumes,
-  // or (while speech is still being made) cancels.
-  // The text selected in the markdown preview, as source lines. The preview can't tell
-  // extensions about its selection, but VS Code's copy reaches a focused webview: copy
-  // it, put the clipboard back, and find the copied text in the file. Undefined when
-  // nothing is selected there (or copy didn't reach it), which reads the whole file.
+  // The text selected in the markdown preview, as source lines (opt-in, the
+  // pearReview.readPreviewSelection setting). The preview can't tell extensions about
+  // its selection, but VS Code's copy reaches a focused webview: copy it, put the
+  // clipboard's text back, and find the copied text in the file. Undefined when nothing
+  // is selected there (or copy didn't reach it), which reads the whole file.
   const previewSelection = async (source: string): Promise<LineRange | undefined> => {
     const before = await vscode.env.clipboard.readText();
     const marker = `pear-review-no-selection-${Date.now()}`;
@@ -296,8 +148,10 @@ export function register(
     }
   };
 
+  // The speaker: reads the file, or, pressed on the file being read, pauses, resumes,
+  // or (while speech is still being made) cancels.
   const readFileAloud = async (arg: unknown): Promise<void> => {
-    const fromPreview = !(arg instanceof vscode.Uri && arg.scheme === "file") && activeTabIsPreview();
+    const fromPreview = !(arg instanceof vscode.Uri && arg.scheme === "file") && previewTab() !== undefined;
     const uri = await targetUri(arg);
     if (!uri || uri.scheme !== "file" || !/\.(md|markdown)$/i.test(uri.fsPath)) {
       // What the button passed, and what was found, for a report from the log.
@@ -313,7 +167,7 @@ export function register(
       else stopReading();
       return;
     }
-    const filePath = await ensureBackendFor(uri);
+    const filePath = await ensureBackendFor(backend, uri);
     if (!filePath) return;
     stopReading();
     // A selection reads just the blocks it touches: in the file's text, or in its preview.
@@ -346,9 +200,6 @@ export function register(
     );
   };
 
-  const run = (fn: (arg: unknown) => Promise<void>) => (arg: unknown) =>
-    fn(arg).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
-
   const reader: Reader = {
     get state() {
       return read && { filePath: read.filePath, uri: read.uri, status: read.status };
@@ -356,6 +207,7 @@ export function register(
     onDidChange: changes.event,
     get spot() {
       const root = backend.repoPath;
+      const position = highlight.position;
       return position && root && read
         ? {
             fsPath: path.join(root, position.filePath),
@@ -372,7 +224,6 @@ export function register(
     disposables: [
       player,
       changes,
-      decoration,
       // Each clip of the file goes to the player as it arrives.
       backend.on("file_audio_chunk", (p) => {
         if (!read || p.file_path !== read.filePath) return;
@@ -410,14 +261,14 @@ export function register(
             update();
           }
           const first = clip.blocks[0];
-          highlight({
+          highlight.set({
             filePath: read.filePath,
             startLine: first?.start_line ?? clip.startLine,
             endLine: first?.end_line ?? clip.endLine,
           });
         } else if (e.event === "progress") {
           const block = blockAtFraction(clip.blocks, e.fraction);
-          if (block) highlight({ filePath: read.filePath, startLine: block.start_line, endLine: block.end_line });
+          if (block) highlight.set({ filePath: read.filePath, startLine: block.start_line, endLine: block.end_line });
         } else if (e.event === "done") {
           read.finished += 1;
         }
@@ -439,19 +290,13 @@ export function register(
       speaking.onDidClaim((who) => {
         if (who === "chat") stopReading();
       }),
-      vscode.commands.registerCommand("pearReview.askAboutFile", run(askAboutFile)),
-      vscode.commands.registerCommand("pearReview.readAloud", run(readFileAloud)),
+      vscode.commands.registerCommand("pearReview.readAloud", (arg: unknown) =>
+        readFileAloud(arg).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err))),
+      ),
       vscode.commands.registerCommand("pearReview.pauseReading", pauseReading),
       vscode.commands.registerCommand("pearReview.resumeReading", resumeReading),
       vscode.commands.registerCommand("pearReview.stopReading", stopReading),
       vscode.commands.registerCommand("pearReview.cancelReading", stopReading),
-      vscode.commands.registerCommand("pearReview.openRepoFile", (filePath: unknown) => {
-        if (typeof filePath === "string" && backend.repoPath) {
-          void vscode.window.showTextDocument(vscode.Uri.file(path.join(backend.repoPath, filePath)));
-        }
-      }),
-      // Decorations belong to an editor instance; reopening the file makes a new one.
-      vscode.window.onDidChangeVisibleTextEditors((editors) => editors.forEach((e) => decorate(e, false))),
       backend.onStateChange((state) => {
         if (state !== "ready") stopReading();
       }),

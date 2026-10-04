@@ -60,6 +60,7 @@ export function chatHtml({ nonce, cspSource, src }: ChatHtmlOptions): string {
   </form>
   <script nonce="${nonce}" src="${src("blocks.js")}"></script>
   <script nonce="${nonce}" src="${src("readalong.js")}"></script>
+  <script nonce="${nonce}" src="${src("audio.js")}"></script>
   <script nonce="${nonce}" src="${src("chat.js")}"></script>
 </body>
 </html>`;

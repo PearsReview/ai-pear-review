@@ -826,7 +826,7 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.webview.json",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "node --test \"test/unit/**/*.test.ts\"",

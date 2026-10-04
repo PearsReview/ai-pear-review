@@ -62,6 +62,6 @@
     }
   }
 
-  // @ts-ignore — the one global this file exports, read by chat.js.
+  // The one global this file exports, read by chat.js (types: globals.d.ts).
   window.PearBlocks = { renderBlocks };
 })();

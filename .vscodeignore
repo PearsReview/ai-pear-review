@@ -30,3 +30,4 @@ backend/.env*
 .prettierignore
 .prettierrc.json
 backend/.git*
+tsconfig.webview.json

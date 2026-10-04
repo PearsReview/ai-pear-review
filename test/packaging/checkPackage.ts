@@ -16,6 +16,7 @@ const REQUIRED = [
   "backend/app/config.yaml",
   "backend/static/index.html",
   "media/chat/chat.js",
+  "media/chat/audio.js",
   "media/chat/codicons/codicon.ttf",
   "media/preview/reading.js",
 ];

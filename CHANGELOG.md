@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Internal: Read Aloud, its highlight, and asking about a file are separate
+  modules (`readAloud.ts`, `readingHighlight.ts`, `repoFiles.ts`); the chat's
+  audio player is its own script (`media/chat/audio.js`); and the webview's
+  scripts are type-checked (`tsconfig.webview.json`, part of `npm run
+  typecheck`).
+
 - Suggested questions above the message box, as in the web app: for the change
   on screen, for selected lines, for a file asked about, and instructions in
   Act Now mode. A chip fills the box to edit or send.
