@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Read Aloud from a preview reads the text selected in the preview, as a
+  selection in the file's text does; with nothing selected it reads the whole
+  file.
 - The passage being read aloud is highlighted, and scrolled into view, in
   VS Code's markdown preview itself (a markdown-it plugin plus a preview style
   and script); reading from a preview no longer opens the text beside it.

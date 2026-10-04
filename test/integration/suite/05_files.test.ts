@@ -119,8 +119,13 @@ describe("read aloud", () => {
       const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
       return tab?.input instanceof vscode.TabInputWebview ? tab : undefined;
     });
+    // Nothing is selected in the preview: the whole file is read, and the clipboard the
+    // speaker borrows to look for a selection is left as it was.
+    await vscode.env.clipboard.writeText("keep me");
     await vscode.commands.executeCommand("pearReview.readAloud");
     const at = await waitFor("the passage being read", reading);
+    assert.equal(at.startLine, 1, "no preview selection reads from the top");
+    assert.equal(await vscode.env.clipboard.readText(), "keep me");
     await vscode.commands.executeCommand("pearReview.pauseReading");
     // The preview renders through VS Code's markdown engine, which runs our plugin; the
     // markdown extension's own render command uses the same engine.

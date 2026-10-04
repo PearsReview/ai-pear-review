@@ -64,7 +64,8 @@ still works on its own.
     Explorer. While it reads, that same place shows **pause**, **play** and
     **stop**. The passage being read is highlighted, and kept in view, in the
     markdown preview and in the file's text, whichever is open.
-    Select lines first to read only those. (To preview a markdown file, press
+    To read only part of it, select that text first, in the file or in its
+    preview. (To preview a markdown file, press
     Ctrl+Shift+V, or Ctrl+K V for a side-by-side preview.)
 11. **Create Plan** (the checklist button on the Changes view) writes all
     comments to `.review/review_<time>.md`, optionally as an `/apply-review`

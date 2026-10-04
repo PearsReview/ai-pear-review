@@ -4,9 +4,10 @@ import * as vscode from "vscode";
 import { AudioPlayer } from "../audio/player.ts";
 import type { Backend } from "../backend/backend.ts";
 import { repositoryRoots, reviewLocation } from "../git.ts";
-import { showError } from "../log.ts";
+import { log, showError } from "../log.ts";
 import type { ReadingSpot } from "../review/markdownReading.ts";
 import { blockAtFraction, type SpokenBlock } from "../review/reading.ts";
+import { sourceLinesOf, type LineRange } from "../review/selectionLines.ts";
 import { publish } from "../testProbe.ts";
 import { lineSpan } from "./selection.ts";
 import type { ChatTarget } from "./target.ts";
@@ -32,6 +33,9 @@ export interface Reader {
   // The passage being read, for the markdown preview's plugin (markdownReading.ts).
   readonly spot: ReadingSpot | undefined;
 }
+
+// How long the clipboard gets to receive a copy from the preview's webview.
+const COPY_SETTLE_MS = 150;
 
 interface Read extends ReadingState {
   // The file's text when the read began: the preview of this file is the one rendering it.
@@ -204,6 +208,11 @@ export function register(
 
   // --- which file a command means ---------------------------------------------------------
 
+  const activeTabIsPreview = (): boolean => {
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    return tab?.input instanceof vscode.TabInputWebview && tab.input.viewType.includes("markdown.preview");
+  };
+
   // The Explorer and editor menus pass the file's URI; a markdown preview passes nothing
   // and its tab is labelled "Preview <file name>", so the file is looked for in open
   // documents, then open tabs, then the workspace; otherwise the active editor's.
@@ -271,7 +280,36 @@ export function register(
 
   // The speaker: reads the file, or, pressed on the file being read, pauses, resumes,
   // or (while speech is still being made) cancels.
+  // The text selected in the markdown preview, as source lines. The preview can't tell
+  // extensions about its selection, but VS Code's copy reaches a focused webview: copy
+  // it, put the clipboard back, and find the copied text in the file. Undefined when
+  // nothing is selected there (or copy didn't reach it), which reads the whole file.
+  const previewSelection = async (source: string): Promise<LineRange | undefined> => {
+    const before = await vscode.env.clipboard.readText();
+    const marker = `pear-review-no-selection-${Date.now()}`;
+    await vscode.env.clipboard.writeText(marker);
+    try {
+      await vscode.commands.executeCommand("editor.action.clipboardCopyAction");
+      await new Promise((resolve) => setTimeout(resolve, COPY_SETTLE_MS));
+      const copied = await vscode.env.clipboard.readText();
+      if (!copied.trim() || copied === marker) {
+        log("Read Aloud: nothing selected in the preview, so the whole file is read.");
+        return undefined;
+      }
+      const range = sourceLinesOf(source, copied);
+      log(
+        range
+          ? `Read Aloud: reading the preview's selection, lines ${range.startLine}-${range.endLine}.`
+          : "Read Aloud: couldn't find the preview's selection in the file, so the whole file is read.",
+      );
+      return range;
+    } finally {
+      await vscode.env.clipboard.writeText(before);
+    }
+  };
+
   const readFileAloud = async (arg: unknown): Promise<void> => {
+    const fromPreview = !(arg instanceof vscode.Uri) && activeTabIsPreview();
     const uri = await targetUri(arg);
     if (!uri || uri.scheme !== "file" || !/\.(md|markdown)$/i.test(uri.fsPath)) {
       showError("Read Aloud works on markdown (.md) files.");
@@ -286,13 +324,15 @@ export function register(
     const filePath = await ensureBackendFor(uri);
     if (!filePath) return;
     stopReading();
-    // A selection in that file reads just the blocks it touches.
+    // A selection reads just the blocks it touches: in the file's text, or in its preview.
+    const text = (await vscode.workspace.openTextDocument(uri)).getText();
     const editor = vscode.window.activeTextEditor;
     const selected =
       editor && editor.document.uri.toString() === uri.toString() && !editor.selection.isEmpty
         ? lineSpan(editor.selection)
-        : undefined;
-    const text = (await vscode.workspace.openTextDocument(uri)).getText();
+        : fromPreview
+          ? await previewSelection(text)
+          : undefined;
     read = { filePath, uri, text, status: "loading", clips: new Map(), received: 0, total: undefined, finished: 0 };
     update();
     backend.send(
