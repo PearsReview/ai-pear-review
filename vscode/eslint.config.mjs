@@ -12,6 +12,7 @@ export default tseslint.config(
       ".venv/",
       "media/",
       "esbuild.mjs",
+      "scripts/",
       "eslint.config.mjs",
     ],
   },

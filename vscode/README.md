@@ -9,8 +9,9 @@
 A VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
 It walks you through your uncommitted git changes one hunk at a time, with an AI
 reviewer you can talk to. The Python backend is the same one the web app uses,
-included here as a git submodule (`backend/`). The web app is unaffected and
-still works on its own.
+lives in this repo's root (`app/`, `static/`, `run.py`); the extension is this
+`vscode/` folder, and the `.vsix` carries a copy of the backend. The web app is
+unaffected and still works on its own.
 
 ## Requirements
 
@@ -23,7 +24,7 @@ still works on its own.
   interpreter that already has them.
 - The model and speech services the backend is configured for (by default,
   Ollama, plus a local STT/TTS service on port 8000). See the backend's
-  [README](backend/README.md).
+  [README](../README.md).
 
 ## Using it
 
@@ -114,11 +115,16 @@ setting it offers to restart the backend so it takes effect.
 ## Developing
 
 ```
-git clone --recurse-submodules <this repo>
+git clone <this repo>
+cd vscode
 npm install
 python -m venv .venv
-.venv/Scripts/python -m pip install -r backend/requirements.txt "sounddevice>=0.4,<1.0"
+.venv/Scripts/python -m pip install -r ../requirements.txt "sounddevice>=0.4,<1.0"
 ```
+
+`npm run package` (and `npm run test:package`) copy the repo's backend into
+`backend/` first; that folder is generated and gitignored, and once it exists the
+extension prefers it over the repo root, so delete it to run against your edits.
 
 Press **F5** to launch an Extension Development Host. The extension uses the
 `pearReview.pythonPath` setting if it's set, then the environment **Set Up
@@ -147,7 +153,7 @@ In the integration suite everything the backend calls out to is a fake
 service and records every request, the backend's scripted agent
 (`tests/fake_acp_agent.py`) stands in for Cline, and a fake `sounddevice`
 records a tone instead of opening the microphone. The backend runs from a
-temporary copy with a patched config, so `backend/` is never edited. Only the
+temporary copy with a patched config, so the repo's backend is never edited. Only the
 model switches to the real one with `:ollama`.
 
 Tests drive the extension through its commands and the chat's message handler,

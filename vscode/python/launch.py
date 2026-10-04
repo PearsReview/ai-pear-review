@@ -20,8 +20,14 @@ from pathlib import Path
 
 # PEAR_REVIEW_BACKEND_DIR is for the integration tests, which run a copy of the
 # backend with a patched config.yaml (fake model, fake agent), as qa_agent does,
-# so the submodule itself is never edited.
-BACKEND = Path(os.environ.get("PEAR_REVIEW_BACKEND_DIR") or Path(__file__).resolve().parent.parent / "backend")
+# so the repo's own backend is never edited. Otherwise: the backend/ that
+# `npm run sync-backend` copies in (what the .vsix holds), or, running from a
+# checkout, the repo root this extension lives in.
+_EXTENSION_ROOT = Path(__file__).resolve().parent.parent
+_PACKAGED = _EXTENSION_ROOT / "backend"
+BACKEND = Path(
+    os.environ.get("PEAR_REVIEW_BACKEND_DIR") or (_PACKAGED if _PACKAGED.is_dir() else _EXTENSION_ROOT.parent)
+)
 sys.path.insert(0, str(BACKEND))
 
 

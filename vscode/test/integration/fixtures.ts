@@ -1,7 +1,7 @@
 // What the integration tests run against: a throwaway git repo seeded with every kind
 // of change the review handles, and a copy of the backend whose config points at the
 // fakes. Both live under a fresh temp directory per run, like qa_agent's scratch_repo
-// and app_copy_dir; the real backend/ and its config are never written to.
+// and app_copy_dir; the repo's backend and its config are never written to.
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
@@ -9,7 +9,8 @@ import * as path from "node:path";
 import { FAKE_MODEL } from "./fakeServices.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
-export const BACKEND = path.join(ROOT, "backend");
+// The backend is the repo root this extension lives in (vscode/ is one level down).
+export const BACKEND = path.resolve(ROOT, "..");
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync("git", args, { cwd, stdio: "pipe" });

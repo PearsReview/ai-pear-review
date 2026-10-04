@@ -1,4 +1,4 @@
-// protocol.ts against backend/docs/wire-protocol.md, both directions.
+// protocol.ts against ../docs/wire-protocol.md, both directions.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -10,7 +10,7 @@ import {
   isServerMessage,
 } from "../../src/backend/protocol.ts";
 
-const doc = readFileSync(new URL("../../backend/docs/wire-protocol.md", import.meta.url), "utf8");
+const doc = readFileSync(new URL("../../../docs/wire-protocol.md", import.meta.url), "utf8");
 
 // The first backticked cell of each row between two headings — the same parse the
 // backend's own test_wire_protocol_doc_matches_the_registry uses.

@@ -1,4 +1,4 @@
-// The WebSocket contract, typed. The source of truth is backend/docs/wire-protocol.md;
+// The WebSocket contract, typed. The source of truth is docs/wire-protocol.md (repo root);
 // test/unit/protocol.test.ts fails if a message there has no entry here, or the reverse.
 //
 // Payloads are typed in full where the extension reads or sends them. A message no UI

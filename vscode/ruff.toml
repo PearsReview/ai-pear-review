@@ -1,7 +1,7 @@
 # The extension's own Python (python/, test/python/, the integration fakes) follows the
-# backend's ruff settings. launch.py imports the backend's packages, which ruff can't
+# repo's ruff settings. launch.py imports the backend's packages, which ruff can't
 # find from here, so they're named first-party.
-extend = "backend/pyproject.toml"
+extend = "../pyproject.toml"
 
 [lint.isort]
 known-first-party = ["app", "run", "player"]

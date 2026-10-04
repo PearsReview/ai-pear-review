@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.0.2
 
+- The extension moved into the backend's repo (`vscode/`), replacing the
+  `backend/` submodule. The `.vsix` still carries a copy of the backend, now
+  made by `npm run sync-backend` (run by `package` and `test:package`).
 - Internal: Read Aloud, its highlight, and asking about a file are separate
   modules (`readAloud.ts`, `readingHighlight.ts`, `repoFiles.ts`); the chat's
   audio player is its own script (`media/chat/audio.js`); and the webview's

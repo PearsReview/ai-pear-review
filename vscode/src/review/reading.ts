@@ -2,7 +2,7 @@
 // with no word timings, so the position inside a clip is estimated from how far through
 // it the player is, spread across its blocks by their spoken length (weights measured
 // server-side on the text actually spoken). Exact again at every clip boundary. The same
-// arithmetic as the browser's blockAtFraction (backend/static/js/audio.js). Pure, so it's
+// arithmetic as the browser's blockAtFraction (static/js/audio.js). Pure, so it's
 // unit-tested (test/unit/reading.test.ts).
 
 export interface SpokenBlock {

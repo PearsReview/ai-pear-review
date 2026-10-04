@@ -2,7 +2,7 @@
   "name": "ai-pear-review",
   "displayName": "AI Pear Review",
   "description": "Walk through your uncommitted changes one hunk at a time with an AI reviewer you can talk to.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "PearsReview",
   "license": "MIT",
   "private": true,
@@ -830,11 +830,12 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "node --test \"test/unit/**/*.test.ts\"",
-    "vscode:prepublish": "node esbuild.mjs --production",
+    "sync-backend": "node scripts/syncBackend.mjs",
+    "vscode:prepublish": "node scripts/syncBackend.mjs && node esbuild.mjs --production",
     "test:integration": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts",
     "test:integration:ollama": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts --ollama",
     "package": "vsce package --allow-missing-repository --no-rewrite-relative-links",
-    "test:package": "node test/packaging/checkPackage.ts"
+    "test:package": "node scripts/syncBackend.mjs && node test/packaging/checkPackage.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.0.2
 
+- The VS Code extension now lives in this repo, in `vscode/` (its history
+  came with it); there is one repo and one version for both front ends. The
+  web app is unchanged. See [vscode/CHANGELOG.md](vscode/CHANGELOG.md).
 - Security: `.review/ui_settings.json` is input from the repo under review.
   A copy committed to the repo is ignored, and any copy is held to the settings
   panel's allowlists on load. Before, a repo could ship one that replaced the

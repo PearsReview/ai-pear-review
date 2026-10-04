@@ -1,6 +1,6 @@
 [project]
 name = "ai-pear-review"
-version = "0.0.1"
+version = "0.0.2"
 description = "A local web app that walks you through your own uncommitted git changes one hunk at a time, with an AI persona narrating each change."
 readme = "README.md"
 license = { file = "LICENSE" }

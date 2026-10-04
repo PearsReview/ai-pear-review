@@ -3,7 +3,7 @@
 How code in this repo should read, and the shape it grows along.
 
 **House style is inherited, not restated.** Part 1 of the backend's
-[docs/STYLE.md](../backend/docs/STYLE.md) applies here unchanged: the comment
+[docs/STYLE.md](../../docs/STYLE.md) applies here unchanged: the comment
 calibration rule (keep measurements, observed failures, rejected alternatives
 and cross-module contracts; cut restatements and changelog), "one fact, one
 home", and naming and size. This file adds only what is specific to a
@@ -42,7 +42,7 @@ src/ui/*  →  Backend interface  →  BackendManager (src/backend/manager.ts)
 - `src/backend/` never imports `src/ui/`.
 - Every wire message is a typed entry in
   [src/backend/protocol.ts](../src/backend/protocol.ts). Its source of truth is the
-  backend's [wire-protocol.md](../backend/docs/wire-protocol.md);
+  backend's [wire-protocol.md](../../docs/wire-protocol.md);
   `test/unit/protocol.test.ts` fails if the two disagree in either direction.
   A message no UI reads yet is typed `Unknown` until one does.
 

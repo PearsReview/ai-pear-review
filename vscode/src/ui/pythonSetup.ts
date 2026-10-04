@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 
@@ -101,7 +101,9 @@ export function register(context: vscode.ExtensionContext): vscode.Disposable[] 
       return;
     }
     const venv = managedVenv();
-    const requirements = path.join(context.extensionPath, "backend", "requirements.txt");
+    // The .vsix holds the backend in backend/; a checkout (F5) has it one level up.
+    const packaged = path.join(context.extensionPath, "backend", "requirements.txt");
+    const requirements = existsSync(packaged) ? packaged : path.join(context.extensionPath, "..", "requirements.txt");
     try {
       await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: "Pear Review: setting up Python", cancellable: true },
