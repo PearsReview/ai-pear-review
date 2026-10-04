@@ -32,6 +32,24 @@
     // The file the hunk on screen is in, and whether the chat shows only its turns.
     reviewFile: /** @type {string | null} */ (null),
     fileFilter: false,
+    // Lines are selected in the editor, to go with the next question.
+    selection: false,
+  };
+
+  // The web app's suggestion lists (backend/static/js/interactions.js). A chip fills the
+  // message box, to edit or send; nothing is sent until the reviewer does.
+  const SUGGESTIONS = {
+    file: ["Explain what this file does", "Summarize the changes in this file", "Are there any bugs here?"],
+    hunk: ["Explain this change", "Why was this modified?", "Suggest a test for this"],
+    selection: ["Explain this code", "Suggest a better approach", "Add a test for this selection"],
+    // Instructions for the agent, not questions.
+    actNow: [
+      "Add a docstring to this function",
+      "Add type hints",
+      "Extract this into a named constant",
+      "Add a null/None check",
+      "Rename for clarity",
+    ],
   };
 
   const post = (message) => vscode.postMessage(message);
@@ -283,6 +301,39 @@
         : "Ask about this change… (select lines in the editor to ask about them)";
     setIcon($("send"), "send", state.actMode ? "Send to agent" : "Send");
     document.querySelectorAll(".look-deeper").forEach(applyLookDeeper);
+    renderSuggestions();
+  }
+
+  // Which list applies now: act mode's instructions, then a selection's (the most
+  // specific question), then the file asked about, then the change on screen.
+  function renderSuggestions() {
+    const box = $("suggestions");
+    const canAsk = (state.current !== null && !state.ended) || state.targetFile !== null;
+    const list = !canAsk
+      ? null
+      : state.actMode
+        ? SUGGESTIONS.actNow
+        : state.selection
+          ? SUGGESTIONS.selection
+          : state.targetFile
+            ? SUGGESTIONS.file
+            : SUGGESTIONS.hunk;
+    box.hidden = !list;
+    box.replaceChildren(
+      ...(list ?? []).map((text) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "pill subtle suggestion";
+        chip.textContent = text;
+        chip.title = "Put this in the message box to edit or send";
+        chip.addEventListener("click", () => {
+          input.value = text;
+          input.focus();
+          input.setSelectionRange(text.length, text.length);
+        });
+        return chip;
+      }),
+    );
   }
 
   function agentName() {
@@ -499,6 +550,12 @@
         state.reviewFile = p.file_path;
         applyFilter();
         if (state.narrating) showThinking();
+        else if (!state.started && !transcript.querySelector(".turn")) {
+          appendTurn(
+            "system",
+            "Ask about this change below, or select lines in the editor to ask about them. To have the reviewer explain each change as you go, start the review from the Changes view (▶).",
+          );
+        }
       }
       updateControls();
     },
@@ -565,6 +622,8 @@
     } else if (msg.kind === "context") {
       $("context").hidden = !msg.label;
       $("context-label").textContent = msg.label ? `Asking about ${msg.label}` : "";
+      state.selection = !!msg.label;
+      renderSuggestions();
     } else if (msg.kind === "backend") {
       document.body.dataset.backend = msg.state;
       if (msg.state === "starting") header.textContent = "Starting the review backend…";

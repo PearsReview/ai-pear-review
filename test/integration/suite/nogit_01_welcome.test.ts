@@ -26,4 +26,13 @@ describe("a folder that isn't a repository", () => {
     assert.deepEqual(b.running, []);
     assert.equal(b.shown, undefined);
   });
+
+  it("opens the getting-started walkthrough", async () => {
+    await vscode.commands.executeCommand("pearReview.getStarted");
+    const tab = await waitFor("the walkthrough's tab", () => {
+      const active = vscode.window.tabGroups.activeTabGroup.activeTab;
+      return active && /Pear Review|Welcome|Walkthrough/i.test(active.label) ? active : undefined;
+    });
+    assert.ok(tab.label);
+  });
 });

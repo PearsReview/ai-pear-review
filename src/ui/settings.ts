@@ -202,6 +202,12 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
         : "";
       const harness = current?.harness_settings;
       const items: MenuItem[] = [
+        {
+          label: "$(book) Get started",
+          description: "a walkthrough of Pear Review",
+          run: () => void vscode.commands.executeCommand("pearReview.getStarted"),
+          closes: true,
+        },
         { label: "Preferences", kind: vscode.QuickPickItemKind.Separator },
         {
           label: "$(sparkle) Explain changes",
@@ -311,6 +317,9 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
 
   return [
     vscode.commands.registerCommand("pearReview.settings", run(openMenu)),
+    vscode.commands.registerCommand("pearReview.getStarted", () =>
+      vscode.commands.executeCommand("workbench.action.openWalkthrough", `${context.extension.id}#getStarted`, false),
+    ),
     vscode.commands.registerCommand("pearReview.chooseAgent", run(chooseAgent)),
     vscode.commands.registerCommand("pearReview.chooseModel", run(chooseModel)),
   ];

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Suggested questions above the message box, as in the web app: for the change
+  on screen, for selected lines, for a file asked about, and instructions in
+  Act Now mode. A chip fills the box to edit or send.
+- **Explain changes** defaults to **When I ask**, as in the web app: moving to
+  a change doesn't call the model until you press ✨. Choose Automatically in
+  the chat's ⚙ to have every change explained.
+- **Pear Review: Get Started** opens a walkthrough (also in the chat's ⚙):
+  set up Python, open the changes, start the review, ask, comment and plan,
+  Act Now. It replaces the web app's guided tour.
+- Before the review starts, the chat's first line says how to begin.
+
 - **Pear Review: Set Up Python Environment** makes a Python environment for the
   extension (in its global storage) from a Python 3.10+ it finds (the Python
   extension's choice first) and installs the backend's packages and

@@ -21,7 +21,9 @@ export interface Prefs {
 }
 
 const KEY = "pearReview.prefs";
-const DEFAULTS: PrefValues = { autoNarrate: true, tts: true, stt: true };
+// Explaining waits to be asked, as in the web app: an automatic explanation is a model
+// call on every move, slow on a local model and paid on a hosted one.
+const DEFAULTS: PrefValues = { autoNarrate: false, tts: true, stt: true };
 
 export function register(
   context: vscode.ExtensionContext,

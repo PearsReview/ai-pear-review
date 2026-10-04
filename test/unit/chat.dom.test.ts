@@ -334,6 +334,37 @@ void describe("chat webview", () => {
     assert.equal(input.value, "");
   });
 
+  void test("suggests questions for the change, the selection, a file and act mode", () => {
+    const chips = (): string[] =>
+      [...chat.doc.querySelectorAll("#suggestions .suggestion")].map((c) => c.textContent ?? "");
+    assert.equal(chat.$("suggestions").hidden, true, "nothing to ask about yet, no chips");
+    chat.server("presenting", hunk);
+    assert.ok(chips().includes("Why was this modified?"));
+    chat.send({ kind: "context", label: "calc.py, lines 2–4" });
+    assert.ok(chips().includes("Explain this code"));
+    chat.send({ kind: "context", label: null });
+    chat.send({ kind: "target", file_path: "NOTES.md" });
+    assert.ok(chips().includes("Explain what this file does"));
+    chat.send({ kind: "actMode", on: true });
+    assert.ok(chips().includes("Add type hints"));
+  });
+
+  void test("a chip fills the message box without sending", () => {
+    chat.server("presenting", hunk);
+    const before = chat.posts.length;
+    const chip = [...chat.doc.querySelectorAll<HTMLButtonElement>("#suggestions .suggestion")].find(
+      (c) => c.textContent === "Suggest a test for this",
+    );
+    chip?.click();
+    assert.equal((chat.$("input") as HTMLTextAreaElement).value, "Suggest a test for this");
+    assert.equal(chat.posts.length, before);
+  });
+
+  void test("before the review starts, a first change says how to begin", () => {
+    chat.server("presenting", { ...hunk, review_started: false });
+    assert.match(chat.doc.querySelector("#transcript .turn.system")?.textContent ?? "", /start the review/);
+  });
+
   void test("an Enter that commits an IME candidate doesn't send", () => {
     chat.server("presenting", hunk);
     const input = chat.$("input") as HTMLTextAreaElement;

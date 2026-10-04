@@ -293,6 +293,12 @@
         "command": "pearReview.setupPython",
         "title": "Set Up Python Environment",
         "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.getStarted",
+        "title": "Get Started",
+        "category": "Pear Review",
+        "icon": "$(book)"
       }
     ],
     "keybindings": [
@@ -740,6 +746,81 @@
     ],
     "markdown.previewScripts": [
       "./media/preview/reading.js"
+    ],
+    "walkthroughs": [
+      {
+        "id": "getStarted",
+        "title": "Get started with Pear Review",
+        "description": "Walk through your uncommitted changes with an AI reviewer you can talk to.",
+        "steps": [
+          {
+            "id": "setupPython",
+            "title": "Set up Python",
+            "description": "The reviewer runs in a small Python service on your machine.\n[Set Up Python Environment](command:pearReview.setupPython)",
+            "media": {
+              "markdown": "media/walkthrough/setup.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.setupPython"
+            ]
+          },
+          {
+            "id": "openChanges",
+            "title": "Open your changes",
+            "description": "See every changed file and hunk, each as a native diff.\n[Open Changes](command:pearReview.openChanges)",
+            "media": {
+              "markdown": "media/walkthrough/changes.md"
+            },
+            "completionEvents": [
+              "onView:pearReview.hunks"
+            ]
+          },
+          {
+            "id": "startReview",
+            "title": "Start the review",
+            "description": "Mark changes reviewed, and have the reviewer explain them.\n[Start Review](command:pearReview.startReview)",
+            "media": {
+              "markdown": "media/walkthrough/review.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.startReview"
+            ]
+          },
+          {
+            "id": "ask",
+            "title": "Ask by text, voice or selection",
+            "description": "Ask about the change on screen, or about any file.\n[Open the Chat](command:pearReview.chat.focus)",
+            "media": {
+              "markdown": "media/walkthrough/ask.md"
+            },
+            "completionEvents": [
+              "onView:pearReview.chat"
+            ]
+          },
+          {
+            "id": "plan",
+            "title": "Comment, then create a plan",
+            "description": "Leave comments for your coding agent, and hand it one plan.\n[Create Plan](command:pearReview.createPlan)",
+            "media": {
+              "markdown": "media/walkthrough/plan.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.createPlan"
+            ]
+          },
+          {
+            "id": "actNow",
+            "title": "Act Now",
+            "description": "Have your coding agent propose a small change, as a diff you apply or discard.\n[Choose a Coding Agent](command:pearReview.chooseAgent)",
+            "media": {
+              "markdown": "media/walkthrough/actnow.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.chooseAgent"
+            ]
+          }
+        ]
+      }
     ]
   },
   "scripts": {

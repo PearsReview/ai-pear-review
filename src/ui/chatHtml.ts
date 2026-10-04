@@ -48,6 +48,7 @@ export function chatHtml({ nonce, cspSource, src }: ChatHtmlOptions): string {
     ${icon("quote")}<span id="context-label" class="grow"></span>
     <button id="context-clear" class="icon-btn" title="Don't send this selection" aria-label="Don't send this selection">${icon("close")}</button>
   </div>
+  <div id="suggestions" class="suggestions" aria-label="Suggested questions" hidden></div>
   <form id="composer" class="composer">
     <textarea id="input" rows="2" placeholder="Ask about this change… (select lines in the editor to ask about them)"></textarea>
     <div class="composer-bar">

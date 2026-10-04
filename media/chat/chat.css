@@ -457,6 +457,25 @@ input:focus-visible {
   color: var(--icon);
 }
 
+/* Suggested questions above the message box: quiet, wrapping, one click fills the box. */
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.suggestions[hidden] {
+  display: none;
+}
+
+.pill.suggestion {
+  height: 22px;
+  padding: 0 8px;
+  border-color: var(--outline);
+  font-size: 0.92em;
+}
+
 #target-label,
 #context-label {
   overflow: hidden;

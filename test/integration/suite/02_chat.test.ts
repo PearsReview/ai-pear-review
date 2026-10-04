@@ -18,9 +18,13 @@ import {
 describe("chat", () => {
   before(ensureReviewStarted);
 
-  it("narrates a hunk when the review reaches it, as markdown blocks", async () => {
-    const from = await mark();
+  it("explains a hunk when asked (not on arrival, by default), as markdown blocks", async () => {
+    let from = await mark();
     await vscode.commands.executeCommand("pearReview.jumpToHunk", 2);
+    const presenting = await nextServerMessage("presenting", from, (p) => p.index === 2);
+    assert.equal(presenting.narrating, false, "Explain changes defaults to When I ask");
+    from = await mark();
+    await vscode.commands.executeCommand("pearReview.explain");
     const narration = await nextServerMessage("narration", from, (n) => n.index === 2);
     assert.equal(narration.file_path, "sample.py");
     assert.ok(String(narration.text).trim(), "the narration has text");
