@@ -44,11 +44,11 @@ still works on its own.
    repository for a more thorough, read-only answer. 🔊 reads a reply aloud,
    and **Interrupt** stops whatever the reviewer is doing.
 7. To leave a comment for your coding agent, hover the diff's gutter and press
-   **+** (drag over several lines first to comment on all of them), type what
-   should change, and press **Must fix**, **Suggestion** or **Nit**. Or press
-   **Comment** next to the message box and type or say it: it goes on the lines
-   you've selected, or on the current change. Comments can be edited, re-tagged
-   or deleted until you create the plan.
+   **+** (drag over several lines first to comment on all of them), then type
+   what should change and press **Must fix**, **Suggestion** or **Nit**. Or
+   press the **mic** in the comment box's title bar, say it, and press it again:
+   your words become the comment. Comments can be edited, re-tagged or deleted
+   until you create the plan.
 8. **Act Now**: press **Act Now** next to the message box, then type or say
    what to change (selected lines go with it). Your coding agent works in a
    copy of the repo and proposes the change; each file opens as a diff.

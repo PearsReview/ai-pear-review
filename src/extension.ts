@@ -54,7 +54,6 @@ export function activate(context: vscode.ExtensionContext): { read: typeof read 
       target.target,
       repoFiles.readAloud,
       prefs.prefs,
-      review.comments,
     ),
     ...commands.register(context, backend, recorder.voice, prefs.prefs),
   );

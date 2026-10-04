@@ -23,7 +23,6 @@
     narrating: false,
     actNow: { available: false, detail: "Checking whether a coding agent is set up…", agent: "the agent" },
     actMode: false,
-    commentMode: false,
     stt: true,
     narrated: new Map(), // hunk index -> narration text already shown
     lastQuestion: new Map(), // hunk index -> the reviewer's latest question on it
@@ -277,25 +276,12 @@
       : `Act Now is off: ${state.actNow.detail} Choose an agent in settings (⚙).`;
     act.classList.toggle("active", state.actMode);
     act.setAttribute("aria-pressed", String(state.actMode));
-    // Comments are a review action: they wait for Start Review, as in the browser.
-    const comment = /** @type {HTMLButtonElement} */ ($("comment"));
-    comment.disabled = !onHunk || !state.started;
-    comment.title = state.started
-      ? "Leave a comment for your coding agent, typed or spoken, on the selected lines or this change. It goes into the plan."
-      : "Comments open once the review has started (▶ on the Changes view).";
-    comment.setAttribute("aria-pressed", String(state.commentMode));
     input.placeholder = state.actMode
       ? `Tell ${agentName()} what to change… (nothing is written until you apply it)`
-      : state.commentMode
-        ? "Comment for your coding agent on the selected lines, or this change…"
-        : state.targetFile
-          ? `Ask about ${state.targetFile}… (select lines to ask about them)`
-          : "Ask about this change… (select lines in the editor to ask about them)";
-    setIcon(
-      $("send"),
-      state.commentMode ? "comment" : "send",
-      state.actMode ? "Send to agent" : state.commentMode ? "Add comment" : "Send",
-    );
+      : state.targetFile
+        ? `Ask about ${state.targetFile}… (select lines to ask about them)`
+        : "Ask about this change… (select lines in the editor to ask about them)";
+    setIcon($("send"), "send", state.actMode ? "Send to agent" : "Send");
     document.querySelectorAll(".look-deeper").forEach(applyLookDeeper);
   }
 
@@ -672,9 +658,6 @@
     reviewer_turn: (p) => appendTurn("presenter", p.text, p),
     deeper_turn: (p) => appendTurn("deeper", p.text, p),
     agent_stopped: (p) => appendTurn("system", p.message),
-    review_comment_queued(p) {
-      appendTurn("system", `Comment added (${p.severity}) on ${p.file_path}, ${p.where}: "${p.instruction}"`);
-    },
     act_now_cleared(p) {
       setProposalDone("no changes left");
       appendTurn("system", p.message);
@@ -738,7 +721,6 @@
       setIcon(mic, msg.recording ? "mic-filled" : "mic", msg.recording ? "Stop recording and send" : "Push to talk");
       if (!msg.recording) {
         if (state.actMode) showAgentWorking("will start once your words are transcribed");
-        else if (state.commentMode) showThinking("Transcribing your comment");
         else showThinking("…transcribing");
       }
       updateControls();
@@ -751,9 +733,6 @@
       if (msg.file_path) input.focus();
     } else if (msg.kind === "prefs") {
       state.stt = msg.prefs.stt;
-      updateControls();
-    } else if (msg.kind === "commentMode") {
-      state.commentMode = msg.on;
       updateControls();
     } else if (msg.kind === "actMode") {
       state.actMode = msg.on;
@@ -798,7 +777,6 @@
     state.fileFilter = !state.fileFilter;
     applyFilter();
   });
-  $("comment").addEventListener("click", () => post({ kind: "setCommentMode", on: !state.commentMode }));
 
   $("target-back").addEventListener("click", () => post({ kind: "backToReview" }));
 
@@ -810,8 +788,6 @@
     if (state.actMode) {
       post({ kind: "actNow", text });
       showAgentWorking();
-    } else if (state.commentMode) {
-      post({ kind: "comment", text });
     } else {
       post({ kind: "send", text });
       showThinking();

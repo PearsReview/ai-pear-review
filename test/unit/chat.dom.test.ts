@@ -251,30 +251,6 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "command", command: "newReview" });
   });
 
-  void test("comment mode waits for the review, then sends the next message as a comment", () => {
-    chat.server("presenting", { ...hunk, review_started: false });
-    assert.equal((chat.$("comment") as HTMLButtonElement).disabled, true);
-    chat.server("presenting", hunk);
-    assert.equal((chat.$("comment") as HTMLButtonElement).disabled, false);
-    chat.click("comment");
-    assert.deepEqual(lastPost(chat), { kind: "setCommentMode", on: true });
-    chat.send({ kind: "commentMode", on: true });
-    assert.equal(chat.$("send").getAttribute("aria-label"), "Add comment");
-    (chat.$("input") as HTMLTextAreaElement).value = "Rename x";
-    chat.$("composer").dispatchEvent(new chat.window.Event("submit", { cancelable: true }));
-    assert.deepEqual(lastPost(chat), { kind: "comment", text: "Rename x" });
-    chat.server("review_comment_queued", {
-      id: 1,
-      file_path: "calc.py",
-      where: "line 2",
-      instruction: "Rename x",
-      severity: "suggestion",
-      anchor: null,
-      pending_count: 1,
-    });
-    assert.match(chat.doc.querySelector(".turn.system:last-child")?.textContent ?? "", /Comment added .*"Rename x"/);
-  });
-
   void test("the read-along follows the voice through a reply's sentences", () => {
     chat.server("presenting", hunk);
     chat.server("reviewer_turn", {

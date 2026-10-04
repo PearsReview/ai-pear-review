@@ -52,7 +52,6 @@ export function chatHtml({ nonce, cspSource, src }: ChatHtmlOptions): string {
     <textarea id="input" rows="2" placeholder="Ask about this change… (select lines in the editor to ask about them)"></textarea>
     <div class="composer-bar">
       <button type="button" id="act" class="pill toggle" aria-pressed="false">${icon("zap")}<span>Act Now</span></button>
-      <button type="button" id="comment" class="pill toggle" aria-pressed="false">${icon("comment")}<span>Comment</span></button>
       <span class="grow"></span>
       <button type="button" id="mic" class="icon-btn" data-command="toggleRecording" title="Push to talk (Ctrl+Alt+Space)" aria-label="Push to talk">${icon("mic")}</button>
       <button type="submit" id="send" class="icon-btn" title="Send" aria-label="Send">${icon("send")}</button>

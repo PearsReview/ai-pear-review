@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
-import type { MarkedLine, ReviewComment, Severity } from "../backend/protocol.ts";
+import type { ReviewComment, Severity } from "../backend/protocol.ts";
 import { reviewLocation, reviewUri } from "../git.ts";
 import { log, showError } from "../log.ts";
 import { anchorRange } from "../review/anchors.ts";
@@ -11,13 +11,9 @@ import type { SelectionContext } from "./selection.ts";
 export interface Comments {
   readonly count: number;
   readonly onDidChangeCount: vscode.Event<number>;
-  // Comment mode: the chat's next typed or spoken message becomes a review comment
-  // on the selected lines (or the current hunk), as the web app's comment box does.
-  readonly commentMode: boolean;
-  setCommentMode(on: boolean): void;
-  readonly onDidChangeCommentMode: vscode.Event<boolean>;
-  // Queues one comment (text or recorded audio) and leaves comment mode.
-  request(instruction: { text: string } | { audio_base64: string }, marked_lines?: MarkedLine[]): void;
+  // A recording started from a comment box's mic belongs to that box: voice.ts hands
+  // its audio here, and this queues it as the comment. False when no box is waiting.
+  takeVoiceComment(audio_base64: string): boolean;
 }
 
 const SEVERITY_LABEL: Record<Severity, string> = { "must-fix": "Must fix", suggestion: "Suggestion", nit: "Nit" };
@@ -68,13 +64,14 @@ export function register(
     })),
   );
   const countChanges = new vscode.EventEmitter<number>();
-  const modeChanges = new vscode.EventEmitter<boolean>();
-  let commentMode = false;
-  const setCommentMode = (on: boolean): void => {
-    if (on === commentMode) return;
-    commentMode = on;
-    modeChanges.fire(on);
-  };
+  // The comment box whose mic was pressed, until its recording comes back. A recording
+  // started anywhere else (the chat's mic, the keybinding) clears it.
+  let voiceThread: vscode.CommentThread | undefined;
+  let voiceArmed = false;
+  let recordingNow = false;
+  // A mic press whose recording never starts (voice input off, no backend) lapses, so
+  // a later recording from the chat isn't taken for a comment.
+  const ARM_TIMEOUT_MS = 5_000;
   let count = 0;
   let open = false;
   let reviewFiles = new Set<string>();
@@ -143,6 +140,20 @@ export function register(
     reply.thread.dispose();
   };
 
+  // A spoken comment: the transcription becomes the instruction (fix its wording with
+  // the thread's edit), as a Suggestion (re-tag it with the thread's tag button).
+  const submitVoice = async (thread: vscode.CommentThread, audio_base64: string): Promise<void> => {
+    const root = backend.repoPath;
+    const location = root ? reviewLocation(thread.uri, root) : undefined;
+    if (!location || !thread.range) return;
+    const document = await vscode.workspace.openTextDocument(thread.uri);
+    const { start, end } = thread.range;
+    const span = { startLine: start.line + 1, endLine: end.line + 1 };
+    const marked_lines = selection.markedLinesAt({ ...location, ...span }, document);
+    backend.send("request_change", { audio_base64, marked_lines, severity: "suggestion" });
+    thread.dispose();
+  };
+
   const guarded =
     <A extends unknown[]>(fn: (...args: A) => unknown) =>
     (...args: A): void => {
@@ -197,23 +208,37 @@ export function register(
         return count;
       },
       onDidChangeCount: countChanges.event,
-      get commentMode() {
-        return commentMode;
-      },
-      setCommentMode,
-      onDidChangeCommentMode: modeChanges.event,
-      request(instruction, marked_lines) {
-        // A spoken comment's wording can be fixed afterwards with the thread's edit.
-        backend.send("request_change", {
-          ...instruction,
-          ...(marked_lines ? { marked_lines } : {}),
-          severity: "suggestion",
-        });
-        setCommentMode(false);
+      takeVoiceComment(audio_base64) {
+        const thread = voiceThread;
+        voiceThread = undefined;
+        if (!thread) return false;
+        submitVoice(thread, audio_base64).catch((err: unknown) => showError(String(err)));
+        return true;
       },
     },
     disposables: [
-      modeChanges,
+      backend.on("recording_state", ({ recording }) => {
+        recordingNow = recording;
+        if (recording && !voiceArmed) voiceThread = undefined;
+        voiceArmed = false;
+      }),
+      // A recording that fails (too short, no mic) leaves no audio; the box stays open.
+      backend.on("error", () => {
+        if (voiceThread && !voiceArmed && !recordingNow) voiceThread = undefined;
+      }),
+      vscode.commands.registerCommand("pearReview.comment.voiceStart", (thread: vscode.CommentThread) => {
+        voiceThread = thread;
+        voiceArmed = true;
+        setTimeout(() => {
+          if (!voiceArmed) return;
+          voiceArmed = false;
+          voiceThread = undefined;
+        }, ARM_TIMEOUT_MS);
+        void vscode.commands.executeCommand("pearReview.toggleRecording");
+      }),
+      vscode.commands.registerCommand("pearReview.comment.voiceStop", () => {
+        void vscode.commands.executeCommand("pearReview.toggleRecording");
+      }),
       controller,
       countChanges,
       backend.on("review_progress", (p) => {
@@ -269,7 +294,7 @@ export function register(
       }),
       backend.onStateChange((state) => {
         if (state === "ready") return;
-        setCommentMode(false);
+        voiceThread = undefined;
         clearThreads();
         setCount(0);
         open = false;

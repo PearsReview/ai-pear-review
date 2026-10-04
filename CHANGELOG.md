@@ -9,9 +9,8 @@
 - The review's summary in the chat when it ends (reviewed count, comments
   waiting, Create plan, Open plan, Start new review); Mark All Reviewed (✓✓)
   on the Changes view; Show Summary and Start New Review in its menu.
-- Comment mode in the chat: the next typed or spoken message becomes a review
-  comment on the selected lines or the current change, confirmed in the chat
-  with its wording.
+- Spoken review comments: a mic in the comment box's title bar records the
+  comment, which is added as a Suggestion on the box's lines.
 - Settings (⚙ in the chat, the one way in, holding the model, coding agent
   and API key choices too): the web app's settings panel as a native menu — explain automatically or on request, speak replies,
   voice input, reviewer model and limits, Anthropic key, speech services,

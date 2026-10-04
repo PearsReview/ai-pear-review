@@ -65,20 +65,17 @@ export function register(
         setRecording(value);
       }),
       backend.on("recording_result", ({ audio_base64, duration_seconds }) => {
+        if (comments.takeVoiceComment(audio_base64)) {
+          log(`Voice: got ${duration_seconds}s of audio, sending it as a review comment`);
+          return;
+        }
         const file = target.file;
-        const kind = actNow.active
-          ? "an Act Now instruction"
-          : comments.commentMode
-            ? "a review comment"
-            : file
-              ? `a question about ${file}`
-              : "a reply";
+        const kind = actNow.active ? "an Act Now instruction" : file ? `a question about ${file}` : "a reply";
         log(`Voice: got ${duration_seconds}s of audio, sending it as ${kind}`);
         try {
           const marked_lines = selection.markedLines();
           const extra = marked_lines ? { marked_lines } : {};
           if (actNow.active) actNow.request({ audio_base64 }, marked_lines);
-          else if (comments.commentMode) comments.request({ audio_base64 }, marked_lines);
           else if (file) backend.send("explore_reply", { audio_base64, file_path: file, ...extra });
           else backend.send("reply", { audio_base64, ...extra });
           selection.clear();

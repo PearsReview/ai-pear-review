@@ -228,6 +228,18 @@
         "command": "pearReview.openPlan",
         "title": "Open Plan",
         "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.voiceStart",
+        "title": "Speak the comment",
+        "category": "Pear Review",
+        "icon": "$(mic)"
+      },
+      {
+        "command": "pearReview.comment.voiceStop",
+        "title": "Stop recording and add the comment",
+        "category": "Pear Review",
+        "icon": "$(mic-filled)"
       }
     ],
     "keybindings": [
@@ -403,6 +415,14 @@
         {
           "command": "pearReview.openPlan",
           "when": "false"
+        },
+        {
+          "command": "pearReview.comment.voiceStart",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.voiceStop",
+          "when": "false"
         }
       ],
       "comments/commentThread/context": [
@@ -502,6 +522,18 @@
           "command": "pearReview.askAboutFile",
           "when": "resourceScheme == file",
           "group": "pearReview@1"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "pearReview.comment.voiceStart",
+          "when": "commentController == pearReview && commentThreadIsEmpty && !pearReview.recording",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.comment.voiceStop",
+          "when": "commentController == pearReview && commentThreadIsEmpty && pearReview.recording",
+          "group": "inline@1"
         }
       ]
     }
