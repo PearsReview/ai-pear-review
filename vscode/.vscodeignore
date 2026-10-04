@@ -33,3 +33,4 @@ backend/.git*
 tsconfig.webview.json
 TODO.md
 ruff.toml
+scripts/**

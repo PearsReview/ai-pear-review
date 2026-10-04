@@ -5,7 +5,28 @@
   "version": "0.0.2",
   "publisher": "PearsReview",
   "license": "MIT",
-  "private": true,
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PearsReview/ai-pear-review.git",
+    "directory": "vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/PearsReview/ai-pear-review/issues"
+  },
+  "homepage": "https://github.com/PearsReview/ai-pear-review/tree/main/vscode#readme",
+  "keywords": [
+    "code review",
+    "git diff",
+    "ai",
+    "voice",
+    "ollama",
+    "claude"
+  ],
+  "galleryBanner": {
+    "color": "#4d7c0f",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.106.0"
   },
@@ -834,7 +855,7 @@
     "vscode:prepublish": "node scripts/syncBackend.mjs && node esbuild.mjs --production",
     "test:integration": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts",
     "test:integration:ollama": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts --ollama",
-    "package": "vsce package --allow-missing-repository --no-rewrite-relative-links",
+    "package": "vsce package",
     "test:package": "node scripts/syncBackend.mjs && node test/packaging/checkPackage.ts"
   },
   "devDependencies": {

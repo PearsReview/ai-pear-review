@@ -3,8 +3,8 @@
 > **Early development (0.0.x).** The review loop works end to end: the
 > Changes tree, the native diff, the chat with voice, Look deeper, inline
 > comments, Create Plan and Act Now, plus questions about any file and
-> markdown read aloud. `npm run package` builds a `.vsix`; it isn't on the
-> Marketplace yet.
+> markdown read aloud. Expect rough edges, and settings may change between
+> releases.
 
 A VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
 It walks you through your uncommitted git changes one hunk at a time, with an AI
@@ -24,7 +24,19 @@ unaffected and still works on its own.
   interpreter that already has them.
 - The model and speech services the backend is configured for (by default,
   Ollama, plus a local STT/TTS service on port 8000). See the backend's
-  [README](../README.md).
+  [README](https://github.com/PearsReview/ai-pear-review#readme).
+
+## Your code and your data
+
+The extension runs a backend on your machine and sends parts of the repository
+you're reviewing to the model you choose. Ollama (the default) stays on your
+machine. The Anthropic API, or a coding agent (Cline) set up with a hosted
+provider, sends that code to the provider. A remote speech service receives your
+recorded audio and anything read aloud. Act Now can write to your working tree,
+only after you confirm a preview. Nothing is sent anywhere until you start a
+review, and the extension itself collects no telemetry. Details:
+[Privacy](https://github.com/PearsReview/ai-pear-review#privacy) and
+[Security](https://github.com/PearsReview/ai-pear-review/blob/main/SECURITY.md).
 
 ## Using it
 
@@ -162,7 +174,7 @@ and read UI state through a test probe the extension exposes only when
 `PEAR_REVIEW_TEST=1` (`src/testProbe.ts`).
 
 How the code is laid out, and the rules it follows, are in
-[docs/STYLE.md](docs/STYLE.md).
+[docs/STYLE.md](https://github.com/PearsReview/ai-pear-review/blob/main/vscode/docs/STYLE.md).
 
 ## Credits
 
