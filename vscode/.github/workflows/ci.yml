@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          # node --test runs the .ts tests directly, which needs Node's type stripping (23.6+).
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      # The .vsix holds what the backend needs to start (backend/static, python/, …).
+      - run: npm run test:package
+      - run: npm run package
+
+  python:
+    # The extension's own Python (python/, test/python/), linted with the backend's
+    # ruff settings (ruff.toml extends them), and the audio player's WAV decoding.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pytest "$(grep -E '^ruff' backend/requirements-dev.txt)"
+      - run: ruff check python test/python test/integration/fake_modules
+      - run: ruff format --check python test/python test/integration/fake_modules
+      - run: python -m pytest test/python -q
+
+  integration:
+    # A real VS Code with the extension and a real backend; the model, speech service,
+    # coding agent and microphone are fakes (test/integration/).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r backend/requirements.txt
+      - run: npm ci
+      - run: xvfb-run -a npm run test:integration

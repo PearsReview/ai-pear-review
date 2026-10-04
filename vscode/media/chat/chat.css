@@ -1,0 +1,559 @@
+/* The chat panel. Monochrome like the activity-bar pear: grey outline icons
+   (codicons), quiet surfaces, and colour only where it means something — red while
+   recording, the theme's focus ring. Every colour
+   comes from the VS Code theme, so light, dark and high-contrast all follow. */
+
+:root {
+  --radius: 6px;
+  --radius-lg: 10px;
+  --muted: var(--vscode-descriptionForeground);
+  --icon: var(--vscode-icon-foreground, var(--vscode-foreground));
+  --hover: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+  --active: var(--vscode-toolbar-activeBackground, rgba(128, 128, 128, 0.25));
+  --line: var(--vscode-widget-border, var(--vscode-panel-border, rgba(128, 128, 128, 0.25)));
+  /* Grey surfaces mixed from the theme's own text colour, so they suit any theme. */
+  --surface: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+  --surface-strong: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+  /* Outlines that stay visible on the input and sidebar backgrounds alike. */
+  --outline: color-mix(in srgb, var(--vscode-foreground) 22%, transparent);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  margin: 0;
+  padding: 0 10px;
+  box-sizing: border-box;
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- buttons -------------------------------------------------------------- */
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+/* Icon-only: a grey glyph that gains a soft background on hover. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--icon);
+  background: transparent;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.icon-btn:active:not(:disabled) {
+  background: var(--active);
+}
+
+/* Icon + short label, outlined in grey. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  color: var(--vscode-foreground);
+  background: transparent;
+  white-space: nowrap;
+}
+
+.pill .codicon {
+  color: var(--icon);
+  font-size: 14px;
+}
+
+.pill:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.pill.subtle {
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.pill.subtle:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+}
+
+/* The one action that matters most in a group: filled grey, still no colour. */
+.pill.strong {
+  border-color: transparent;
+  background: var(--surface-strong);
+  font-weight: 600;
+}
+
+.pill.strong:hover:not(:disabled) {
+  background: var(--active);
+}
+
+.pill.toggle[aria-pressed="true"] {
+  border-color: var(--vscode-foreground);
+  background: var(--surface-strong);
+}
+
+.pill.file-link {
+  height: 22px;
+  border: none;
+  padding-left: 4px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+}
+
+/* --- header ---------------------------------------------------------------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.hunk {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar #start {
+  margin-right: 4px;
+}
+
+/* --- transcript -------------------------------------------------------------- */
+
+#transcript {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+
+.turn {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-lg);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.turn .role {
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.turn-body {
+  white-space: pre-wrap;
+}
+
+.turn-body:has(.turn-block) {
+  white-space: normal;
+}
+
+.turn.presenter,
+.turn.deeper {
+  background: var(--surface);
+}
+
+.turn.reviewer {
+  margin-left: 24px;
+  background: var(--surface-strong);
+}
+
+.turn.deeper {
+  border-left: 2px solid color-mix(in srgb, var(--vscode-foreground) 35%, transparent);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+}
+
+.filtered {
+  display: none !important;
+}
+
+.icon-btn.active {
+  color: var(--vscode-foreground);
+  background: var(--surface-strong);
+}
+
+.turn.too-large {
+  border-left: 2px solid var(--vscode-editorWarning-foreground, var(--outline));
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--surface);
+}
+
+.turn.system {
+  padding: 2px 10px;
+  color: var(--muted);
+  font-size: 0.92em;
+  font-style: italic;
+}
+
+.audio-hint {
+  color: var(--muted);
+  font-size: 0.88em;
+  font-style: italic;
+}
+
+.turn.error {
+  border-left: 2px solid var(--vscode-errorForeground);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--surface);
+  color: var(--vscode-errorForeground);
+}
+
+.turn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.related {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.chip {
+  margin: 2px 4px 0 0;
+  padding: 1px 8px;
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  color: var(--vscode-foreground);
+  background: transparent;
+  font-size: 0.9em;
+}
+
+.chip:hover {
+  background: var(--hover);
+}
+
+/* A change of hunk: a thin rule with the file on it. */
+.hunk-divider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 14px 0 8px;
+  padding: 0;
+  border: none;
+  color: var(--muted);
+  background: none;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.82em;
+  text-align: left;
+}
+
+.hunk-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+.hunk-divider:hover {
+  color: var(--vscode-foreground);
+}
+
+/* --- thinking ---------------------------------------------------------------- */
+
+.turn.thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: blink 1.2s infinite ease-in-out;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* --- markdown blocks (classes from blocks.js) ------------------------------- */
+
+.turn-block {
+  margin: 4px 0;
+}
+
+.turn-block:first-child {
+  margin-top: 0;
+}
+
+.md-heading {
+  font-weight: 700;
+}
+
+.md-heading.md-level-1 {
+  font-size: 1.25em;
+}
+
+.md-heading.md-level-2 {
+  font-size: 1.12em;
+}
+
+.md-list-item {
+  padding-left: 1em;
+}
+
+.md-list-item:not(:has(.md-list-marker))::before {
+  content: "•";
+  margin-right: 0.45em;
+  color: var(--muted);
+}
+
+.md-list-marker {
+  margin-right: 0.4em;
+  color: var(--muted);
+}
+
+.md-quote {
+  padding-left: 8px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+
+.md-rule {
+  border-top: 1px solid var(--line);
+}
+
+.md-code-block {
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--vscode-textCodeBlock-background, var(--surface));
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+  white-space: pre;
+}
+
+.md-span.md-code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-strong);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.95em;
+}
+
+.md-bold {
+  font-weight: 700;
+}
+
+.md-italic {
+  font-style: italic;
+}
+
+.md-link {
+  text-decoration: underline dotted;
+}
+
+.md-table-row {
+  display: flex;
+  gap: 12px;
+}
+
+.md-header-row {
+  font-weight: 700;
+}
+
+.md-cell {
+  flex: 1;
+}
+
+/* --- strips above the composer: audio, file target, selection -------------- */
+
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 4px 4px 4px 10px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.92em;
+}
+
+.strip > .codicon {
+  color: var(--icon);
+}
+
+/* Suggested questions above the message box: quiet, wrapping, one click fills the box. */
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.suggestions[hidden] {
+  display: none;
+}
+
+.pill.suggestion {
+  height: 22px;
+  padding: 0 8px;
+  border-color: var(--outline);
+  font-size: 0.92em;
+}
+
+#target-label,
+#context-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- composer ----------------------------------------------------------------- */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 10px;
+  border: 1px solid var(--vscode-input-border, var(--line));
+  border-radius: var(--radius-lg);
+  background: var(--vscode-input-background);
+}
+
+.composer:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+#input {
+  min-height: 40px;
+  padding: 8px 10px 4px;
+  resize: none;
+  border: none;
+  outline: none;
+  color: var(--vscode-input-foreground);
+  background: transparent;
+  font: inherit;
+}
+
+#input::placeholder {
+  color: var(--vscode-input-placeholderForeground, var(--muted));
+}
+
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 4px 6px;
+}
+
+/* --- states that earn colour ----------------------------------------------------- */
+
+#mic.recording {
+  color: var(--vscode-errorForeground);
+  background: color-mix(in srgb, var(--vscode-errorForeground) 15%, transparent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.icon-btn.speak.active,
+.icon-btn.speak[data-mode="loading"] {
+  color: var(--vscode-foreground);
+  background: var(--hover);
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+body[data-backend="stopped"] .toolbar .icon-btn,
+body[data-backend="stopped"] .composer-bar .icon-btn {
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #mic.recording,
+  .dots i,
+  .codicon-modifier-spin {
+    animation: none;
+  }
+}
+
+/* The sentence being spoken (readalong.js). */
+::highlight(pear-reading) {
+  background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+}

@@ -1,0 +1,189 @@
+// Beyond the changes: asking about any file (explore_reply), and reading a markdown file
+// aloud with the passage being read highlighted.
+import assert from "node:assert/strict";
+import * as vscode from "vscode";
+
+import {
+  clearSelection,
+  ensureReviewStarted,
+  fromChat,
+  live,
+  mark,
+  modelPrompts,
+  nextServerMessage,
+  posted,
+  probe,
+  repoUri,
+  selectLines,
+  waitFor,
+} from "./helpers.ts";
+
+describe("ask about a file", () => {
+  before(ensureReviewStarted);
+
+  it("points the chat at an unchanged file", async () => {
+    await vscode.commands.executeCommand("pearReview.askAboutFile", repoUri("NOTES.md"));
+    assert.equal(await probe("chat.target"), "NOTES.md");
+    await waitFor("the chat banner", async () =>
+      (await posted()).some((m) => m.kind === "target" && m.file_path === "NOTES.md"),
+    );
+  });
+
+  it("answers a question about it, with selected lines as context", async () => {
+    await selectLines("NOTES.md", 5, 7);
+    const from = await mark();
+    await fromChat({ kind: "send", text: "What is the usage section for?" });
+    const human = await nextServerMessage("human_turn", from);
+    assert.equal(human.index, -1, "a file question isn't about a hunk");
+    assert.equal(human.file_path, "NOTES.md");
+    const reply = await nextServerMessage("reviewer_turn", from);
+    assert.equal(reply.index, -1);
+    if (!live) assert.match(await modelPrompts(), /Regarding lines 5-7 of NOTES\.md/);
+  });
+
+  it("goes back to the review", async () => {
+    await fromChat({ kind: "backToReview" });
+    assert.equal(await probe("chat.target"), undefined);
+  });
+});
+
+// Read aloud plays through the extension's own player (python/player.py, with the fake
+// sounddevice taking real time), controlled from the file's speaker.
+interface Read {
+  filePath: string;
+  status: "loading" | "playing" | "paused";
+}
+const readState = (): Promise<Read | undefined> => probe<Read | undefined>("files.read");
+const reading = (): Promise<{ filePath: string; startLine: number; endLine: number } | undefined> =>
+  probe("files.reading");
+
+async function stopRead(): Promise<void> {
+  await vscode.commands.executeCommand("pearReview.stopReading");
+  await waitFor("the read to stop", async () => !(await readState()));
+}
+
+describe("read aloud", () => {
+  before(ensureReviewStarted);
+  afterEach(stopRead);
+
+  it("plays a markdown file, and the speaker pauses, resumes and stops it", async () => {
+    await vscode.window.showTextDocument(repoUri("NOTES.md"));
+    clearSelection();
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("playing", async () => (await readState())?.status === "playing");
+    const at = await waitFor("the passage being read", reading);
+    assert.equal(at.filePath, "NOTES.md");
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("paused", async () => (await readState())?.status === "paused");
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("playing again", async () => (await readState())?.status === "playing");
+    await vscode.commands.executeCommand("pearReview.stopReading");
+    await waitFor("stopped", async () => !(await readState()));
+    assert.equal(await reading(), undefined, "the highlight goes when the read stops");
+  });
+
+  it("reads only the selected lines", async () => {
+    await selectLines("NOTES.md", 5, 8);
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    const at = await waitFor("the passage being read", reading);
+    assert.ok(at.startLine >= 5, `read from line ${at.startLine}`);
+  });
+
+  it("highlights the passage in the open file without moving the cursor", async () => {
+    const editor = await vscode.window.showTextDocument(repoUri("NOTES.md"));
+    clearSelection();
+    const cursor = editor.selection.active;
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("the passage being read", reading);
+    await waitFor("a later passage", async () => ((await reading())?.startLine ?? 0) > 1);
+    assert.ok(editor.selection.isEmpty, "nothing is selected by the read");
+    assert.ok(editor.selection.active.isEqual(cursor), "the cursor stays where the reviewer left it");
+  });
+
+  it("ends when another message cancels it on the backend", async () => {
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("the read to start", async () => (await readState()) !== undefined);
+    // A reply cancels speak_file on the backend without a word back; the read ends with
+    // the clips it already has, instead of waiting for the rest forever.
+    await fromChat({ kind: "send", text: "What does this change do?" });
+    await waitFor("the read to end", async () => !(await readState()), 20_000);
+    assert.equal(await reading(), undefined);
+  });
+
+  it("stops the chat's audio, so only one voice plays", async () => {
+    const from = await mark();
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("the chat told to stop", async () =>
+      (await posted()).slice(from).some((m) => m.kind === "stopAudio"),
+    );
+  });
+
+  it("opens a markdown file's preview, and reads it, from the Changes tree", async () => {
+    // What a markdown row passes its inline buttons.
+    const node = { kind: "file", file: { file_path: "NOTES.md", hunks: [] } };
+    await vscode.commands.executeCommand("pearReview.tree.preview", node);
+    await waitFor("the markdown preview", () =>
+      vscode.window.tabGroups.all
+        .flatMap((g) => g.tabs)
+        .some((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.includes("markdown.preview")),
+    );
+    clearSelection();
+    await vscode.commands.executeCommand("pearReview.tree.readAloud", node);
+    await waitFor("the file to be read", async () => (await readState())?.filePath === "NOTES.md");
+  });
+
+  it("reading from a preview highlights in the preview, without opening the text", async () => {
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await vscode.commands.executeCommand("markdown.showPreview", repoUri("NOTES.md"));
+    // The preview command returns before its tab exists.
+    await waitFor("the preview tab", () => {
+      const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+      return tab?.input instanceof vscode.TabInputWebview ? tab : undefined;
+    });
+    // Nothing is selected in the preview: the whole file is read, and the clipboard the
+    // speaker borrows to look for a selection is left as it was.
+    await vscode.env.clipboard.writeText("keep me");
+    await vscode.commands.executeCommand("pearReview.readAloud");
+    const at = await waitFor("the passage being read", reading);
+    assert.equal(at.startLine, 1, "no preview selection reads from the top");
+    assert.equal(await vscode.env.clipboard.readText(), "keep me");
+    await vscode.commands.executeCommand("pearReview.pauseReading");
+    // The preview renders through VS Code's markdown engine, which runs our plugin; the
+    // markdown extension's own render command uses the same engine.
+    const doc = await vscode.workspace.openTextDocument(repoUri("NOTES.md"));
+    const html = await vscode.commands.executeCommand<string>("markdown.api.render", doc);
+    assert.match(html, /class="[^"]*pear-reading/, `the passage at line ${at.startLine} is marked in the preview`);
+    assert.equal(
+      vscode.window.visibleTextEditors.some((e) => e.document.uri.fsPath === repoUri("NOTES.md").fsPath),
+      false,
+      "the text doesn't open beside the preview",
+    );
+  });
+
+  it("finds the preview even when another editor's group is active", async () => {
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await vscode.window.showTextDocument(repoUri("calc.py"), { viewColumn: vscode.ViewColumn.One });
+    await vscode.commands.executeCommand("markdown.showPreviewToSide", repoUri("NOTES.md"));
+    await waitFor("the preview beside calc.py", () =>
+      vscode.window.tabGroups.all.some(
+        (g) => g.activeTab?.input instanceof vscode.TabInputWebview && g.activeTab.label.includes("NOTES.md"),
+      ),
+    );
+    // Focus back on calc.py's group, as when the preview's title bar is clicked from there.
+    await vscode.window.showTextDocument(repoUri("calc.py"), { viewColumn: vscode.ViewColumn.One });
+    await vscode.commands.executeCommand("pearReview.readAloud", { groupId: 2, editorIndex: 0 });
+    await waitFor("NOTES.md to be read", async () => (await readState())?.filePath === "NOTES.md");
+  });
+
+  it("leaves the chat out of it", async () => {
+    const from = await mark();
+    await vscode.commands.executeCommand("pearReview.readAloud", repoUri("NOTES.md"));
+    await waitFor("playing", async () => (await readState())?.status === "playing");
+    const chat = (await posted()).slice(from).filter((m) => m.kind === "server");
+    assert.deepEqual(
+      chat.map((m) => m.message?.type).filter((t) => t !== "service_status"),
+      [],
+      "no read-aloud messages reach the chat",
+    );
+  });
+});
