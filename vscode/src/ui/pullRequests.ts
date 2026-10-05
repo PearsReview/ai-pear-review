@@ -5,6 +5,7 @@ import type { BackendManager } from "../backend/manager.ts";
 import { gitApi, pickRepository, repositoryRoots } from "../git.ts";
 import { GithubClient, GithubError, type PullRequest } from "../github/api.ts";
 import { addPrReview, prReviewFor, removePrReview, type PrReview } from "../github/prReviews.ts";
+import { enterpriseHost, GITHUB_COM, type GithubHost } from "../github/remote.ts";
 import { toGithubComment, type ReviewEvent } from "../github/reviewComments.ts";
 import {
   addWorktree,
@@ -40,11 +41,13 @@ export function register(
   publish("pr.review", () => prReviewFor(manager.repoPath));
 
   // The integration tests' token stands in for the GitHub sign-in, which they can't do.
-  const client = async (): Promise<GithubClient> => {
+  // A GitHub Enterprise host signs in through VS Code's own "github-enterprise" provider,
+  // which reads the same github-enterprise.uri setting.
+  const client = async (host: GithubHost): Promise<GithubClient> => {
     const testToken = process.env.PEAR_REVIEW_GITHUB_TOKEN;
-    if (testToken) return new GithubClient(testToken);
-    const session = await vscode.authentication.getSession("github", ["repo"], { createIfNone: true });
-    return new GithubClient(session.accessToken);
+    if (testToken) return new GithubClient(host, testToken);
+    const session = await vscode.authentication.getSession(host.authProvider, ["repo"], { createIfNone: true });
+    return new GithubClient(host, session.accessToken);
   };
 
   // `preset`: { repo?, remote?, number? } skips the pickers, for a keybinding or the tests.
@@ -64,14 +67,18 @@ export function register(
           : (sources[0] ?? (await pickRepository()));
     if (!repo) return;
 
-    const remotes = await githubRemotes(repo);
+    const remotes = await githubRemotes(repo, githubHosts());
     const remote = await pickRemote(remotes, typeof given.remote === "string" ? given.remote : undefined);
     if (!remote) {
-      if (!remotes.length) showError(`${path.basename(repo)} has no GitHub remote. Pull request reviews need one.`);
+      if (!remotes.length)
+        showError(
+          `${path.basename(repo)} has no GitHub remote. Pull request reviews need one. ` +
+            "For GitHub Enterprise, set github-enterprise.uri to your server's address.",
+        );
       return;
     }
 
-    const github = await client();
+    const github = await client(remote.host);
     const pull =
       typeof given.number === "number"
         ? await github.getPull(remote.owner, remote.repo, given.number)
@@ -96,6 +103,7 @@ export function register(
         });
         await addWorktree(repo, worktree, pull.head.sha);
         return {
+          host: remote.host,
           owner: remote.owner,
           repo: remote.repo,
           number: pull.number,
@@ -172,7 +180,7 @@ export function register(
         });
     if (body === undefined) return;
 
-    const github = await client();
+    const github = await client(review.host);
     const result = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -244,6 +252,12 @@ export function register(
   ];
 }
 
+// github.com, plus the GitHub Enterprise host VS Code's github-enterprise.uri names.
+function githubHosts(): GithubHost[] {
+  const enterprise = enterpriseHost(vscode.workspace.getConfiguration("github-enterprise").get<string>("uri"));
+  return enterprise ? [GITHUB_COM, enterprise] : [GITHUB_COM];
+}
+
 function isEvent(value: unknown): value is ReviewEvent {
   return value === "COMMENT" || value === "REQUEST_CHANGES" || value === "APPROVE";
 }
@@ -255,7 +269,11 @@ async function pickRemote(remotes: GithubRemote[], preset: string | undefined): 
   if (remotes.length <= 1) return remotes[0];
   const ordered = [...remotes].sort((a, b) => Number(b.name === "upstream") - Number(a.name === "upstream"));
   const picked = await vscode.window.showQuickPick(
-    ordered.map((r) => ({ label: `${r.owner}/${r.repo}`, description: r.name, remote: r })),
+    ordered.map((r) => ({
+      label: `${r.owner}/${r.repo}`,
+      description: r.host === GITHUB_COM ? r.name : `${r.name} · ${r.host.name}`,
+      remote: r,
+    })),
     { placeHolder: "Pull requests from which repository?" },
   );
   return picked?.remote;

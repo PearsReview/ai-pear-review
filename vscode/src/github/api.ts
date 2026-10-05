@@ -1,8 +1,8 @@
 // The slice of GitHub's REST API a pull request review needs, over plain fetch (no
-// dependency). PEAR_REVIEW_GITHUB_API points it at the integration tests' fake.
+// dependency), on github.com or a GitHub Enterprise host. PEAR_REVIEW_GITHUB_API points
+// it at the integration tests' fake.
+import type { GithubHost } from "./remote.ts";
 import type { GithubReviewComment, ReviewEvent } from "./reviewComments.ts";
-
-const API = process.env.PEAR_REVIEW_GITHUB_API || "https://api.github.com";
 
 export interface PullRequest {
   number: number;
@@ -23,7 +23,14 @@ export interface PullFile {
 export class GithubError extends Error {}
 
 export class GithubClient {
-  constructor(private readonly token: string) {}
+  private readonly api: string;
+
+  constructor(
+    host: GithubHost,
+    private readonly token: string,
+  ) {
+    this.api = process.env.PEAR_REVIEW_GITHUB_API || host.api;
+  }
 
   listOpenPulls(owner: string, repo: string): Promise<PullRequest[]> {
     return this.request(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`);
@@ -56,7 +63,7 @@ export class GithubClient {
   }
 
   private async request<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
-    const response = await fetch(`${API}${path}`, {
+    const response = await fetch(`${this.api}${path}`, {
       method: options.method ?? "GET",
       headers: {
         Accept: "application/vnd.github+json",

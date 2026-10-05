@@ -6,7 +6,10 @@
 // - comments, which go to GitHub instead of a plan (ui/pullRequests.ts, ui/comments.ts).
 import * as path from "node:path";
 
+import type { GithubHost } from "./remote.ts";
+
 export interface PrReview {
+  host: GithubHost;
   owner: string;
   repo: string;
   number: number;

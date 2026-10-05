@@ -8,6 +8,9 @@
   Act Now, no plan), and **Submit Review** posts the comments to the PR as one
   review (Comment, Request changes or Approve). Comments outside GitHub's diff
   go on the file. Signs in with VS Code's GitHub account.
+- Pull request reviews work with GitHub Enterprise (Server, or Cloud on
+  `ghe.com`): set VS Code's `github-enterprise.uri` and that host's remotes are
+  listed, signing in with VS Code's GitHub Enterprise account.
 - Backend: `REVIEW_BASE_SHA` diffs against a commit instead of HEAD (no
   untracked files), and `REVIEW_READ_ONLY=1` refuses every handler that writes.
 

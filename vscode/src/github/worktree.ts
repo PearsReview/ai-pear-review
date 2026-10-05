@@ -6,7 +6,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { log } from "../log.ts";
-import { parseGithubRemote, type GithubRepo } from "./remote.ts";
+import { parseGithubRemote, type GithubHost, type GithubRepo } from "./remote.ts";
 
 // Fetching a large PR over a slow connection takes a while; anything else is instant.
 const GIT_TIMEOUT_MS = 120_000;
@@ -29,13 +29,13 @@ export interface GithubRemote extends GithubRepo {
   name: string;
 }
 
-// Each remote that points at GitHub. Read from the config rather than `git remote
+// Each remote that points at one of `hosts`. Read from the config rather than `git remote
 // get-url`, which applies url.*.insteadOf: the configured URL names the repository.
-export async function githubRemotes(repo: string): Promise<GithubRemote[]> {
+export async function githubRemotes(repo: string, hosts: GithubHost[]): Promise<GithubRemote[]> {
   const lines = await git(repo, ["config", "--get-regexp", String.raw`^remote\..*\.url$`]).catch(() => "");
   return lines.split("\n").flatMap((line) => {
     const [, name, url] = /^remote\.(.+)\.url\s+(.+)$/.exec(line.trim()) ?? [];
-    const parsed = url ? parseGithubRemote(url) : undefined;
+    const parsed = url ? parseGithubRemote(url, hosts) : undefined;
     return name && parsed ? [{ name, ...parsed }] : [];
   });
 }

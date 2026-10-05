@@ -116,7 +116,10 @@ with its severity ("**Must fix:** …"). One on lines outside GitHub's diff goes
 the file instead, naming the lines. **End Pull Request Review** removes the
 worktree.
 
-Only github.com remotes are supported.
+Remotes on github.com work as they are. For GitHub Enterprise (Server, or
+Enterprise Cloud on `ghe.com`), set VS Code's own `github-enterprise.uri` setting
+to your server's address, e.g. `https://github.example.com`: its remotes are then
+listed too, and you sign in through VS Code's GitHub Enterprise sign-in.
 
 The chat holds the conversation. Act Now proposals, the review's end, notices
 and errors appear as VS Code notifications. The status bar's **Pear** item
