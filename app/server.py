@@ -136,7 +136,7 @@ async def websocket_endpoint(ws: WebSocket) -> None:
         # turned one slow/contended git call into a total server freeze
         # for all clients. Caught by qa_agent, not by any human tester,
         # since a human only ever opens one tab at a time.
-        hunks = await asyncio.to_thread(get_review_hunks, repo_path)
+        hunks = await asyncio.to_thread(get_review_hunks, repo_path, CONFIG["server"].get("base_sha"))
     except DiffError as exc:
         await send_error(ws, f"Could not read the diff: {exc}")
         await ws.close()
@@ -189,6 +189,8 @@ async def websocket_endpoint(ws: WebSocket) -> None:
             # (see get_briefing).
             "briefing": True,
             "act_now": act_now_status(),
+            # A pull request review: comments go to GitHub, nothing is written.
+            "read_only": bool(CONFIG["server"].get("read_only")),
         },
     )
     await send_review_progress(ws, session)

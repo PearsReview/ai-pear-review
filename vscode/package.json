@@ -119,6 +119,24 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "pearReview.reviewPullRequest",
+        "title": "Review Pull Request…",
+        "category": "Pear Review",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "pearReview.submitPullRequestReview",
+        "title": "Submit Review to Pull Request",
+        "category": "Pear Review",
+        "icon": "$(send)"
+      },
+      {
+        "command": "pearReview.endPullRequestReview",
+        "title": "End Pull Request Review",
+        "category": "Pear Review",
+        "icon": "$(close)"
+      },
+      {
         "command": "pearReview.endReview",
         "title": "End Review",
         "category": "Pear Review"
@@ -383,7 +401,7 @@
       },
       {
         "view": "pearReview.hunks",
-        "contents": "Browse your uncommitted changes and ask about them, or start a review to have the reviewer explain each one.\n[Open Changes](command:pearReview.openChanges)\n[Start Review](command:pearReview.startReview)",
+        "contents": "Browse your uncommitted changes and ask about them, or start a review to have the reviewer explain each one.\n[Open Changes](command:pearReview.openChanges)\n[Start Review](command:pearReview.startReview)\n[Review Pull Request](command:pearReview.reviewPullRequest)",
         "when": "!pearReview.noRepo"
       }
     ],
@@ -421,7 +439,12 @@
         },
         {
           "command": "pearReview.createPlan",
-          "when": "view == pearReview.hunks",
+          "when": "view == pearReview.hunks && !pearReview.readOnly",
+          "group": "navigation@4"
+        },
+        {
+          "command": "pearReview.submitPullRequestReview",
+          "when": "view == pearReview.hunks && pearReview.readOnly",
           "group": "navigation@4"
         },
         {
@@ -438,6 +461,16 @@
           "command": "pearReview.newReview",
           "when": "view == pearReview.hunks && pearReview.reviewEnded",
           "group": "review@3"
+        },
+        {
+          "command": "pearReview.endPullRequestReview",
+          "when": "view == pearReview.hunks && pearReview.readOnly",
+          "group": "review@4"
+        },
+        {
+          "command": "pearReview.reviewPullRequest",
+          "when": "view == pearReview.hunks && !pearReview.readOnly",
+          "group": "review@5"
         }
       ],
       "view/item/context": [
@@ -587,6 +620,22 @@
         {
           "command": "pearReview.switchRepository",
           "when": "pearReview.multiRepo"
+        },
+        {
+          "command": "pearReview.actNow.toggle",
+          "when": "!pearReview.readOnly"
+        },
+        {
+          "command": "pearReview.createPlan",
+          "when": "!pearReview.readOnly"
+        },
+        {
+          "command": "pearReview.submitPullRequestReview",
+          "when": "pearReview.readOnly"
+        },
+        {
+          "command": "pearReview.endPullRequestReview",
+          "when": "pearReview.readOnly"
         }
       ],
       "comments/commentThread/context": [

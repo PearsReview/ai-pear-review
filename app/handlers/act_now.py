@@ -36,7 +36,7 @@ from .review_flow import refresh_diff
 log = logging.getLogger("ai_pear_review")
 
 
-@handler("act_now", cancels=True, background=True)
+@handler("act_now", cancels=True, background=True, writes=True)
 async def handle_act_now(ws: WebSocket, session: Session, payload: dict) -> None:
     """Runs the configured agent on a copy of the repo and returns what it
     changed as "act_now_preview" — nothing is written to disk here (see
@@ -102,7 +102,7 @@ async def handle_act_now(ws: WebSocket, session: Session, payload: dict) -> None
         await send_json(ws, "notice", {"level": "info", "message": f"{message} {edit.summary}".strip()})
 
 
-@handler("refine_act_now", cancels=True, background=True)
+@handler("refine_act_now", cancels=True, background=True, writes=True)
 async def handle_refine_act_now(ws: WebSocket, session: Session, payload: dict) -> None:
     """Re-runs the agent on top of the pending preview with the reviewer's
     follow-up, and replaces that preview with the result. A failure leaves
@@ -186,7 +186,7 @@ def _preview_entry(change: ProposedChange) -> dict | None:
     }
 
 
-@handler("confirm_act_now")
+@handler("confirm_act_now", writes=True)
 async def handle_confirm_act_now(ws: WebSocket, session: Session, payload: dict) -> None:
     """Writes exactly what the last "act_now" previewed — never re-runs the
     agent, never trusts content from the client at this step.

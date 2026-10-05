@@ -15,6 +15,13 @@ Inbound messages are registered with the `@handler` decorator and
 dispatched through [app/handlers/registry.py](../app/handlers/registry.py).
 `cancels` means `cancel_current` runs before the handler; `background`
 means it runs as `session.current_task` rather than inline.
+
+A handler registered with `writes=True` (`act_now`, `refine_act_now`,
+`confirm_act_now`, `finish_review`) is refused with an `error` (its
+`source` is the message type) when the server runs read-only: a pull
+request review started by the VS Code extension (`REVIEW_READ_ONLY=1`,
+diffing against `REVIEW_BASE_SHA`; see [app/web/config.py](../app/web/config.py)).
+The connect-time `service_status` then carries `read_only: true`.
 `test_wire_protocol_doc_matches_the_registry` in
 [tests/test_handler_registry.py](../tests/test_handler_registry.py) fails if
 this table and the registry disagree.

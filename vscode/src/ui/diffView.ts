@@ -3,7 +3,8 @@ import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
 import type { Presenting } from "../backend/protocol.ts";
-import { gitApi } from "../git.ts";
+import { prReviewFor } from "../github/prReviews.ts";
+import { baseRef, gitApi } from "../git.ts";
 import { log } from "../log.ts";
 import { fileChange, hunkHighlight } from "../review/hunks.ts";
 import { publish } from "../testProbe.ts";
@@ -19,8 +20,8 @@ interface Highlight {
   ranges: vscode.Range[];
 }
 
-// Each presented hunk opens as a native diff (HEAD ↔ working file), with the hunk's
-// lines marked and scrolled into view.
+// Each presented hunk opens as a native diff (HEAD ↔ working file, or a pull request's
+// merge-base ↔ its head), with the hunk's lines marked and scrolled into view.
 export function register(backend: Backend): vscode.Disposable[] {
   const decoration = vscode.window.createTextEditorDecorationType({
     isWholeLine: true,
@@ -47,9 +48,11 @@ export function register(backend: Backend): vscode.Disposable[] {
     const fileUri = vscode.Uri.file(path.join(root, p.file_path));
     const empty = vscode.Uri.from({ scheme: EMPTY_SCHEME, path: `/${p.file_path}` });
     const change = fileChange(p.header);
-    const left = change === "added" || !git ? empty : git.toGitUri(fileUri, "HEAD");
+    const left = change === "added" || !git ? empty : git.toGitUri(fileUri, baseRef(root));
     const right = change === "deleted" ? empty : fileUri;
-    const title = `${path.posix.basename(p.file_path)} (HEAD ↔ Working Tree) — change ${p.index + 1} of ${p.total}`;
+    const pr = prReviewFor(root);
+    const sides = pr ? `PR #${pr.number}` : "HEAD ↔ Working Tree";
+    const title = `${path.posix.basename(p.file_path)} (${sides}) — change ${p.index + 1} of ${p.total}`;
 
     for (const editor of vscode.window.visibleTextEditors) editor.setDecorations(decoration, []);
     const highlight = hunkHighlight(p.full_lines ?? [], p.highlight_start ?? -1, p.highlight_end ?? -1);

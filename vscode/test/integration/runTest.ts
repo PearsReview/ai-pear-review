@@ -14,7 +14,7 @@ import * as path from "node:path";
 import { runTests } from "@vscode/test-electron";
 
 import { startFakeServices } from "./fakeServices.ts";
-import { cleanup, prepareBackend, seedRepo, seedSmallRepo, writeRepoSettings } from "./fixtures.ts";
+import { cleanup, prepareBackend, seedPullRequest, seedRepo, seedSmallRepo, writeRepoSettings } from "./fixtures.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const liveModel = process.env.PEAR_TEST_MODEL === "ollama" || process.argv.includes("--ollama");
@@ -116,6 +116,18 @@ try {
     mkdirSync(plain, { recursive: true });
     writeFileSync(path.join(plain, "notes.md"), "# Not a repository\n");
     await run("nogit", plain, backend, { PEAR_TEST_REPO: plain });
+
+    // A GitHub pull request, reviewed read-only in a worktree, its comments posted to a
+    // fake GitHub API.
+    const pr = seedPullRequest(path.join(work, "pr"));
+    writeRepoSettings(pr.source, options);
+    await fetch(`${fake.url}/__github`, { method: "POST", body: JSON.stringify({ pull: pr.pull, files: pr.files }) });
+    await run("pr", pr.source, backend, {
+      PEAR_TEST_REPO: pr.source,
+      PEAR_TEST_PR_MERGE_BASE: pr.mergeBase,
+      PEAR_REVIEW_GITHUB_API: fake.url,
+      PEAR_REVIEW_GITHUB_TOKEN: "test-token",
+    });
   }
 } catch (err) {
   failed = true;

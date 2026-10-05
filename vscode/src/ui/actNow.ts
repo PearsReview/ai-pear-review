@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
 import type { ActNowPreview, MarkedLine, ProposedFile } from "../backend/protocol.ts";
+import { prReviewFor } from "../github/prReviews.ts";
 import { showError } from "../log.ts";
 import { sidesOf } from "../review/hunks.ts";
 import { publish } from "../testProbe.ts";
@@ -42,6 +43,8 @@ export function register(backend: Backend): { actNow: ActNow; disposables: vscod
     vscode.Uri.from({ scheme: SCHEME, path: `/${side}/${filePath}` });
 
   const setActive = (on: boolean): void => {
+    // A pull request review is read-only; the backend refuses act_now there too.
+    if (on && prReviewFor(backend.repoPath)) return;
     if (on === active) return;
     active = on;
     void vscode.commands.executeCommand("setContext", "pearReview.actMode", on);

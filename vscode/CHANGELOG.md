@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Review Pull Request…** reviews a GitHub pull request: it's fetched into a
+  separate worktree (your checkout is untouched) and diffed against its
+  merge-base, as GitHub's Files changed shows it. The review is read-only (no
+  Act Now, no plan), and **Submit Review** posts the comments to the PR as one
+  review (Comment, Request changes or Approve). Comments outside GitHub's diff
+  go on the file. Signs in with VS Code's GitHub account.
+- Backend: `REVIEW_BASE_SHA` diffs against a commit instead of HEAD (no
+  untracked files), and `REVIEW_READ_ONLY=1` refuses every handler that writes.
+
 ## 0.0.2
 
 - The extension moved into the backend's repo (`vscode/`), replacing the

@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import type { Backend } from "../backend/backend.ts";
 import type { ReviewComment, Severity } from "../backend/protocol.ts";
 import { reviewLocation, reviewUri } from "../git.ts";
+import { prReviewFor } from "../github/prReviews.ts";
 import { log, showError } from "../log.ts";
 import { anchorRange } from "../review/anchors.ts";
 import { publish } from "../testProbe.ts";
@@ -11,6 +12,8 @@ import type { SelectionContext } from "./selection.ts";
 
 export interface Comments {
   readonly count: number;
+  // The queued comments, oldest first: what a pull request review posts.
+  readonly pending: ReviewComment[];
   readonly onDidChangeCount: vscode.Event<number>;
   // A recording started from a comment box's mic belongs to that box: voice.ts hands
   // its audio here, and this queues it as the comment. False when no box is waiting.
@@ -50,8 +53,18 @@ export function register(
   selection: SelectionContext,
 ): { comments: Comments; disposables: vscode.Disposable[] } {
   const controller = vscode.comments.createCommentController("pearReview", "Pear Review");
-  controller.options = { prompt: "Comment for the coding agent", placeHolder: "What should change here?" };
+  // A pull request review's comments go to GitHub, not to a coding agent.
+  const setPrompt = (): void => {
+    const pr = prReviewFor(backend.repoPath);
+    controller.options = pr
+      ? { prompt: `Comment on PR #${pr.number}`, placeHolder: "What should change here?" }
+      : { prompt: "Comment for the coding agent", placeHolder: "What should change here?" };
+  };
+  setPrompt();
   const threads = new Map<number, PearComment>();
+  // The backend's queue as last heard, kept apart from the threads: a comment whose
+  // thread couldn't be drawn is still queued, and still posted.
+  const pending = new Map<number, ReviewComment>();
   publish("comments.threads", () =>
     [...threads.values()].map((c) => ({
       id: c.data.id,
@@ -117,7 +130,8 @@ export function register(
     const thread = controller.createCommentThread(uri, new vscode.Range(range.startLine - 1, 0, range.endLine - 1, 0), [
       comment,
     ]);
-    thread.label = `${data.where} · goes into the plan`;
+    const pr = prReviewFor(root);
+    thread.label = `${data.where} · ${pr ? `goes to PR #${pr.number}` : "goes into the plan"}`;
     thread.canReply = false;
     thread.contextValue = "pearThread";
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
@@ -175,6 +189,10 @@ export function register(
 
   // `preset` skips the prompts: { note?, asSkill? }, from a keybinding or the tests.
   const createPlan = async (preset?: unknown): Promise<void> => {
+    if (prReviewFor(backend.repoPath)) {
+      await vscode.commands.executeCommand("pearReview.submitPullRequestReview");
+      return;
+    }
     const given =
       typeof preset === "object" && preset !== null ? (preset as { note?: unknown; asSkill?: unknown }) : undefined;
     if (count === 0) {
@@ -214,6 +232,9 @@ export function register(
     comments: {
       get count() {
         return count;
+      },
+      get pending() {
+        return [...pending.values()].sort((a, b) => a.id - b.id);
       },
       onDidChangeCount: countChanges.event,
       takeVoiceComment(audio_base64) {
@@ -259,26 +280,33 @@ export function register(
         if (changed) refreshRanges();
       }),
       backend.on("review_comments_sync", ({ comments }) => {
+        pending.clear();
+        for (const c of comments) pending.set(c.id, c);
         clearThreads();
         showAll(comments);
         setCount(comments.length);
       }),
       backend.on("review_comment_queued", (data) => {
+        pending.set(data.id, data);
         showAll([data]);
         setCount(data.pending_count);
       }),
       backend.on("review_comment_updated", ({ id, instruction, severity }) => {
+        const queued = pending.get(id);
+        if (queued) pending.set(id, { ...queued, instruction, severity });
         const comment = threads.get(id);
         if (!comment) return;
         comment.update({ ...comment.data, instruction, severity });
         redraw(comment);
       }),
       backend.on("review_comment_removed", ({ id, pending_count }) => {
+        pending.delete(id);
         threads.get(id)?.thread?.dispose();
         threads.delete(id);
         setCount(pending_count);
       }),
       backend.on("review_finished", (result) => {
+        pending.clear();
         clearThreads();
         setCount(0);
         void vscode.window
@@ -301,8 +329,12 @@ export function register(
           });
       }),
       backend.onStateChange((state) => {
-        if (state === "ready") return;
+        if (state === "ready") {
+          setPrompt();
+          return;
+        }
         voiceThread = undefined;
+        pending.clear();
         clearThreads();
         setCount(0);
         open = false;

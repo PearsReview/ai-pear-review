@@ -15,6 +15,7 @@ import * as diffView from "./ui/diffView.ts";
 import * as hunkTree from "./ui/hunkTree.ts";
 import * as notices from "./ui/notices.ts";
 import * as preferences from "./ui/prefs.ts";
+import * as pullRequests from "./ui/pullRequests.ts";
 import * as pythonSetup from "./ui/pythonSetup.ts";
 import * as readAloud from "./ui/readAloud.ts";
 import * as readingHighlight from "./ui/readingHighlight.ts";
@@ -84,6 +85,7 @@ export function activate(context: vscode.ExtensionContext): {
       speaking,
     }),
     ...commands.register(context, backend, recorder.voice, prefs.prefs),
+    ...pullRequests.register(context, backend, review.comments),
   );
   const samePath = (a: string, b: string): boolean =>
     process.platform === "win32"

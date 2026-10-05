@@ -116,10 +116,11 @@ folder the backend needs has to be added to `scripts/syncBackend.mjs`.
   act the way a user does (commands, the chat's message handler) and read state through
   the test probe (`src/testProbe.ts`). A module that needs checking publishes a
   read-only view there; it never gains test-only behaviour.
-- The integration suite runs three workspaces, each its own VS Code instance
+- The integration suite runs four workspaces, each its own VS Code instance
   (`test/integration/runTest.ts`): the main repository (the numbered files), a
-  multi-root workspace with two repositories (`multi_*`), and a folder that isn't a
-  repository (`nogit_*`).
+  multi-root workspace with two repositories (`multi_*`), a folder that isn't a
+  repository (`nogit_*`), and a GitHub pull request against a fake GitHub API
+  (`pr_*`).
 - Every message type the UI sends has a test path. A new feature adds an integration
   test, and a DOM test if it changes the chat panel.
 - A change is done when:

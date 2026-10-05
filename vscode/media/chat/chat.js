@@ -21,6 +21,8 @@
     narrating: false,
     actNow: { available: false, detail: "Checking whether a coding agent is set up…", agent: "the agent" },
     actMode: false,
+    // A pull request review: nothing is written, so there's no Act Now.
+    readOnly: false,
     stt: true,
     narrated: new Map(), // hunk index -> narration text already shown
     lastQuestion: new Map(), // hunk index -> the reviewer's latest question on it
@@ -285,6 +287,7 @@
     }
     input.disabled = !canAsk;
     const act = /** @type {HTMLButtonElement} */ ($("act"));
+    act.hidden = state.readOnly;
     act.disabled = !onHunk || !state.actNow.available;
     act.title = state.actNow.available
       ? `Ask ${agentName()} to make a change. It proposes it as a diff; nothing is written until you apply it.`
@@ -446,10 +449,9 @@
     deeper_turn: (p) => appendTurn("deeper", p.text, p),
     service_status(p) {
       if (p.tts === false) audio.stop();
-      if (p.act_now) {
-        state.actNow = p.act_now;
-        updateControls();
-      }
+      if (typeof p.read_only === "boolean") state.readOnly = p.read_only;
+      if (p.act_now) state.actNow = p.act_now;
+      if (p.act_now || typeof p.read_only === "boolean") updateControls();
     },
     // Narration and replies spoken automatically: under the newest reply's button.
     audio_chunk: (p) => audio.enqueue(p, latestSpeak),

@@ -38,6 +38,13 @@ _repo_from_env = os.environ.get("REVIEW_REPO_PATH")
 if _repo_from_env:
     CONFIG["server"]["repo_path"] = _repo_from_env
 
+# A pull request review, started by the VS Code extension on a worktree of
+# the PR's head: REVIEW_BASE_SHA is the merge-base to diff against, and
+# REVIEW_READ_ONLY=1 turns off everything that writes (Act Now, the plan and
+# skill files). Comments go to GitHub from the extension instead.
+CONFIG["server"]["base_sha"] = os.environ.get("REVIEW_BASE_SHA") or None
+CONFIG["server"]["read_only"] = os.environ.get("REVIEW_READ_ONLY") == "1"
+
 # Layer any UI-saved model settings over config.yaml (see
 # services/settings_store.py — config.yaml itself is never rewritten, so
 # its comments survive). Done once here, at import: ConversationClient is

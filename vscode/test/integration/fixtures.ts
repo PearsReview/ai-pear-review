@@ -138,6 +138,78 @@ export function seedSmallRepo(repo: string): void {
   write(repo, "tools.py", "def double(x):\n    return x * 2\n\n\ndef triple(x):\n    return x * 3\n");
 }
 
+// A pull request on a stand-in for github.com/acme/widgets (runTest.ts's "pr" run).
+// `hosted` plays GitHub: main, plus the PR's head at refs/pull/7/head, and main has
+// moved on since the PR branched (so the merge-base isn't main's tip). `source` is the
+// reviewer's clone, from before main moved, with an uncommitted change of its own; its
+// origin is the GitHub URL, which git rewrites to `hosted` (url.*.insteadOf).
+export interface PrFixture {
+  source: string;
+  number: number;
+  pull: Record<string, unknown>;
+  files: { filename: string; patch: string }[];
+  mergeBase: string;
+}
+
+export function seedPullRequest(work: string): PrFixture {
+  const hosted = path.join(work, "hosted");
+  const source = path.join(work, "source");
+  const out = (cwd: string, ...args: string[]): string =>
+    execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
+
+  mkdirSync(hosted, { recursive: true });
+  git(hosted, "init", "-q", "-b", "main");
+  git(hosted, "config", "user.email", "tests@example.com");
+  git(hosted, "config", "user.name", "Pear Tests");
+  git(hosted, "config", "core.autocrlf", "false");
+  write(hosted, "calc.py", "def add(a, b):\n    return a + b\n\n\ndef sub(a, b):\n    return a - b\n");
+  write(hosted, "README.md", "# Widgets\n");
+  git(hosted, "add", ".");
+  git(hosted, "commit", "-qm", "initial");
+  const mergeBase = out(hosted, "rev-parse", "HEAD");
+
+  // autocrlf off from the clone on, or a Windows checkout's CRLF files show as changed.
+  git(work, "clone", "-q", "-c", "core.autocrlf=false", hosted, source);
+  git(source, "config", "user.email", "tests@example.com");
+  git(source, "config", "user.name", "Pear Tests");
+  git(source, "config", "core.autocrlf", "false");
+  git(source, "remote", "set-url", "origin", "https://github.com/acme/widgets.git");
+  git(source, "config", `url.${hosted.replaceAll("\\", "/")}.insteadOf`, "https://github.com/acme/widgets.git");
+  write(source, path.join(".git", "info", "exclude"), ".review/\n.briefing/\n.context/\n");
+  write(source, "README.md", "# Widgets\n\nWork in progress.\n");
+
+  git(hosted, "checkout", "-q", "-b", "feature");
+  write(
+    hosted,
+    "calc.py",
+    'def add(a, b):\n    """Add two numbers."""\n    return a + b\n\n\ndef sub(a, b):\n    return a - b\n',
+  );
+  write(hosted, "mul.py", "def mul(a, b):\n    return a * b\n");
+  git(hosted, "add", ".");
+  git(hosted, "commit", "-qm", "Document add, add mul");
+  const head = out(hosted, "rev-parse", "HEAD");
+  git(hosted, "update-ref", "refs/pull/7/head", head);
+  git(hosted, "checkout", "-q", "main");
+  write(hosted, "README.md", "# Widgets\n\nNow with docs.\n");
+  git(hosted, "commit", "-qam", "Main moves on");
+  const baseTip = out(hosted, "rev-parse", "HEAD");
+
+  // What GitHub's pulls/7/files sends: each file's patch from its first hunk header.
+  const files = ["calc.py", "mul.py"].map((filename) => {
+    const diff = out(hosted, "diff", "--unified=3", mergeBase, head, "--", filename);
+    return { filename, patch: diff.slice(diff.indexOf("@@")) };
+  });
+  const pull = {
+    number: 7,
+    title: "Document add, add mul",
+    html_url: "https://github.com/acme/widgets/pull/7",
+    user: { login: "octocat" },
+    head: { sha: head, ref: "feature", label: "acme:feature" },
+    base: { sha: baseTip, ref: "main" },
+  };
+  return { source, number: 7, pull, files, mergeBase };
+}
+
 export function cleanup(work: string): void {
   rmSync(work, { recursive: true, force: true });
 }

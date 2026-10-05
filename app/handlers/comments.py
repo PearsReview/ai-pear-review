@@ -258,7 +258,7 @@ def _new_plan_path(repo_path: str, stamp: str) -> Path:
     return candidate
 
 
-@handler("finish_review")
+@handler("finish_review", writes=True)
 async def handle_finish_review(ws: WebSocket, session: Session, payload: dict) -> None:
     """Writes the plan from the whole queue and hands it off (see the module
     docstring).

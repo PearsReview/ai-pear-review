@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 
+import { prReviewFor } from "./github/prReviews.ts";
 import { showError } from "./log.ts";
 
 // The slice of the built-in vscode.git extension's API this extension uses.
@@ -11,6 +12,8 @@ interface GitApi {
   onDidOpenRepository: vscode.Event<{ rootUri: vscode.Uri }>;
   onDidCloseRepository: vscode.Event<{ rootUri: vscode.Uri }>;
   toGitUri(uri: vscode.Uri, ref: string): vscode.Uri;
+  // A pull request review's worktree isn't in the workspace, so it's opened by hand.
+  openRepository(root: vscode.Uri): Promise<unknown>;
 }
 
 let api: GitApi | undefined;
@@ -69,7 +72,7 @@ export function repoContaining(uri: vscode.Uri, roots: string[]): string | undef
 }
 
 // Which reviewed file, and which side of its diff, an editor document is. The git
-// extension's HEAD side (toGitUri) keeps the file's own path; anything outside the
+// extension's old side (toGitUri) keeps the file's own path; anything outside the
 // repo, or any other scheme, is not part of the review.
 export function reviewLocation(
   uri: vscode.Uri,
@@ -82,10 +85,15 @@ export function reviewLocation(
   return { filePath: relative.split(path.sep).join("/"), side };
 }
 
+// The commit the review diff's old side is: HEAD, or a pull request's merge-base.
+export function baseRef(repoRoot: string): string {
+  return prReviewFor(repoRoot)?.baseSha ?? "HEAD";
+}
+
 // The reverse: the document a file's side opens as in the review diff.
 export async function reviewUri(repoRoot: string, filePath: string, side: "new" | "old"): Promise<vscode.Uri> {
   const fileUri = vscode.Uri.file(path.join(repoRoot, filePath));
   if (side === "new") return fileUri;
   const git = await gitApi();
-  return git ? git.toGitUri(fileUri, "HEAD") : fileUri;
+  return git ? git.toGitUri(fileUri, baseRef(repoRoot)) : fileUri;
 }

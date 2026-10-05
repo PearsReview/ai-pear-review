@@ -35,7 +35,9 @@ you're reviewing to the model you choose. Ollama (the default) stays on your
 machine. The Anthropic API, or a coding agent (Cline) set up with a hosted
 provider, sends that code to the provider. A remote speech service receives your
 recorded audio and anything read aloud. Act Now can write to your working tree,
-only after you confirm a preview. Nothing is sent anywhere until you start a
+only after you confirm a preview. Reviewing a pull request signs in to GitHub
+(VS Code's own GitHub sign-in) to read the PR and to post your comments to it,
+only when you submit the review. Nothing is sent anywhere until you start a
 review, and the extension itself collects no telemetry. Details:
 [Privacy](https://github.com/PearsReview/ai-pear-review#privacy) and
 [Security](https://github.com/PearsReview/ai-pear-review/blob/main/SECURITY.md).
@@ -98,6 +100,24 @@ below.
     sums it up: how much was reviewed, the comments waiting, and buttons to
     create the plan, open the last plan, or start a new review.
 
+### Reviewing a GitHub pull request
+
+**Review Pull Request…** (in the Changes view's **…** menu, or the command
+palette) lists the open pull requests of the repository's GitHub remote. Pick
+one and Pear Review fetches it into a separate worktree, so your own checkout
+and uncommitted changes are left alone, and reviews it the way GitHub's
+**Files changed** shows it: against the point where it branched.
+
+Everything works as in a local review except what would write: there's no Act
+Now, and no plan. Comments say **goes to PR #N**. **Submit Review** (the send
+button on the Changes view) posts them all to the PR as one review, with your
+choice of Comment, Request changes or Approve and a summary. Each comment starts
+with its severity ("**Must fix:** …"). One on lines outside GitHub's diff goes on
+the file instead, naming the lines. **End Pull Request Review** removes the
+worktree.
+
+Only github.com remotes are supported.
+
 The chat holds the conversation. Act Now proposals, the review's end, notices
 and errors appear as VS Code notifications. The status bar's **Pear** item
 names any service that's down; hover it for the model, speech, coding agent and
@@ -155,17 +175,17 @@ needs goes in the same pull request. It must pass the root checks (`pytest tests
 
 ### Tests
 
-| Command                           | What runs                                                                                                                                                | Time    |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `npm test`                        | Unit tests of the pure helpers, and DOM tests of the chat panel's script under jsdom                                                                     | seconds |
-| `python -m pytest test/python`    | The audio player's WAV decoding                                                                                                                          | seconds |
-| `npm run test:package`            | The `.vsix` holds what the backend needs to start                                                                                                        | seconds |
-| `npm run test:integration`        | A real VS Code with the extension and a real backend, in three workspaces: a scratch repo, two repos in one window, and a folder that isn't a repository | ~1 min  |
-| `npm run test:integration:ollama` | The scratch-repo workspace only, with your local Ollama as the reviewer model                                                                            | minutes |
+| Command                           | What runs                                                                                                                                                                      | Time    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `npm test`                        | Unit tests of the pure helpers, and DOM tests of the chat panel's script under jsdom                                                                                           | seconds |
+| `python -m pytest test/python`    | The audio player's WAV decoding                                                                                                                                                | seconds |
+| `npm run test:package`            | The `.vsix` holds what the backend needs to start                                                                                                                              | seconds |
+| `npm run test:integration`        | A real VS Code with the extension and a real backend, in four workspaces: a scratch repo, two repos in one window, a folder that isn't a repository, and a GitHub pull request | ~1 min  |
+| `npm run test:integration:ollama` | The scratch-repo workspace only, with your local Ollama as the reviewer model                                                                                                  | minutes |
 
 In the integration suite everything the backend calls out to is a fake
-(`test/integration/`): a local server stands in for Ollama and the speech
-service and records every request, the backend's scripted agent
+(`test/integration/`): a local server stands in for Ollama, the speech
+service and GitHub's API and records every request, the backend's scripted agent
 (`tests/fake_acp_agent.py`) stands in for Cline, and a fake `sounddevice`
 records a tone instead of opening the microphone. The backend runs from a
 temporary copy with a patched config, so the repo's backend is never edited. Only the

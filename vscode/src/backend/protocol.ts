@@ -275,6 +275,8 @@ export interface ServiceStatus {
   briefing?: boolean;
   // Look deeper runs on the same coding agent as Act Now.
   act_now?: ActNowStatus;
+  // A pull request review: Act Now and the plan are off, comments go to GitHub.
+  read_only?: boolean;
 }
 
 // Something was answered without the whole change in front of the model

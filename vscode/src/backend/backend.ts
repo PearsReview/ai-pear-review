@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 
+import { backendEnv } from "../github/prReviews.ts";
 import { log } from "../log.ts";
 import { BackendProcess } from "./backendProcess.ts";
 import type { ClientMessageType, ClientPayloads, ServerMessage, ServerMessageType, ServerPayloads } from "./protocol.ts";
@@ -101,7 +102,7 @@ export class PythonBackend implements Backend, vscode.Disposable {
         python: resolvePython(this.extensionPath),
         extensionPath: this.extensionPath,
         repoPath,
-        env: apiKey ? { ANTHROPIC_API_KEY: apiKey } : {},
+        env: { ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}), ...backendEnv(repoPath) },
       });
       await this.connect();
       this.setState("ready");

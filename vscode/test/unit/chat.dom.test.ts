@@ -388,6 +388,15 @@ void describe("chat webview", () => {
     assert.deepEqual(lastPost(chat), { kind: "actNow", text: "Add a guard" });
   });
 
+  void test("a read-only (pull request) review hides Act Now, and a local one shows it again", () => {
+    chat.server("presenting", hunk);
+    chat.server("service_status", { act_now: { available: true, detail: "ok", agent: "Cline" }, read_only: true });
+    assert.equal(chat.$("act").hidden, true);
+    chat.server("service_status", { read_only: false });
+    assert.equal(chat.$("act").hidden, false);
+    assert.equal((chat.$("act") as HTMLButtonElement).disabled, false);
+  });
+
   void test("asking about a file shows a banner and enables the composer without a hunk", () => {
     assert.equal((chat.$("send") as HTMLButtonElement).disabled, true);
     chat.send({ kind: "target", file_path: "NOTES.md" });

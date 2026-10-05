@@ -100,7 +100,7 @@ async def refresh_diff(ws: WebSocket, session: Session, notice_message: str | No
     carries over on that path, by design."""
     repo_path = CONFIG["server"].get("repo_path", ".")
     try:
-        new_hunks = await asyncio.to_thread(get_review_hunks, repo_path)
+        new_hunks = await asyncio.to_thread(get_review_hunks, repo_path, CONFIG["server"].get("base_sha"))
     except DiffError as exc:
         # Mirrors the identical try/except around the twin call in
         # websocket_endpoint (the initial-connect path) — this one didn't

@@ -1,6 +1,7 @@
 // One local HTTP server standing in for everything the backend calls out to in the
-// integration tests: Ollama (/api/tags, /api/show, /api/chat) and the speech service
-// (/transcribe, /speech). Instant and deterministic, and it records every request so
+// integration tests: Ollama (/api/tags, /api/show, /api/chat), the speech service
+// (/transcribe, /speech), and the slice of GitHub's REST API a pull request review uses
+// (/repos/...; POST /__github {"pull": ..., "files": [...]} sets the one PR it serves). Instant and deterministic, and it records every request so
 // tests can check what reached the model (GET /__requests).
 //
 // Tests script it over HTTP: POST /__script {"replies": [...], "transcript": "..."}
@@ -81,6 +82,7 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
 export async function startFakeServices(): Promise<{ url: string; close: () => Promise<void> }> {
   const requests: Recorded[] = [];
   const script: Script = { replies: [], transcript: DEFAULT_TRANSCRIPT };
+  let github: { pull?: { number: number }; files?: unknown[] } = {};
 
   const server: Server = createServer((req, res) => {
     void (async () => {
@@ -111,6 +113,25 @@ export async function startFakeServices(): Promise<{ url: string; close: () => P
         if (Array.isArray(body.replies)) script.replies.push(...body.replies.map(String));
         if (typeof body.transcript === "string") script.transcript = body.transcript;
         return json(200, { ok: true });
+      }
+
+      if (path === "/__github") {
+        github = parsed();
+        return json(200, { ok: true });
+      }
+
+      // --- GitHub -----------------------------------------------------------------
+      const pr = /^\/repos\/[^/]+\/[^/]+\/pulls(?:\/(\d+)(\/files|\/reviews)?)?$/.exec(path);
+      if (pr) {
+        requests.push({ path, body: { method: req.method, auth: req.headers.authorization, ...parsed() } });
+        const [, number, sub] = pr;
+        if (!github.pull || (number && Number(number) !== github.pull.number))
+          return json(404, { message: "Not Found" });
+        if (!number) return json(200, [github.pull]);
+        if (sub === "/files") return json(200, (req.url ?? "").includes("page=1") ? (github.files ?? []) : []);
+        if (sub === "/reviews")
+          return json(200, { id: 1, html_url: `https://github.com/acme/widgets/pull/${number}#review-1` });
+        return json(200, github.pull);
       }
 
       // --- Ollama ---------------------------------------------------------------
