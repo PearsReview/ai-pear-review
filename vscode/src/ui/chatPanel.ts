@@ -26,7 +26,10 @@ type ToWebview =
   // chat drops its thinking dots. What happened is shown outside it (notices.ts).
   | { kind: "settle" }
   // Another voice took over (a file read aloud): stop the chat's audio.
-  | { kind: "stopAudio" };
+  | { kind: "stopAudio" }
+  // An explanation was asked for from outside the chat (✨ in an editor's title bar):
+  // the chat shows it's coming, as it does for its own ✨.
+  | { kind: "explaining" };
 
 // Webview → extension. Validated in parseFromWebview: the webview is a separate
 // context, so its messages are checked like any other input.
@@ -123,6 +126,9 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
       backend.on("act_now_cleared", () => this.post({ kind: "settle" })),
       backend.on("agent_stopped", () => this.post({ kind: "settle" })),
       backend.on("error", () => this.post({ kind: "settle" })),
+      backend.onDidSend((type) => {
+        if (type === "explain_hunk") this.post({ kind: "explaining" });
+      }),
       backend.onStateChange((state) => this.post({ kind: "backend", state })),
       speaking.onDidClaim((who) => {
         if (who === "file") this.post({ kind: "stopAudio" });

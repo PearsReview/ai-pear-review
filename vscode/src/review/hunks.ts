@@ -66,3 +66,25 @@ export function sidesOf(full: DiffLine[]): { before: string; after: string } {
   const after = full.filter((l) => l.kind !== "del").map((l) => l.text);
   return { before: before.join("\n"), after: after.join("\n") };
 }
+
+// The hunk of a file a line is in, on one side of its diff: for "Explain this change"
+// from wherever the cursor is (Pear's diff, GitHub's, or the plain file). A line between
+// hunks picks the nearest one, so the button never does nothing on a reviewed file.
+export function hunkAtLine(
+  hunks: readonly { index: number; header: string }[],
+  side: "new" | "old",
+  line: number,
+): number | undefined {
+  let nearest: { index: number; distance: number } | undefined;
+  for (const hunk of hunks) {
+    const range = parseHeader(hunk.header);
+    if (!range) continue;
+    const start = side === "new" ? range.newStart : range.oldStart;
+    const count = side === "new" ? range.newCount : range.oldCount;
+    const end = start + Math.max(count, 1) - 1;
+    const distance = line < start ? start - line : line > end ? line - end : 0;
+    if (distance === 0) return hunk.index;
+    if (!nearest || distance < nearest.distance) nearest = { index: hunk.index, distance };
+  }
+  return nearest?.index;
+}

@@ -2,8 +2,10 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
-import { pickRepository, repoContaining, repositoryRoots } from "../git.ts";
+import type { ReviewProgress } from "../backend/protocol.ts";
+import { pickRepository, repoContaining, repositoryRoots, reviewLocation } from "../git.ts";
 import { output, showError } from "../log.ts";
+import { hunkAtLine } from "../review/hunks.ts";
 import type { Prefs } from "./prefs.ts";
 import { showPreview } from "./previewTabs.ts";
 import type { Voice } from "./voice.ts";
@@ -15,6 +17,10 @@ export function register(
   prefs: Prefs,
 ): vscode.Disposable[] {
   let currentIndex: number | undefined;
+  let progress: ReviewProgress | undefined;
+  // Hunks explained, or being explained, on this connection: ✨ on one of them shows the
+  // chat rather than asking again, which would cancel and restart a slow model's answer.
+  const explained = new Set<number>();
 
   const send = (fn: () => void): void => {
     try {
@@ -110,6 +116,29 @@ export function register(
 
   return [
     backend.on("presenting", (p) => (currentIndex = p.done ? undefined : p.index)),
+    backend.on("review_progress", (p) => (progress = p)),
+    backend.on("presenting", (p) => {
+      if (!p.done && (p.narrated || p.narrating)) explained.add(p.index);
+    }),
+    backend.on("narration", (p) => {
+      if (p.index !== undefined) explained.add(p.index);
+    }),
+    backend.onDidSend((type) => {
+      if (type === "explain_hunk" && currentIndex !== undefined) explained.add(currentIndex);
+      // A re-read diff renumbers its hunks and drops their explanations.
+      if (type === "refresh_diff" || type === "new_review") explained.clear();
+    }),
+    // An interrupted explanation can be asked for again.
+    backend.on("agent_stopped", () => {
+      if (currentIndex !== undefined) explained.delete(currentIndex);
+    }),
+    backend.on("error", () => {
+      if (currentIndex !== undefined) explained.delete(currentIndex);
+    }),
+    // A new connection has no explanations yet.
+    backend.onStateChange((state) => {
+      if (state !== "ready") explained.clear();
+    }),
     vscode.commands.registerCommand("pearReview.openChanges", openChanges),
     vscode.commands.registerCommand("pearReview.openChat", async () => {
       if (!(await openChanges())) return;
@@ -165,6 +194,32 @@ export function register(
         return;
       }
       const index = currentIndex;
+      send(() => backend.send("explain_hunk", { index }));
+    }),
+    // ✨ in an editor's title bar: explain the change the cursor is in, in Pear's diff,
+    // the GitHub Pull Requests extension's, or the file itself. Moves the review there
+    // first (explanations are for the change on screen), then asks.
+    vscode.commands.registerCommand("pearReview.explainHere", async () => {
+      const editor = vscode.window.activeTextEditor;
+      const root = backend.repoPath;
+      const location = editor && root ? reviewLocation(editor.document.uri, root) : undefined;
+      const file = location && progress?.files.find((f) => f.file_path === location.filePath);
+      const index =
+        file && location && editor
+          ? hunkAtLine(file.hunks, location.side, editor.selection.active.line + 1)
+          : undefined;
+      if (index === undefined) {
+        showError("This file has no change in the review to explain. Open a changed file, or start the review.");
+        return;
+      }
+      if (index !== currentIndex) {
+        const shown = backend.next("presenting");
+        send(() => backend.send("jump_to_hunk", { index }));
+        await shown;
+      }
+      await vscode.commands.executeCommand("pearReview.chat.focus");
+      if (explained.has(index)) return;
+      explained.add(index);
       send(() => backend.send("explain_hunk", { index }));
     }),
     vscode.commands.registerCommand("pearReview.toggleRecording", () => {

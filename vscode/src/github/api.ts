@@ -1,8 +1,8 @@
-// The slice of GitHub's REST API a pull request review needs, over plain fetch (no
+// The slice of GitHub's REST API a pull request review needs (the PR's base, for its
+// merge-base), over plain fetch (no
 // dependency), on github.com or a GitHub Enterprise host. PEAR_REVIEW_GITHUB_API points
 // it at the integration tests' fake.
 import type { GithubHost } from "./remote.ts";
-import type { GithubReviewComment, ReviewEvent } from "./reviewComments.ts";
 
 export interface PullRequest {
   number: number;
@@ -12,12 +12,6 @@ export interface PullRequest {
   draft?: boolean;
   head: { sha: string; ref: string; label: string };
   base: { sha: string; ref: string };
-}
-
-export interface PullFile {
-  filename: string;
-  // Absent for a binary file, or one too large for GitHub to show.
-  patch?: string;
 }
 
 export class GithubError extends Error {}
@@ -32,34 +26,8 @@ export class GithubClient {
     this.api = process.env.PEAR_REVIEW_GITHUB_API || host.api;
   }
 
-  listOpenPulls(owner: string, repo: string): Promise<PullRequest[]> {
-    return this.request(`/repos/${owner}/${repo}/pulls?state=open&per_page=100`);
-  }
-
   getPull(owner: string, repo: string, number: number): Promise<PullRequest> {
     return this.request(`/repos/${owner}/${repo}/pulls/${number}`);
-  }
-
-  // Every changed file, across pages (GitHub sends at most 100 per page, 3000 in all).
-  async listFiles(owner: string, repo: string, number: number): Promise<PullFile[]> {
-    const files: PullFile[] = [];
-    for (let page = 1; ; page++) {
-      const batch = await this.request<PullFile[]>(
-        `/repos/${owner}/${repo}/pulls/${number}/files?per_page=100&page=${page}`,
-      );
-      files.push(...batch);
-      if (batch.length < 100) return files;
-    }
-  }
-
-  // Submitted at once, comments and verdict together: nothing is left pending on the PR.
-  createReview(
-    owner: string,
-    repo: string,
-    number: number,
-    review: { commit_id: string; event: ReviewEvent; body: string; comments: GithubReviewComment[] },
-  ): Promise<{ html_url: string }> {
-    return this.request(`/repos/${owner}/${repo}/pulls/${number}/reviews`, { method: "POST", body: review });
   }
 
   private async request<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {

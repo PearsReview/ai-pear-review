@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 
 import { prReviewFor } from "./github/prReviews.ts";
 import { showError } from "./log.ts";
+import { parseReviewQuery, REVIEW_SCHEME } from "./review/reviewUri.ts";
 
 // The slice of the built-in vscode.git extension's API this extension uses.
 interface GitApi {
@@ -72,17 +73,40 @@ export function repoContaining(uri: vscode.Uri, roots: string[]): string | undef
 }
 
 // Which reviewed file, and which side of its diff, an editor document is. The git
-// extension's old side (toGitUri) keeps the file's own path; anything outside the
-// repo, or any other scheme, is not part of the review.
+// extension's old side (toGitUri) keeps the file's own path, and so does the GitHub
+// Pull Requests extension's ("review:", see reviewSchemeLocation); anything outside
+// the repo, or any other scheme, is not part of the review.
 export function reviewLocation(
   uri: vscode.Uri,
   repoRoot: string,
 ): { filePath: string; side: "new" | "old" } | undefined {
+  if (uri.scheme === REVIEW_SCHEME) return reviewSchemeLocation(uri, repoRoot);
   const side = uri.scheme === "file" ? "new" : uri.scheme === "git" ? "old" : undefined;
   if (!side) return undefined;
-  const relative = path.relative(repoRoot, uri.fsPath);
+  return relativeLocation(uri.fsPath, repoRoot, side);
+}
+
+function relativeLocation(
+  file: string,
+  repoRoot: string,
+  side: "new" | "old",
+): { filePath: string; side: "new" | "old" } | undefined {
+  const relative = path.relative(repoRoot, file);
   if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return undefined;
   return { filePath: relative.split(path.sep).join("/"), side };
+}
+
+// The GitHub Pull Requests extension's diff of a checked-out PR (review/reviewUri.ts).
+export function reviewSchemeLocation(
+  uri: vscode.Uri,
+  repoRoot: string,
+): { filePath: string; side: "new" | "old" } | undefined {
+  const query = parseReviewQuery(uri.query, uri.path);
+  if (!query) return undefined;
+  if (!path.isAbsolute(query.path) && !query.path.startsWith("/")) {
+    return { filePath: query.path.split(path.sep).join("/"), side: query.side };
+  }
+  return relativeLocation(vscode.Uri.file(query.path).fsPath, repoRoot, query.side);
 }
 
 // The commit the review diff's old side is: HEAD, or a pull request's merge-base.

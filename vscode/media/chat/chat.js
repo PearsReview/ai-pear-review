@@ -489,6 +489,12 @@
       updateControls();
     } else if (msg.kind === "stopAudio") {
       audio.stop();
+    } else if (msg.kind === "explaining") {
+      if (!state.narrating) {
+        state.narrating = true;
+        showThinking();
+        updateControls();
+      }
     } else if (msg.kind === "settle") {
       clearThinking();
       state.narrating = false;

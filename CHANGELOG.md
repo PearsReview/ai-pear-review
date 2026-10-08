@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Startup checks: a pull request review counts the PR's commits since its
+  merge-base instead of warning that the (normally clean) checkout has nothing
+  to review, and `provider: openai` is checked (package, model, key) instead
+  of being reported as unknown.
+- The reviewed repo's `git status` stays clean in more cases: the debug
+  folders (`.briefing_debug/`, `.editor_debug/`) are excluded too, a linked
+  worktree (such as a pull request checked out with "Checkout in Worktree")
+  gets its exclusions in the main repository's `info/exclude` instead of none,
+  and an existing `.briefing_debug` entry no longer counts as `.briefing`.
 - An ended review no longer goes quiet: replies, explaining a change on
   request and Look deeper keep working. Reviewed marks, comments and Act Now
   stay locked, and now say so ("The review has ended — reopen it to …")

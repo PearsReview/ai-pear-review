@@ -342,6 +342,15 @@ void describe("chat webview", () => {
     assert.doesNotMatch(chat.$("hunk").textContent ?? "", /ended/);
   });
 
+  void test("an explanation asked for from an editor's title bar shows as coming", () => {
+    chat.server("presenting", hunk);
+    chat.send({ kind: "explaining" });
+    assert.ok(chat.doc.querySelector(".turn.thinking"));
+    assert.equal((chat.$("explain") as HTMLButtonElement).disabled, true, "no second request while it's coming");
+    chat.server("narration", narration);
+    assert.equal(chat.doc.querySelector(".turn.thinking"), null);
+  });
+
   void test("sends a typed question on Enter", () => {
     chat.server("presenting", hunk);
     const input = chat.$("input") as HTMLTextAreaElement;

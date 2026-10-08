@@ -80,6 +80,8 @@ export interface Presenting {
   review_started?: boolean;
   review_ended?: boolean;
   narrating?: boolean;
+  // This hunk was already explained on this connection (its narration follows from cache).
+  narrated?: boolean;
   narration_available?: boolean;
   // The summary screen (progress.py's send_summary_screen): done and ended.
   ended?: boolean;

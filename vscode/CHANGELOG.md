@@ -6,18 +6,27 @@
   notification) picks an ended review back up with its marks and comments.
   An ended review says so at the top of the Changes view and in the chat's
   header, and the chat keeps working: ask about any change, explain it, Look
-  deeper. Marks, comments and Act Now stay locked until it's reopened. In a
-  pull request review, the end-of-review notification offers **Submit review**
-  rather than Create plan.
-- **Review Pull Request…** reviews a GitHub pull request: it's fetched into a
-  separate worktree (your checkout is untouched) and diffed against its
-  merge-base, as GitHub's Files changed shows it. The review is read-only (no
-  Act Now, no plan), and **Submit Review** posts the comments to the PR as one
-  review (Comment, Request changes or Approve). Comments outside GitHub's diff
-  go on the file. Signs in with VS Code's GitHub account.
-- Pull request reviews work with GitHub Enterprise (Server, or Cloud on
-  `ghe.com`): set VS Code's `github-enterprise.uri` and that host's remotes are
-  listed, signing in with VS Code's GitHub Enterprise account.
+  deeper. Marks, comments and Act Now stay locked until it's reopened.
+- Pull request reviews build on the **GitHub Pull Requests** extension: check
+  the PR out with it (in place, or **Checkout in Worktree** to leave your own
+  checkout alone), and Pear Review follows it, reviewing the PR's changes
+  against its merge-base as GitHub's Files changed shows them. Comments,
+  threads, suggestions, Viewed marks and the submitted review (Comment, Request
+  changes or Approve) are GitHub's own; Pear adds the walkthrough,
+  explanations and chat, read-only (no Act Now, no plan). **Review Pull
+  Request…** opens GitHub's Pull Requests view, or offers to install the
+  extension. **Refresh Pull Request** rechecks after checking out another PR
+  (also done when the window regains focus). Works with GitHub Enterprise
+  (Server, or Cloud on `ghe.com`) through VS Code's `github-enterprise.uri`.
+  GitHub Pull Requests is an optional extension, not a declared dependency:
+  it's listed under Requirements for pull request reviews, offered when
+  needed, and **Get Started** has a new step for reviewing a pull request.
+- **Explain This Change** (✨ in an editor's title bar) explains the change the
+  cursor is in, from Pear's diff, the GitHub Pull Requests extension's, or the
+  file itself. The chat shows the explanation is coming,
+  and pressing ✨ again while it is (or once it's there) just shows the chat
+  rather than starting over. Selecting lines in GitHub's PR diff works as context for a
+  question, as in Pear's.
 - Backend: `REVIEW_BASE_SHA` diffs against a commit instead of HEAD (no
   untracked files), and `REVIEW_READ_ONLY=1` refuses every handler that writes.
 - **Set OpenAI-compatible API Key** and an **OpenAI-compatible** provider in

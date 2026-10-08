@@ -84,9 +84,11 @@ Act Now and Look deeper use whatever model and credentials you gave Cline.
 ## VS Code extension
 
 The same review runs inside VS Code: the Changes tree, the native diff, and a
-chat with voice. It lives in [`vscode/`](vscode/) and carries a copy of this
-backend; see [vscode/README.md](vscode/README.md). The rest of this README is
-about the web app.
+chat with voice. It also reviews GitHub pull requests, together with GitHub's
+own GitHub Pull Requests extension (optional, needed only for that). It lives
+in [`vscode/`](vscode/) and carries a copy of this backend; see
+[vscode/README.md](vscode/README.md). The rest of this README is about the web
+app.
 
 ## Install
 
@@ -304,8 +306,10 @@ overview and call map are.
 
 ## TODO
 
-- **Review beyond the working tree** — a branch against its base, past
-  commits, and pull requests (posting the review back).
+- **Review beyond the working tree** — a branch against its base, and past
+  commits. (Pull requests are reviewed in the [VS Code
+  extension](vscode/README.md#reviewing-a-github-pull-request), not the web
+  app.)
 - **Comments and Act Now on unchanged files** — All files mode can ask
   about a file, but not comment on it or edit it.
 - **Keep the conversation** across restarts, and let it be exported.

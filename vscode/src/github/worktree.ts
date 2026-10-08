@@ -1,6 +1,6 @@
-// The git side of a pull request review: which remotes are GitHub repositories, fetching
-// a PR, and the detached worktree it's reviewed in, so the reviewer's own checkout is
-// never touched (no checkout, no stash, no branch switch).
+// The git side of a pull request review: running git, and which remotes are GitHub
+// repositories. The GitHub Pull Requests extension checks PRs out; removing worktrees is
+// only for clearing the ones older versions of Pear Review made themselves.
 import { execFile } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -38,34 +38,6 @@ export async function githubRemotes(repo: string, hosts: GithubHost[]): Promise<
     const parsed = url ? parseGithubRemote(url, hosts) : undefined;
     return name && parsed ? [{ name, ...parsed }] : [];
   });
-}
-
-// Fetches the PR's head and its base branch from `remote`, then returns the merge-base:
-// the commit GitHub's "Files changed" diffs against.
-export async function fetchPull(
-  repo: string,
-  remote: string,
-  pull: { number: number; headSha: string; baseRef: string; baseSha: string },
-): Promise<string> {
-  await git(repo, ["fetch", "--no-tags", remote, `refs/pull/${pull.number}/head`, `refs/heads/${pull.baseRef}`]);
-  return git(repo, ["merge-base", pull.baseSha, pull.headSha]);
-}
-
-// The reviewer's settings for a repository live in it (app/services/settings_store.py).
-const SETTINGS_FILE = path.join(".review", "ui_settings.json");
-
-// A fresh detached worktree of `sha` at `dir`, replacing one left there before. It
-// takes the source repository's review settings (model, voices), so the PR is reviewed
-// the way that repository's changes are.
-export async function addWorktree(repo: string, dir: string, sha: string): Promise<void> {
-  if (fs.existsSync(dir)) await removeWorktree(dir);
-  fs.mkdirSync(path.dirname(dir), { recursive: true });
-  await git(repo, ["worktree", "add", "--detach", dir, sha]);
-  const settings = path.join(repo, SETTINGS_FILE);
-  if (fs.existsSync(settings)) {
-    fs.mkdirSync(path.join(dir, ".review"), { recursive: true });
-    fs.copyFileSync(settings, path.join(dir, SETTINGS_FILE));
-  }
 }
 
 // --force: the review leaves its own working files (.review/, .briefing/) in the worktree.

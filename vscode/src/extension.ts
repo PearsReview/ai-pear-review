@@ -85,7 +85,7 @@ export function activate(context: vscode.ExtensionContext): {
       speaking,
     }),
     ...commands.register(context, backend, recorder.voice, prefs.prefs),
-    ...pullRequests.register(context, backend, review.comments),
+    ...pullRequests.register(context, backend),
   );
   const samePath = (a: string, b: string): boolean =>
     process.platform === "win32"

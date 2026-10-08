@@ -18,6 +18,9 @@ export class BackendManager implements Backend, vscode.Disposable {
   private active: PythonBackend | undefined;
   private forwardedState: BackendState = "stopped";
   private connectQuery: () => string = () => "";
+  // Runs before a repository's backend process starts: what decides how it starts
+  // (a pull request review's base commit, see ui/pullRequests.ts) is settled first.
+  private beforeStart: (repoPath: string) => Promise<void> = () => Promise.resolve();
   private readonly messages = new vscode.EventEmitter<ServerMessage>();
   private readonly states = new vscode.EventEmitter<BackendState>();
   private readonly sends = new vscode.EventEmitter<ClientMessageType>();
@@ -54,6 +57,7 @@ export class BackendManager implements Backend, vscode.Disposable {
     if (backend === previous) {
       if (backend.state === "ready") return;
       if (backend.running) return backend.resume();
+      await this.beforeStart(repoPath);
       return backend.start(repoPath);
     }
     this.active = backend;
@@ -64,7 +68,14 @@ export class BackendManager implements Backend, vscode.Disposable {
     if (backend.state === "ready") backend.disconnect();
     this.forward(backend.state === "starting" ? "starting" : "stopped");
     if (backend.running) await backend.resume();
-    else await backend.start(repoPath);
+    else {
+      await this.beforeStart(repoPath);
+      await backend.start(repoPath);
+    }
+  }
+
+  setBeforeStart(hook: (repoPath: string) => Promise<void>): void {
+    this.beforeStart = hook;
   }
 
   // Stops the active repository's backend.

@@ -79,6 +79,49 @@ def test_a_clean_tree_warns_rather_than_blocking(tmp_path: Path):
     assert not has_fatal(checks)
 
 
+def _commit(repo: Path, name: str, text: str) -> str:
+    (repo / name).write_text(text, encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-q", "-m", name], cwd=repo, check=True, capture_output=True)
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+def test_a_pull_request_counts_its_commits_not_uncommitted_work(tmp_path: Path):
+    """A PR checkout is normally clean: what it has to review is everything
+    since its merge-base. "The working tree is clean, nothing to review"
+    there was simply wrong."""
+    repo = _repo(tmp_path / "r", dirty=False)
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    _commit(repo, "b.py", "y = 1\n")
+    config = _config(str(repo))
+    config["server"]["base_sha"] = base
+    changes = _named(run_checks(config), "changes")
+    assert changes.ok
+    assert "1 file(s) changed in the pull request" in changes.detail
+
+
+def test_a_pull_request_with_nothing_since_its_base_warns(tmp_path: Path):
+    repo = _repo(tmp_path / "r", dirty=False)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    config = _config(str(repo))
+    config["server"]["base_sha"] = head
+    changes = _named(run_checks(config), "changes")
+    assert not changes.ok and not changes.fatal
+
+
+def test_a_pull_request_base_that_isnt_fetched_says_so(tmp_path: Path):
+    config = _config(str(_repo(tmp_path / "r", dirty=False)))
+    config["server"]["base_sha"] = "0" * 40
+    changes = _named(run_checks(config), "changes")
+    assert not changes.ok and "isn't in this repository" in changes.detail
+
+
 def test_untracked_files_count_as_changes(tmp_path: Path):
     """The app presents each untracked file as a whole-file hunk, so a repo
     whose only changes are new files has plenty to review. Reporting "no
@@ -224,3 +267,18 @@ def test_every_check_appears_in_the_report_with_its_fix(tmp_path: Path):
         assert check.name in report
         if check.fix:
             assert check.fix in report
+
+
+def test_the_openai_provider_is_checked_not_called_unknown(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    checks = run_checks(_config(str(_repo(tmp_path / "r")), provider="openai", openai={"model": ""}))
+    assert all(c.name != "provider" for c in checks), "openai is a known provider"
+    assert not _named(checks, "model").ok
+    assert "OPENAI_API_KEY" in _named(checks, "api key").detail
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    checks = run_checks(
+        _config(str(_repo(tmp_path / "s")), provider="openai", openai={"model": "gpt-5", "base_url": "http://gw/v1"})
+    )
+    assert _named(checks, "model").ok and "http://gw/v1" in _named(checks, "model").detail
+    assert _named(checks, "api key").ok

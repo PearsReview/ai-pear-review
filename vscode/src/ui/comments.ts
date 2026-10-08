@@ -53,14 +53,7 @@ export function register(
   selection: SelectionContext,
 ): { comments: Comments; disposables: vscode.Disposable[] } {
   const controller = vscode.comments.createCommentController("pearReview", "Pear Review");
-  // A pull request review's comments go to GitHub, not to a coding agent.
-  const setPrompt = (): void => {
-    const pr = prReviewFor(backend.repoPath);
-    controller.options = pr
-      ? { prompt: `Comment on PR #${pr.number}`, placeHolder: "What should change here?" }
-      : { prompt: "Comment for the coding agent", placeHolder: "What should change here?" };
-  };
-  setPrompt();
+  controller.options = { prompt: "Comment for the coding agent", placeHolder: "What should change here?" };
   const threads = new Map<number, PearComment>();
   // The backend's queue as last heard, kept apart from the threads: a comment whose
   // thread couldn't be drawn is still queued, and still posted.
@@ -96,11 +89,14 @@ export function register(
   };
 
   // Comments are allowed on review files while the review is running, as in the browser.
-  // Reassigning the provider is what makes VS Code ask it again.
+  // Not in a pull request review: there the GitHub Pull Requests extension's comments
+  // are the ones that go to the PR (ui/pullRequests.ts), and two sets of "+" in one
+  // gutter would only confuse. Reassigning the provider is what makes VS Code ask again.
   const refreshRanges = (): void => {
     controller.commentingRangeProvider = {
       provideCommentingRanges(document) {
         const root = backend.repoPath;
+        if (prReviewFor(root)) return [];
         const location = root ? reviewLocation(document.uri, root) : undefined;
         if (!open || !location || !reviewFiles.has(location.filePath)) return [];
         return [new vscode.Range(0, 0, Math.max(document.lineCount - 1, 0), 0)];
@@ -130,8 +126,7 @@ export function register(
     const thread = controller.createCommentThread(uri, new vscode.Range(range.startLine - 1, 0, range.endLine - 1, 0), [
       comment,
     ]);
-    const pr = prReviewFor(root);
-    thread.label = `${data.where} · ${pr ? `goes to PR #${pr.number}` : "goes into the plan"}`;
+    thread.label = `${data.where} · goes into the plan`;
     thread.canReply = false;
     thread.contextValue = "pearThread";
     thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
@@ -149,6 +144,13 @@ export function register(
 
   const submit = async (reply: vscode.CommentReply, severity: Severity): Promise<void> => {
     const root = backend.repoPath;
+    if (prReviewFor(root)) {
+      reply.thread.dispose();
+      void vscode.window.showInformationMessage(
+        "In a pull request review, comment with the GitHub Pull Requests extension: its comments go to the PR.",
+      );
+      return;
+    }
     const text = reply.text.trim();
     const location = root ? reviewLocation(reply.thread.uri, root) : undefined;
     if (!text || !location || !reply.thread.range) return;
@@ -166,6 +168,7 @@ export function register(
   // the thread's edit), as a Suggestion (re-tag it with the thread's tag button).
   const submitVoice = async (thread: vscode.CommentThread, audio_base64: string): Promise<void> => {
     const root = backend.repoPath;
+    if (prReviewFor(root)) return; // see submit
     const location = root ? reviewLocation(thread.uri, root) : undefined;
     if (!location || !thread.range) return;
     const document = await vscode.workspace.openTextDocument(thread.uri);
@@ -189,10 +192,6 @@ export function register(
 
   // `preset` skips the prompts: { note?, asSkill? }, from a keybinding or the tests.
   const createPlan = async (preset?: unknown): Promise<void> => {
-    if (prReviewFor(backend.repoPath)) {
-      await vscode.commands.executeCommand("pearReview.submitPullRequestReview");
-      return;
-    }
     const given =
       typeof preset === "object" && preset !== null ? (preset as { note?: unknown; asSkill?: unknown }) : undefined;
     if (count === 0) {
@@ -330,7 +329,7 @@ export function register(
       }),
       backend.onStateChange((state) => {
         if (state === "ready") {
-          setPrompt();
+          refreshRanges(); // the repository may now be a pull request review, or no longer one
           return;
         }
         voiceThread = undefined;

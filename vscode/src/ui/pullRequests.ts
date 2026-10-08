@@ -2,36 +2,37 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import type { BackendManager } from "../backend/manager.ts";
-import { gitApi, pickRepository, repositoryRoots } from "../git.ts";
-import { GithubClient, GithubError, type PullRequest } from "../github/api.ts";
+import { GithubClient } from "../github/api.ts";
+import {
+  checkedOutPull,
+  githubPrExtensionInstalled,
+  openPullRequests,
+  type CheckedOutPull,
+} from "../github/githubPrExtension.ts";
 import { addPrReview, prReviewFor, removePrReview, type PrReview } from "../github/prReviews.ts";
 import { enterpriseHost, GITHUB_COM, type GithubHost } from "../github/remote.ts";
-import { toGithubComment, type ReviewEvent } from "../github/reviewComments.ts";
-import {
-  addWorktree,
-  fetchPull,
-  githubRemotes,
-  removeStaleWorktrees,
-  removeWorktree,
-  type GithubRemote,
-} from "../github/worktree.ts";
-import { log, showError } from "../log.ts";
+import { git, githubRemotes, removeStaleWorktrees, type GithubRemote } from "../github/worktree.ts";
+import { log } from "../log.ts";
 import { publish } from "../testProbe.ts";
-import type { Comments } from "./comments.ts";
 
-// Reviewing a GitHub pull request: the PR's head is checked out in a detached worktree
-// under the extension's storage (the reviewer's own checkout is never touched), and a
-// backend runs on it diffing against the merge-base, read-only. Comments queue as usual
-// and are posted to the PR as one review instead of becoming a plan.
-export function register(
-  context: vscode.ExtensionContext,
-  manager: BackendManager,
-  comments: Comments,
-): vscode.Disposable[] {
-  const worktreeRoot = path.join(context.globalStorageUri.fsPath, "pr-worktrees");
-  // Nothing is under review yet at activation, so anything here was left by a session
-  // that ended without End Pull Request Review.
-  void removeStaleWorktrees(worktreeRoot, () => false).catch((err: unknown) =>
+// Reviewing a GitHub pull request. The GitHub Pull Requests extension owns it: checking
+// the PR out (in place or in a worktree), the comments and the submitted review. Pear
+// Review follows whatever PR a repository has checked out: its backend diffs that
+// checkout against the PR's merge-base, read-only, so the walkthrough, explanations and
+// chat cover exactly what GitHub's "Files changed" shows. Pear's own comments are off
+// for a PR (ui/comments.ts); GitHub's are the ones that go to the PR.
+
+// Long enough for the GitHub extension to activate and answer on a cold start, short
+// enough that a missing answer doesn't hold up starting the review.
+const DETECT_TIMEOUT_MS = 8_000;
+// How long a start that found no PR keeps asking the GitHub extension: 10 × 3 s.
+const LATE_PULL_INTERVAL_MS = 3_000;
+const LATE_PULL_TRIES = 10;
+
+export function register(context: vscode.ExtensionContext, manager: BackendManager): vscode.Disposable[] {
+  // Worktrees Pear Review used to make for PR reviews itself; nothing makes them now.
+  const oldWorktrees = path.join(context.globalStorageUri.fsPath, "pr-worktrees");
+  void removeStaleWorktrees(oldWorktrees, () => false).catch((err: unknown) =>
     log(`Couldn't clear old pull request worktrees: ${String(err)}`),
   );
 
@@ -40,9 +41,13 @@ export function register(
   };
   publish("pr.review", () => prReviewFor(manager.repoPath));
 
-  // The integration tests' token stands in for the GitHub sign-in, which they can't do.
-  // A GitHub Enterprise host signs in through VS Code's own "github-enterprise" provider,
-  // which reads the same github-enterprise.uri setting.
+  // The integration tests stand in for the GitHub extension and the sign-in, which they
+  // can't drive: PEAR_REVIEW_TEST_PULL names the checked-out PR as {owner, repo, number}.
+  const findPull = async (repo: string): Promise<CheckedOutPull | undefined> => {
+    const testPull = process.env.PEAR_REVIEW_TEST_PULL;
+    if (testPull) return { title: "", url: "", ...(JSON.parse(testPull) as Omit<CheckedOutPull, "title" | "url">) };
+    return checkedOutPull(repo);
+  };
   const client = async (host: GithubHost): Promise<GithubClient> => {
     const testToken = process.env.PEAR_REVIEW_GITHUB_TOKEN;
     if (testToken) return new GithubClient(host, testToken);
@@ -50,205 +55,120 @@ export function register(
     return new GithubClient(host, session.accessToken);
   };
 
-  // `preset`: { repo?, remote?, number? } skips the pickers, for a keybinding or the tests.
-  const reviewPullRequest = async (preset?: unknown): Promise<void> => {
-    const given = (typeof preset === "object" && preset !== null ? preset : {}) as {
-      repo?: unknown;
-      remote?: unknown;
-      number?: unknown;
-    };
-    // A PR's worktree is a repository too, once open; a PR isn't reviewed from one.
-    const sources = (await repositoryRoots()).filter((root) => !prReviewFor(root));
-    const repo =
-      typeof given.repo === "string"
-        ? given.repo
-        : sources.length > 1
-          ? await vscode.window.showQuickPick(sources, { placeHolder: "Which repository's pull requests?" })
-          : (sources[0] ?? (await pickRepository()));
-    if (!repo) return;
-
+  // What the repository has checked out, as a PR review (undefined: not a PR). The
+  // merge-base is worked out here, from the PR's base on GitHub, the way GitHub's
+  // "Files changed" does.
+  const resolve = async (repo: string): Promise<PrReview | undefined> => {
+    const pull = await findPull(repo);
+    if (!pull) return undefined;
     const remotes = await githubRemotes(repo, githubHosts());
-    const remote = await pickRemote(remotes, typeof given.remote === "string" ? given.remote : undefined);
+    const remote = matchingRemote(remotes, pull);
     if (!remote) {
-      if (!remotes.length)
-        showError(
-          `${path.basename(repo)} has no GitHub remote. Pull request reviews need one. ` +
-            "For GitHub Enterprise, set github-enterprise.uri to your server's address.",
-        );
-      return;
+      log(
+        `${path.basename(repo)} has PR #${pull.number} checked out, but no GitHub remote for ${pull.owner}/${pull.repo}.`,
+      );
+      return undefined;
     }
-
     const github = await client(remote.host);
-    const pull =
-      typeof given.number === "number"
-        ? await github.getPull(remote.owner, remote.repo, given.number)
-        : await pickPull(github, remote);
-    if (!pull) return;
-
-    const worktree = path.join(worktreeRoot, `${remote.repo}-pr-${pull.number}`);
-    const previous = prReviewFor(worktree);
-    if (previous) {
-      // Reviewing the same PR again starts over from its current head.
-      await manager.stopRepo(worktree);
-      removePrReview(worktree);
-    }
-    const review = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: `Pear Review: fetching PR #${pull.number}` },
-      async (): Promise<PrReview> => {
-        const baseSha = await fetchPull(repo, remote.name, {
-          number: pull.number,
-          headSha: pull.head.sha,
-          baseRef: pull.base.ref,
-          baseSha: pull.base.sha,
-        });
-        await addWorktree(repo, worktree, pull.head.sha);
-        return {
-          host: remote.host,
-          owner: remote.owner,
-          repo: remote.repo,
-          number: pull.number,
-          title: pull.title,
-          url: pull.html_url,
-          headSha: pull.head.sha,
-          baseSha,
-          worktree,
-          sourceRepo: repo,
-        };
-      },
+    const details = await github.getPull(pull.owner, pull.repo, pull.number);
+    const headSha = await git(repo, ["rev-parse", "HEAD"]);
+    const hasBase = await git(repo, ["cat-file", "-e", `${details.base.sha}^{commit}`]).then(
+      () => true,
+      () => false,
     );
-    addPrReview(review);
-    log(
-      `Reviewing PR #${review.number} (${review.headSha.slice(0, 7)} against ${review.baseSha.slice(0, 7)}) in ${worktree}`,
-    );
-    // So the diff's old side (a git: URI at the merge-base) can be read.
-    await (await gitApi())?.openRepository(vscode.Uri.file(worktree));
-    await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Window, title: "Pear Review: starting backend" },
-      () => manager.start(worktree),
-    );
-    setReadOnly(worktree);
-    await vscode.commands.executeCommand("pearReview.startReview");
+    if (!hasBase) await git(repo, ["fetch", "--no-tags", remote.name, `refs/heads/${details.base.ref}`]);
+    const baseSha = await git(repo, ["merge-base", details.base.sha, headSha]);
+    return {
+      host: remote.host,
+      owner: pull.owner,
+      repo: pull.repo,
+      number: pull.number,
+      title: pull.title || details.title,
+      url: pull.url || details.html_url,
+      headSha,
+      baseSha,
+      worktree: repo,
+      sourceRepo: repo,
+    };
   };
 
-  // `preset`: { event?, body? } skips the prompts.
-  const submitReview = async (preset?: unknown): Promise<void> => {
-    const review = prReviewFor(manager.repoPath);
-    if (!review) {
-      void vscode.window.showInformationMessage(
-        "Submit Review is for a pull request review. Start one with Review Pull Request.",
+  // Records what the repository has checked out. True when that changed how its backend
+  // should run (a PR appeared, went, or moved to another commit).
+  const detect = async (repo: string): Promise<boolean> => {
+    const before = prReviewFor(repo);
+    const found = await withTimeout(resolve(repo), DETECT_TIMEOUT_MS).catch((err: unknown) => {
+      log(`Couldn't check ${path.basename(repo)} for a checked-out pull request: ${String(err)}`);
+      return before; // keep what was known rather than flip on a transient failure
+    });
+    if (found) addPrReview(found);
+    else removePrReview(repo);
+    if (found && !sameReview(before, found)) {
+      log(
+        `Reviewing PR #${found.number} (${found.headSha.slice(0, 7)} against ${found.baseSha.slice(0, 7)}) in ${repo}`,
       );
-      return;
     }
-    const given = (typeof preset === "object" && preset !== null ? preset : undefined) as
-      { event?: unknown; body?: unknown } | undefined;
-    const queued = comments.pending;
-    const n = queued.length;
-    const event: ReviewEvent | undefined = given
-      ? isEvent(given.event)
-        ? given.event
-        : "COMMENT"
-      : (
-          await vscode.window.showQuickPick(
-            [
-              { label: "Comment", description: "Feedback without a verdict", event: "COMMENT" as const },
-              {
-                label: "Request changes",
-                description: "Must be addressed before merging",
-                event: "REQUEST_CHANGES" as const,
-              },
-              { label: "Approve", description: "Ready to merge", event: "APPROVE" as const },
-            ],
-            {
-              title: `Submit review of PR #${review.number} (${n} comment${n === 1 ? "" : "s"})`,
-              ignoreFocusOut: true,
-            },
-          )
-        )?.event;
-    if (!event) return;
-    // GitHub refuses a comment-only or changes-requested review with nothing in it.
-    const needsBody = event === "REQUEST_CHANGES" || (event === "COMMENT" && n === 0);
-    const body = given
-      ? typeof given.body === "string"
-        ? given.body
-        : ""
-      : await vscode.window.showInputBox({
-          title: `Review summary for PR #${review.number}`,
-          prompt: needsBody ? "A summary (required for this kind of review)" : "A summary (optional)",
-          ignoreFocusOut: true,
-          validateInput: (value) =>
-            needsBody && !value.trim() ? "GitHub needs a summary for this review." : undefined,
-        });
-    if (body === undefined) return;
-
-    const github = await client(review.host);
-    const result = await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: `Pear Review: posting the review to PR #${review.number}`,
-      },
-      async () => {
-        const files = await github.listFiles(review.owner, review.repo, review.number);
-        const patches = new Map(files.map((f) => [f.filename, f.patch]));
-        const post = (lines: ReadonlyMap<string, string | undefined>) =>
-          github.createReview(review.owner, review.repo, review.number, {
-            commit_id: review.headSha,
-            event,
-            body: body.trim(),
-            comments: queued.map((c) => toGithubComment(c, lines)),
-          });
-        try {
-          return await post(patches);
-        } catch (err) {
-          // A line GitHub won't take inline (its diff can differ from ours, e.g. after a
-          // force-push): post everything at file level rather than lose the review.
-          if (!(err instanceof GithubError) || !/\bline\b/i.test(err.message)) throw err;
-          log(`GitHub refused an inline comment (${err.message}); posting them as file comments.`);
-          return post(new Map());
-        }
-      },
-    );
-    // Posted: out of the queue, so they can't be posted twice.
-    for (const c of queued) manager.send("remove_review_comment", { id: c.id });
-    const choice = await vscode.window.showInformationMessage(
-      `Review posted to PR #${review.number} with ${n} comment${n === 1 ? "" : "s"}.`,
-      "Open on GitHub",
-      "End Review",
-    );
-    if (choice === "Open on GitHub") void vscode.env.openExternal(vscode.Uri.parse(result.html_url));
-    else if (choice === "End Review") await endReview({ confirm: false });
-  };
-
-  // `preset`: { confirm: false } skips the unposted-comments question.
-  const endReview = async (preset?: unknown): Promise<void> => {
-    const review = prReviewFor(manager.repoPath);
-    if (!review) return;
-    const ask = !(typeof preset === "object" && preset !== null && (preset as { confirm?: unknown }).confirm === false);
-    const n = comments.pending.length;
-    if (ask && n > 0) {
-      const choice = await vscode.window.showWarningMessage(
-        `${n} comment${n === 1 ? " hasn't" : "s haven't"} been posted to PR #${review.number}. End the review anyway?`,
-        { modal: true },
-        "Discard and End",
-      );
-      if (choice !== "Discard and End") return;
-    }
-    await manager.stopRepo(review.worktree);
-    removePrReview(review.worktree);
     setReadOnly(manager.repoPath);
-    await removeWorktree(review.worktree);
-    log(`Ended the review of PR #${review.number}.`);
+    return !sameReview(before, found);
   };
 
-  const guarded =
-    (fn: (preset?: unknown) => Promise<void>) =>
-    (preset?: unknown): Promise<void> =>
-      fn(preset).catch((err: unknown) => showError(err));
+  // The checked-out PR can change under a running backend (checking out another PR,
+  // or going back to a branch). Rechecked when the window regains focus and on the
+  // command; a change restarts the repository's backend so it diffs the right thing.
+  let checking = false;
+  const recheck = async (repo = manager.repoPath): Promise<void> => {
+    if (!repo || checking) return;
+    checking = true;
+    try {
+      if (!(await detect(repo))) return;
+      await manager.stopRepo(repo);
+      await manager.start(repo);
+      await vscode.commands.executeCommand("pearReview.startReview");
+    } finally {
+      checking = false;
+    }
+  };
+
+  // Right after a window opens on a PR checkout (Checkout in Worktree opens one), the
+  // GitHub extension is still working out which PR it is, and says "none" until then.
+  // So a start that finds no PR keeps asking for a while, and switches over once one
+  // turns up. Once per repository per session: a plain branch stops being asked about.
+  const disposables: vscode.Disposable[] = [];
+  const watched = new Set<string>();
+  const watchForLatePull = (repo: string): void => {
+    const key = process.platform === "win32" ? path.resolve(repo).toLowerCase() : path.resolve(repo);
+    if (watched.has(key) || !githubPrExtensionInstalled()) return;
+    watched.add(key);
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries += 1;
+      if (prReviewFor(repo) || tries > LATE_PULL_TRIES) {
+        clearInterval(timer);
+        return;
+      }
+      void recheck(repo).catch((err: unknown) => log(`Pull request check failed: ${String(err)}`));
+    }, LATE_PULL_INTERVAL_MS);
+    disposables.push({ dispose: () => clearInterval(timer) });
+  };
+
+  manager.setBeforeStart(async (repo) => {
+    await detect(repo);
+    if (!prReviewFor(repo)) watchForLatePull(repo);
+  });
 
   return [
+    {
+      dispose: () => {
+        for (const d of disposables) d.dispose();
+      },
+    },
     manager.onDidChangeActiveRepo(setReadOnly),
-    vscode.commands.registerCommand("pearReview.reviewPullRequest", guarded(reviewPullRequest)),
-    vscode.commands.registerCommand("pearReview.submitPullRequestReview", guarded(submitReview)),
-    vscode.commands.registerCommand("pearReview.endPullRequestReview", guarded(endReview)),
+    vscode.window.onDidChangeWindowState((state) => {
+      if (state.focused) void recheck().catch((err: unknown) => log(`Pull request check failed: ${String(err)}`));
+    }),
+    vscode.commands.registerCommand("pearReview.reviewPullRequest", () =>
+      openPullRequests().catch((err: unknown) => log(`Couldn't open GitHub's pull requests: ${String(err)}`)),
+    ),
+    vscode.commands.registerCommand("pearReview.refreshPullRequest", () => recheck()),
   ];
 }
 
@@ -258,47 +178,30 @@ function githubHosts(): GithubHost[] {
   return enterprise ? [GITHUB_COM, enterprise] : [GITHUB_COM];
 }
 
-function isEvent(value: unknown): value is ReviewEvent {
-  return value === "COMMENT" || value === "REQUEST_CHANGES" || value === "APPROVE";
+// The remote for the PR's repository; "upstream" first when a fork has both.
+function matchingRemote(remotes: GithubRemote[], pull: CheckedOutPull): GithubRemote | undefined {
+  const same = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+  const matches = remotes.filter((r) => same(r.owner, pull.owner) && same(r.repo, pull.repo));
+  return matches.find((r) => r.name === "upstream") ?? matches[0];
 }
 
-// The remote whose pull requests to list. With a fork, "upstream" is usually where the
-// PRs are, so it's offered first.
-async function pickRemote(remotes: GithubRemote[], preset: string | undefined): Promise<GithubRemote | undefined> {
-  if (preset) return remotes.find((r) => r.name === preset);
-  if (remotes.length <= 1) return remotes[0];
-  const ordered = [...remotes].sort((a, b) => Number(b.name === "upstream") - Number(a.name === "upstream"));
-  const picked = await vscode.window.showQuickPick(
-    ordered.map((r) => ({
-      label: `${r.owner}/${r.repo}`,
-      description: r.host === GITHUB_COM ? r.name : `${r.name} · ${r.host.name}`,
-      remote: r,
-    })),
-    { placeHolder: "Pull requests from which repository?" },
-  );
-  return picked?.remote;
+function sameReview(a: PrReview | undefined, b: PrReview | undefined): boolean {
+  if (!a || !b) return a === b;
+  return a.number === b.number && a.headSha === b.headSha && a.baseSha === b.baseSha;
 }
 
-async function pickPull(github: GithubClient, remote: GithubRemote): Promise<PullRequest | undefined> {
-  const pulls = await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Window,
-      title: `Pear Review: listing ${remote.owner}/${remote.repo} pull requests`,
-    },
-    () => github.listOpenPulls(remote.owner, remote.repo),
-  );
-  if (!pulls.length) {
-    void vscode.window.showInformationMessage(`${remote.owner}/${remote.repo} has no open pull requests.`);
-    return undefined;
-  }
-  const picked = await vscode.window.showQuickPick(
-    pulls.map((p) => ({
-      label: `#${p.number} ${p.title}`,
-      description: `${p.user?.login ?? ""}${p.draft ? " · draft" : ""}`,
-      detail: `${p.head.label} → ${p.base.ref}`,
-      pull: p,
-    })),
-    { placeHolder: "Pull request to review", matchOnDescription: true, matchOnDetail: true },
-  );
-  return picked?.pull;
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no answer within ${ms / 1000}s`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      },
+    );
+  });
 }

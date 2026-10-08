@@ -176,7 +176,6 @@ export function seedPullRequest(work: string): PrFixture {
   git(source, "remote", "set-url", "origin", "https://github.com/acme/widgets.git");
   git(source, "config", `url.${hosted.replaceAll("\\", "/")}.insteadOf`, "https://github.com/acme/widgets.git");
   write(source, path.join(".git", "info", "exclude"), ".review/\n.briefing/\n.context/\n");
-  write(source, "README.md", "# Widgets\n\nWork in progress.\n");
 
   git(hosted, "checkout", "-q", "-b", "feature");
   write(
@@ -193,6 +192,11 @@ export function seedPullRequest(work: string): PrFixture {
   write(hosted, "README.md", "# Widgets\n\nNow with docs.\n");
   git(hosted, "commit", "-qam", "Main moves on");
   const baseTip = out(hosted, "rev-parse", "HEAD");
+
+  // Checked out the way the GitHub Pull Requests extension leaves it: the PR's head, with
+  // the base branch's newer commit not yet fetched (Pear fetches it for the merge-base).
+  git(source, "fetch", "-q", "origin", "refs/pull/7/head");
+  git(source, "checkout", "-q", "--detach", "FETCH_HEAD");
 
   // What GitHub's pulls/7/files sends: each file's patch from its first hunk header.
   const files = ["calc.py", "mul.py"].map((filename) => {

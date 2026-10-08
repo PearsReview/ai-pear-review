@@ -63,7 +63,8 @@ def run_checks(config: dict) -> list[Check]:
     if not repo.ok:
         return checks
 
-    checks.append(_check_has_changes(repo_path))
+    base_sha = config.get("server", {}).get("base_sha")
+    checks.append(_check_pull_request_changes(repo_path, base_sha) if base_sha else _check_has_changes(repo_path))
     checks.extend(_check_model_provider(config.get("conversation", {})))
     return checks
 
@@ -113,6 +114,34 @@ def _check_is_git_repo(repo_path: str) -> Check:
     return Check("repository", True, result.stdout.strip())
 
 
+def _check_pull_request_changes(repo_path: str, base_sha: str) -> Check:
+    """What a pull request review has to show: the checkout's commits since
+    the PR's merge-base (REVIEW_BASE_SHA), not uncommitted work — a PR
+    checkout is normally clean, and calling that "nothing to review" would
+    be wrong."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, "diff", "--name-only", base_sha, "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return Check("changes", True, "could not be counted — carrying on")
+    if result.returncode != 0:
+        return Check(
+            "changes",
+            False,
+            f"the pull request's base commit {base_sha[:7]} isn't in this repository",
+            fix="Fetch the PR's base branch, then refresh the pull request in VS Code.",
+        )
+    changed = [line for line in result.stdout.splitlines() if line.strip()]
+    if changed:
+        return Check("changes", True, f"{len(changed)} file(s) changed in the pull request (since {base_sha[:7]})")
+    return Check("changes", False, f"the pull request changes nothing since {base_sha[:7]}")
+
+
 def _check_has_changes(repo_path: str) -> Check:
     """Whether there is anything to review right now.
 
@@ -148,6 +177,8 @@ def _check_model_provider(conversation: dict) -> list[Check]:
     provider = conversation.get("provider", DEFAULT_PROVIDER)
     if provider == "anthropic":
         return [_check_anthropic_key(conversation)]
+    if provider == "openai":
+        return _check_openai(conversation)
     if provider == "ollama":
         checks = _check_ollama(conversation)
         # Only when the configured path is actually broken — see
@@ -160,7 +191,7 @@ def _check_model_provider(conversation: dict) -> list[Check]:
             "provider",
             False,
             f"unknown provider {provider!r}",
-            fix='Set conversation.provider in app/config.yaml to "ollama" or "anthropic".',
+            fix='Set conversation.provider in app/config.yaml to "ollama", "anthropic" or "openai".',
         )
     ]
 
@@ -215,6 +246,51 @@ def _check_anthropic_key(conversation: dict) -> Check:
             "or export it in your shell. Without it the diff still opens, but nothing narrates."
         ),
     )
+
+
+def _check_openai(conversation: dict) -> list[Check]:
+    """The OpenAI-compatible provider's three prerequisites, each with its own
+    fix: the package (optional until this provider is picked), the endpoint's
+    model, and its key. Not a network call: a gateway's model list can need
+    the key and take a while, and the settings panel already lists it."""
+    settings = conversation.get("openai", {})
+    checks: list[Check] = []
+    try:
+        import openai  # noqa: F401
+    except ImportError:
+        checks.append(
+            Check(
+                "openai package",
+                False,
+                "the openai package is not installed",
+                fix="pip install -r requirements.txt (in VS Code: Pear Review: Set Up Python Environment).",
+            )
+        )
+    if settings.get("model"):
+        where = settings.get("base_url") or "the default OpenAI endpoint"
+        checks.append(Check("model", True, f"{settings['model']} at {where}"))
+    else:
+        checks.append(
+            Check(
+                "model",
+                False,
+                "conversation.openai.model is not set",
+                fix="Pick a model in the settings panel (it lists what the endpoint reports).",
+            )
+        )
+    key_env = settings.get("api_key_env", "OPENAI_API_KEY")
+    if os.environ.get(key_env):
+        checks.append(Check("api key", True, f"{key_env} is set"))
+    else:
+        checks.append(
+            Check(
+                "api key",
+                False,
+                f"{key_env} is not set",
+                fix=f"Set the key in the settings panel (VS Code: Set OpenAI-compatible API Key), or export {key_env}.",
+            )
+        )
+    return checks
 
 
 def _check_ollama(conversation: dict) -> list[Check]:

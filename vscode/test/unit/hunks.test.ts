@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { DiffLine } from "../../src/backend/protocol.ts";
-import { fileChange, hunkHighlight, hunkLabel, parseHeader, sidesOf } from "../../src/review/hunks.ts";
+import { fileChange, hunkAtLine, hunkHighlight, hunkLabel, parseHeader, sidesOf } from "../../src/review/hunks.ts";
 
 const ctx = (o: number, n: number): DiffLine => ({ kind: "context", old_lineno: o, new_lineno: n, text: "" });
 const add = (n: number): DiffLine => ({ kind: "add", old_lineno: null, new_lineno: n, text: "" });
@@ -49,4 +49,19 @@ void test("sidesOf splits a whole-file diff into its before and after text", () 
   ];
   assert.deepEqual(sidesOf(full), { before: "a\nb\nc", after: "a\nB\nc" });
   assert.deepEqual(sidesOf([]), { before: "", after: "" });
+});
+
+void test("hunkAtLine finds the hunk a line is in, on either side, or the nearest one", () => {
+  const hunks = [
+    { index: 4, header: "@@ -10,3 +10,5 @@" },
+    { index: 5, header: "@@ -40,6 +42,2 @@" },
+  ];
+  assert.equal(hunkAtLine(hunks, "new", 12), 4);
+  assert.equal(hunkAtLine(hunks, "new", 43), 5);
+  assert.equal(hunkAtLine(hunks, "old", 45), 5);
+  assert.equal(hunkAtLine(hunks, "new", 30), 5, "between hunks: the nearer one");
+  assert.equal(hunkAtLine(hunks, "new", 1), 4);
+  assert.equal(hunkAtLine([], "new", 1), undefined);
+  // A deleted file has nothing on the new side; its one hunk still counts.
+  assert.equal(hunkAtLine([{ index: 0, header: "@@ -1,5 +0,0 @@" }], "new", 1), 0);
 });

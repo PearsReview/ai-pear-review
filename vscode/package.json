@@ -68,6 +68,12 @@
         "category": "Pear Review"
       },
       {
+        "command": "pearReview.explainHere",
+        "title": "Explain This Change",
+        "category": "Pear Review",
+        "icon": "$(sparkle)"
+      },
+      {
         "command": "pearReview.next",
         "title": "Next Hunk",
         "category": "Pear Review",
@@ -130,16 +136,9 @@
         "icon": "$(git-pull-request)"
       },
       {
-        "command": "pearReview.submitPullRequestReview",
-        "title": "Submit Review to Pull Request",
-        "category": "Pear Review",
-        "icon": "$(send)"
-      },
-      {
-        "command": "pearReview.endPullRequestReview",
-        "title": "End Pull Request Review",
-        "category": "Pear Review",
-        "icon": "$(close)"
+        "command": "pearReview.refreshPullRequest",
+        "title": "Refresh Pull Request",
+        "category": "Pear Review"
       },
       {
         "command": "pearReview.endReview",
@@ -456,7 +455,7 @@
         },
         {
           "command": "pearReview.reviewAll",
-          "when": "view == pearReview.hunks && pearReview.reviewStarted && !pearReview.reviewEnded",
+          "when": "view == pearReview.hunks && pearReview.reviewStarted && !pearReview.reviewEnded && !pearReview.readOnly",
           "group": "navigation@3"
         },
         {
@@ -465,34 +464,24 @@
           "group": "navigation@4"
         },
         {
-          "command": "pearReview.submitPullRequestReview",
-          "when": "view == pearReview.hunks && pearReview.readOnly",
-          "group": "navigation@4"
-        },
-        {
           "command": "pearReview.endReview",
-          "when": "view == pearReview.hunks && pearReview.reviewStarted && !pearReview.reviewEnded",
+          "when": "view == pearReview.hunks && pearReview.reviewStarted && !pearReview.reviewEnded && !pearReview.readOnly",
           "group": "review@1"
         },
         {
           "command": "pearReview.showSummary",
-          "when": "view == pearReview.hunks && pearReview.reviewEnded",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded && !pearReview.readOnly",
           "group": "review@2"
         },
         {
           "command": "pearReview.reopenReview",
-          "when": "view == pearReview.hunks && pearReview.reviewEnded",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded && !pearReview.readOnly",
           "group": "navigation@0"
         },
         {
           "command": "pearReview.newReview",
-          "when": "view == pearReview.hunks && pearReview.reviewEnded",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded && !pearReview.readOnly",
           "group": "review@3"
-        },
-        {
-          "command": "pearReview.endPullRequestReview",
-          "when": "view == pearReview.hunks && pearReview.readOnly",
-          "group": "review@4"
         },
         {
           "command": "pearReview.reviewPullRequest",
@@ -503,7 +492,7 @@
       "view/item/context": [
         {
           "command": "pearReview.toggleReviewed",
-          "when": "view == pearReview.hunks && viewItem == hunk.current",
+          "when": "view == pearReview.hunks && viewItem == hunk.current && !pearReview.readOnly",
           "group": "inline"
         },
         {
@@ -659,14 +648,6 @@
         {
           "command": "pearReview.createPlan",
           "when": "!pearReview.readOnly"
-        },
-        {
-          "command": "pearReview.submitPullRequestReview",
-          "when": "pearReview.readOnly"
-        },
-        {
-          "command": "pearReview.endPullRequestReview",
-          "when": "pearReview.readOnly"
         }
       ],
       "comments/commentThread/context": [
@@ -716,6 +697,11 @@
         }
       ],
       "editor/title": [
+        {
+          "command": "pearReview.explainHere",
+          "when": "pearReview.reviewStarted && resourceScheme =~ /^(file|git|review)$/",
+          "group": "navigation@-1"
+        },
         {
           "command": "pearReview.actNow.apply",
           "when": "resourceScheme == pear-proposal",
@@ -918,6 +904,17 @@
             },
             "completionEvents": [
               "onCommand:pearReview.chooseAgent"
+            ]
+          },
+          {
+            "id": "pullRequest",
+            "title": "Review a pull request",
+            "description": "Check a GitHub pull request out with the GitHub Pull Requests extension (optional, offered when needed), and ask Pear about its changes.\n[Review Pull Request…](command:pearReview.reviewPullRequest)",
+            "media": {
+              "markdown": "media/walkthrough/pullrequest.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.reviewPullRequest"
             ]
           }
         ]

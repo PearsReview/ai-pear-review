@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -43,7 +44,16 @@ _STATE_FILENAME = "session_state.json"
 # `git status`, in a repo whose .gitignore has no reason to mention a tool
 # its author may never have run, and out of the review itself, which lists
 # untracked files that aren't ignored.
-_ARTIFACT_PATTERNS = ("/.review/", "/.briefing/", "/.context/", "/.claude/skills/apply-review/")
+# The two debug directories are written relative to the reviewed repo too:
+# briefing_service's prompt audit trail and editor_service's change requests.
+_ARTIFACT_PATTERNS = (
+    "/.review/",
+    "/.briefing/",
+    "/.briefing_debug/",
+    "/.editor_debug/",
+    "/.context/",
+    "/.claude/skills/apply-review/",
+)
 
 # .git/info/exclude is the per-checkout, never-committed half of .gitignore
 # — the right home for "this machine ran a tool here", since committing it
@@ -57,24 +67,29 @@ def ensure_artifacts_ignored(repo_path: str) -> list[str]:
     Returns the patterns it added (empty if there was nothing to do), so a
     caller can say so once rather than every run.
 
-    Best-effort by design: a read-only .git, a worktree or submodule whose
-    .git is a file, or no .git at all all mean "leave it alone and carry
-    on". Failing to tidy someone's `git status` is never a reason to stop a
-    review from starting.
+    A linked worktree (a pull request checked out with "Checkout in
+    Worktree") has .git as a file; its exclude file is the main
+    repository's, which git names (see _exclude_file).
+
+    Best-effort by design: a read-only .git, a .git file git can't follow,
+    or no .git at all all mean "leave it alone and carry on". Failing to
+    tidy someone's `git status` is never a reason to stop a review from
+    starting.
     """
-    info_dir = Path(repo_path) / ".git" / "info"
-    if not info_dir.parent.is_dir():
+    exclude = _exclude_file(Path(repo_path))
+    if exclude is None:
         return []
-    exclude = info_dir / "exclude"
     try:
         existing = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
-        # Matched loosely (".review" catches "/.review/", ".review/" and
-        # ".review"), since the point is whether the reviewer has already
+        # Matched loosely ("/.review/", ".review/", ".review" and ".review/**"
+        # all count), since the point is whether the reviewer has already
         # dealt with it, not whether they spelled it the way this app does.
-        missing = [p for p in _ARTIFACT_PATTERNS if p.strip("/") not in existing]
+        # Whole lines, so ".briefing_debug" doesn't count as ".briefing".
+        covered = {_bare(line) for line in existing.splitlines()}
+        missing = [p for p in _ARTIFACT_PATTERNS if _bare(p) not in covered]
         if not missing:
             return []
-        info_dir.mkdir(parents=True, exist_ok=True)
+        exclude.parent.mkdir(parents=True, exist_ok=True)
         prefix = "" if not existing or existing.endswith("\n") else "\n"
         exclude.write_text(
             f"{existing}{prefix}\n{_EXCLUDE_HEADER}\n" + "".join(f"{p}\n" for p in missing),
@@ -84,6 +99,36 @@ def ensure_artifacts_ignored(repo_path: str) -> list[str]:
     except OSError as exc:
         log.info("Could not update %s: %s", exclude, exc)
         return []
+
+
+def _bare(pattern: str) -> str:
+    """A pattern without the slashes and globs that don't change what it names."""
+    return pattern.strip().removesuffix("**").strip("/")
+
+
+def _exclude_file(repo: Path) -> Path | None:
+    """The repository's info/exclude: under .git, or, for a linked worktree
+    (.git is a file), wherever git says it is — the main repository's,
+    shared by all its worktrees. None when there's no usable git dir."""
+    dot_git = repo / ".git"
+    if dot_git.is_dir():
+        return dot_git / "info" / "exclude"
+    if not dot_git.is_file():
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--git-path", "info/exclude"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    path = Path(result.stdout.strip())
+    return path if path.is_absolute() else repo / path
 
 
 @dataclass

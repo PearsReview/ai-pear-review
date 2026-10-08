@@ -117,14 +117,16 @@ try {
     writeFileSync(path.join(plain, "notes.md"), "# Not a repository\n");
     await run("nogit", plain, backend, { PEAR_TEST_REPO: plain });
 
-    // A GitHub pull request, reviewed read-only in a worktree, its comments posted to a
-    // fake GitHub API.
+    // A GitHub pull request checked out (as the GitHub Pull Requests extension would,
+    // stood in for by PEAR_REVIEW_TEST_PULL), reviewed read-only against its merge-base;
+    // its base comes from a fake GitHub API.
     const pr = seedPullRequest(path.join(work, "pr"));
     writeRepoSettings(pr.source, options);
     await fetch(`${fake.url}/__github`, { method: "POST", body: JSON.stringify({ pull: pr.pull, files: pr.files }) });
     await run("pr", pr.source, backend, {
       PEAR_TEST_REPO: pr.source,
       PEAR_TEST_PR_MERGE_BASE: pr.mergeBase,
+      PEAR_REVIEW_TEST_PULL: JSON.stringify({ owner: "acme", repo: "widgets", number: pr.number }),
       PEAR_REVIEW_GITHUB_API: fake.url,
       PEAR_REVIEW_GITHUB_TOKEN: "test-token",
     });

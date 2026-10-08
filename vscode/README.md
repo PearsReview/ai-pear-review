@@ -27,6 +27,13 @@ unaffected and still works on its own.
 - The model and speech services the backend is configured for (by default,
   Ollama, plus a local STT/TTS service on port 8000). See the backend's
   [README](https://github.com/PearsReview/ai-pear-review#readme).
+- **For pull request reviews only:** GitHub's
+  [GitHub Pull Requests](https://marketplace.visualstudio.com/items?itemName=GitHub.vscode-pull-request-github)
+  extension (`GitHub.vscode-pull-request-github`), signed in to GitHub. It checks
+  the PR out and handles its comments and the submitted review; Pear Review
+  follows it. It's optional, not a declared dependency: reviewing your own
+  changes doesn't need it, so it isn't installed with Pear Review. **Review Pull
+  Request…** offers to install it the first time.
 
 ## Installing
 
@@ -88,8 +95,8 @@ machine. The Anthropic API, or a coding agent (Cline) set up with a hosted
 provider, sends that code to the provider. A remote speech service receives your
 recorded audio and anything read aloud. Act Now can write to your working tree,
 only after you confirm a preview. Reviewing a pull request signs in to GitHub
-(VS Code's own GitHub sign-in) to read the PR and to post your comments to it,
-only when you submit the review. Nothing is sent anywhere until you start a
+(VS Code's own GitHub sign-in) to read the PR's base; your comments go to GitHub
+through the GitHub Pull Requests extension, not through Pear Review. Nothing is sent anywhere until you start a
 review, and the extension itself collects no telemetry. Details:
 [Privacy](https://github.com/PearsReview/ai-pear-review#privacy) and
 [Security](https://github.com/PearsReview/ai-pear-review/blob/main/SECURITY.md).
@@ -158,24 +165,29 @@ below.
 
 ### Reviewing a GitHub pull request
 
-**Review Pull Request…** (in the Changes view's **…** menu, or the command
-palette) lists the open pull requests of the repository's GitHub remote. Pick
-one and Pear Review fetches it into a separate worktree, so your own checkout
-and uncommitted changes are left alone, and reviews it the way GitHub's
-**Files changed** shows it: against the point where it branched.
+Pull requests are reviewed with GitHub's own **GitHub Pull Requests**
+extension, and Pear Review adds its walkthrough, explanations and chat on top.
 
-Everything works as in a local review except what would write: there's no Act
-Now, and no plan. Comments say **goes to PR #N**. **Submit Review** (the send
-button on the Changes view) posts them all to the PR as one review, with your
-choice of Comment, Request changes or Approve and a summary. Each comment starts
-with its severity ("**Must fix:** …"). One on lines outside GitHub's diff goes on
-the file instead, naming the lines. **End Pull Request Review** removes the
-worktree.
+1. **Review Pull Request…** (in the Changes view's **…** menu, or the command
+   palette) opens GitHub's Pull Requests view, or offers to install the
+   extension if it's missing.
+2. Check the PR out there. **Checkout in Worktree** leaves your own checkout and
+   uncommitted changes alone; a plain **Checkout** switches your branch.
+3. Pear Review follows the checked-out PR: the Changes view lists the PR's
+   changes against the point where it branched, as GitHub's **Files changed**
+   shows them. Explanations, questions about selected lines, voice and Look
+   deeper work as in a local review. **Explain This Change** (✨ in an editor's
+   title bar) explains the change the cursor is in, in Pear's diff or in
+   GitHub's.
+4. Comment, reply, suggest changes, mark files Viewed and submit the review
+   (Comment, Request changes or Approve) with GitHub's extension: those go to
+   the PR. Pear's own comments, reviewed marks, Act Now and plans are off for a
+   pull request.
 
-Remotes on github.com work as they are. For GitHub Enterprise (Server, or
-Enterprise Cloud on `ghe.com`), set VS Code's own `github-enterprise.uri` setting
-to your server's address, e.g. `https://github.example.com`: its remotes are then
-listed too, and you sign in through VS Code's GitHub Enterprise sign-in.
+After checking out a different PR, Pear Review notices when the window regains
+focus, or run **Refresh Pull Request**. Remotes on github.com work as they are;
+for GitHub Enterprise (Server, or Enterprise Cloud on `ghe.com`), set VS Code's
+own `github-enterprise.uri` setting to your server's address.
 
 The chat holds the conversation. Act Now proposals, the review's end, notices
 and errors appear as VS Code notifications. The status bar's **Pear** item
