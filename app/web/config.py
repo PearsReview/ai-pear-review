@@ -21,10 +21,45 @@ APP_DIR = Path(__file__).resolve().parent.parent
 BASE_DIR = APP_DIR.parent
 STATIC_DIR = BASE_DIR / "static"
 
+# User-level overrides: ~/.config/pear-review/config.yaml is deep-merged over
+# app/config.yaml at startup. Lets you set provider, model, etc. once across
+# all repos without editing the app's own file. Create it yourself — the app
+# never writes it. Any key from app/config.yaml may be overridden here;
+# missing keys fall through to the app's defaults. REVIEW_USER_CONFIG names a
+# different file instead (tests/conftest.py points it at a missing one, so a
+# developer's own overrides can't leak into the unit suite).
+USER_CONFIG_ENV = "REVIEW_USER_CONFIG"
+_DEFAULT_USER_CONFIG_PATH = Path.home() / ".config" / "pear-review" / "config.yaml"
+
+
+def user_config_path() -> Path:
+    return Path(os.environ.get(USER_CONFIG_ENV) or _DEFAULT_USER_CONFIG_PATH)
+
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    result = dict(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
 
 def load_config() -> dict:
     with open(APP_DIR / "config.yaml", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    user_path = user_config_path()
+    if user_path.exists():
+        with open(user_path, encoding="utf-8") as f:
+            user = yaml.safe_load(f) or {}
+        if not isinstance(user, dict):
+            # A list or a bare string at the top level can't be merged key by
+            # key; starting on the app's defaults beats not starting at all.
+            log.warning("Ignoring %s: expected a mapping at the top level, got %s.", user_path, type(user).__name__)
+        elif user:
+            config = _deep_merge(config, user)
+    return config
 
 
 CONFIG = load_config()

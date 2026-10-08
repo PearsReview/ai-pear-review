@@ -12,6 +12,15 @@ qa_agent/generated/ and qa_agent/live/ from `pytest qa_agent/` for.
 Without this, a plain `pytest tests/` would silently start making live
 Ollama calls against an external repo, which is exactly the
 surprise this file exists to prevent.
+
+REVIEW_USER_CONFIG is pointed at a file that doesn't exist before anything
+imports app.web.config (which resolves CONFIG at import), so a developer's own
+~/.config/pear-review/config.yaml can't change what this suite sees.
 """
+
+import os
+from pathlib import Path
+
+os.environ["REVIEW_USER_CONFIG"] = str(Path(__file__).parent / "no-user-config.yaml")
 
 collect_ignore = ["live_llm"]
