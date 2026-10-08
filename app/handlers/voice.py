@@ -61,7 +61,7 @@ def _content_hash(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
 
 
-async def _read_md_file(ws: WebSocket, payload: dict) -> tuple[str, str] | None:
+async def _read_md_file(ws: WebSocket, payload: dict, source: str | None = None) -> tuple[str, str] | None:
     """Reads the markdown file named in a payload, for both entry points
     below.
 
@@ -73,12 +73,12 @@ async def _read_md_file(ws: WebSocket, payload: dict) -> tuple[str, str] | None:
     guard, in editor_service.resolve_within_repo."""
     file_path = payload.get("file_path")
     if not isinstance(file_path, str) or not file_path.lower().endswith(".md"):
-        await send_error(ws, "Markdown actions are only available for .md files.")
+        await send_error(ws, "Markdown actions are only available for .md files.", source)
         return None
     repo_path = CONFIG["server"].get("repo_path", ".")
     content = await asyncio.to_thread(read_current_file, repo_path, file_path)
     if content is None:
-        await send_error(ws, f"Could not read {file_path}.")
+        await send_error(ws, f"Could not read {file_path}.", source)
         return None
     return file_path, content
 
@@ -156,7 +156,10 @@ async def handle_speak_file(ws: WebSocket, session: Session, payload: dict) -> N
     The file is parsed into line-anchored blocks and packed into TTS-sized
     chunks (utils/markdown_speech.py — the real TTS endpoint is a
     single-shot call with no confirmed max length), then streamed back as
-    "file_audio_chunk" messages bracketed by start/done "notice"s. A line
+    "file_audio_chunk" messages bracketed by start/done "notice"s (their
+    "event" is "reading_started" / "reading_finished"; every error this
+    read sends carries "source": "speak_file", so a client can end the read
+    without parsing wording). A line
     range selects by overlap, so a block straddling the boundary is read in
     full.
 
@@ -165,7 +168,7 @@ async def handle_speak_file(ws: WebSocket, session: Session, payload: dict) -> N
     point, and there is no partial write to clean up on the way out — so
     nothing beyond the `finally` clearing session.tts_reading_file is
     needed."""
-    result = await _read_md_file(ws, payload)
+    result = await _read_md_file(ws, payload, "speak_file")
     if result is None:
         return
     file_path, content = result
@@ -188,17 +191,19 @@ async def handle_speak_file(ws: WebSocket, session: Session, payload: dict) -> N
     chunks = chunk_blocks(blocks, TTS_MAX_CHARS, include, max_words=TTS_MAX_WORDS)
     if not chunks:
         where = "the selected part of " if start_line is not None else ""
-        await send_error(ws, f"Nothing readable in {where}{file_path}.")
+        await send_error(ws, f"Nothing readable in {where}{file_path}.", "speak_file")
         return
 
     if not session.tts_enabled:
-        await send_error(ws, "Turn on Speech to read a file aloud.")
+        await send_error(ws, "Turn on Speech to read a file aloud.", "speak_file")
         return
 
     content_hash = _content_hash(content)
     session.tts_reading_file = file_path
     try:
-        await send_json(ws, "notice", {"level": "info", "message": f"Reading {file_path}..."})
+        await send_json(
+            ws, "notice", {"level": "info", "message": f"Reading {file_path}...", "event": "reading_started"}
+        )
         for i, chunk in enumerate(chunks):
             try:
                 audio_bytes = await asyncio.to_thread(runtime.TTS.synthesize, humanize_for_speech(chunk.text))
@@ -210,7 +215,9 @@ async def handle_speak_file(ws: WebSocket, session: Session, payload: dict) -> N
                 # unsure whether anything was silently dropped.
                 log.info("TTS unavailable while reading %s: %s", file_path, exc)
                 await send_json(ws, "service_status", {"tts": False})
-                await send_error(ws, f"Voice output stopped partway through {file_path} (TTS unavailable).")
+                await send_error(
+                    ws, f"Voice output stopped partway through {file_path} (TTS unavailable).", "speak_file"
+                )
                 return
             await send_json(ws, "service_status", {"tts": True})
             await send_json(
@@ -234,7 +241,9 @@ async def handle_speak_file(ws: WebSocket, session: Session, payload: dict) -> N
                     "blocks": [chunk_block_to_payload(m) for m in chunk.blocks],
                 },
             )
-        await send_json(ws, "notice", {"level": "success", "message": f"Finished reading {file_path}."})
+        await send_json(
+            ws, "notice", {"level": "success", "message": f"Finished reading {file_path}.", "event": "reading_finished"}
+        )
     finally:
         session.tts_reading_file = None
 

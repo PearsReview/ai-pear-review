@@ -1,0 +1,17 @@
+{
+  // The webview's plain scripts (media/), type-checked but not compiled: they're served
+  // as they are. Looser than tsconfig.json on implicit any, since they carry JSDoc
+  // types only where a value crosses between scripts or comes from the extension.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["media/**/*.js", "media/chat/globals.d.ts"]
+}

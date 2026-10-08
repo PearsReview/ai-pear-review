@@ -39,9 +39,6 @@ async def handle_look_deeper(ws: WebSocket, session: Session, payload: dict) -> 
 
     Read aloud like any other reply when voice output is on; try_speak
     splits it to fit config.yaml's tts.max_chars."""
-    if session.review_ended:
-        await send_error(ws, "The review has ended — Look deeper is no longer available.")
-        return
     status = harness_status(CONFIG["harness"])
     if not status.available:
         await send_error(ws, status.detail)

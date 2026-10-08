@@ -118,3 +118,62 @@ jobs:
       - name: Type-check
         # Scope and settings come from pyproject.toml's [tool.mypy].
         run: mypy
+
+  extension:
+    # The VS Code extension (vscode/): lint, types, unit tests, build, and the
+    # .vsix's contents (which includes a copy of the backend, made by sync-backend).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # node --test runs the .ts tests directly, which needs Node's type stripping (23.6+).
+          node-version: 24
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:package
+      - run: npm run package
+
+  extension-python:
+    # The extension's own Python (vscode/python/, vscode/test/python/), linted with
+    # the repo's ruff settings (vscode/ruff.toml extends them), and the audio
+    # player's WAV decoding.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pytest "$(grep -E '^ruff' requirements-dev.txt)"
+      - run: ruff check vscode/python vscode/test/python vscode/test/integration/fake_modules
+      - run: ruff format --check vscode/python vscode/test/python vscode/test/integration/fake_modules
+      - run: python -m pytest vscode/test/python -q
+
+  extension-integration:
+    # A real VS Code with the extension and a real backend; the model, speech
+    # service, coding agent and microphone are fakes (vscode/test/integration/).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r ../requirements.txt
+      - run: npm ci
+      - run: xvfb-run -a npm run test:integration

@@ -86,10 +86,25 @@ conversation:
     # and rejects output_config.effort, so don't add an effort setting here
     # without gating it on the model.
     max_tokens: 1024
+  # provider: openai talks to any OpenAI-compatible endpoint — a self-hosted
+  # server, or a proxy/gateway (LiteLLM, vLLM, an enterprise LLM gateway) that
+  # fronts several model families behind one OpenAI-shaped API. base_url points
+  # at it (include the version path the endpoint expects, e.g. .../v1); model is
+  # whatever id that endpoint routes ("gpt-5", "gemini-2.5-pro", or a proxy's
+  # own name like "anthropic--claude-4.6-sonnet"). The settings panel lists what
+  # the endpoint reports. The key is read from the env var named by api_key_env
+  # (the VS Code extension sets OPENAI_API_KEY from the key you paste in
+  # settings); max_tokens overrides the shared budget above for this provider.
+  openai:
+    model: ""
+    base_url: ""
+    api_key_env: OPENAI_API_KEY
+    max_tokens: 1024
 
-# One-shot-per-hunk investigation, so `conversation` above has more to go
-# on than the raw diff alone. The running app never calls the Claude Code
-# CLI itself (see docs/architecture.md — automating
+# A briefing is the per-hunk context the reviewer model is given — the
+# change's intent, the alternatives considered, and any risk notes — so it
+# has more to go on than the raw diff alone. The running app never calls the
+# Claude Code CLI itself (see docs/architecture.md — automating
 # its subscription auth is a live, unresolved ToS question). Deep,
 # tool-assisted investigation (Read/Grep/git log/blame) only happens via a
 # human's own interactive session — the prep-review Skill — which writes

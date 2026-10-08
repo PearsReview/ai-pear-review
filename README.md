@@ -6,7 +6,8 @@
 > file formats may change between releases — see
 > [Known issues](#known-issues-and-limitations).
 
-A local web app that walks you through your own uncommitted git changes
+A local web app (there is also a [VS Code extension](vscode/README.md))
+that walks you through your own uncommitted git changes
 one hunk at a time, with an AI persona narrating each change, answering
 questions about it, and (optionally) applying small edits you agree on —
 all running against your own working tree, in your own browser.
@@ -21,7 +22,7 @@ line rather than accept on trust.
 
 ![The review UI: the current hunk highlighted in a full-file diff on the left, and on the right the reviewer persona's narration of that hunk, a follow-up question, and its answer.](docs/img/review-ui.png)
 
-<sub>Narrated by a local `qwen2.5-coder:7b` through Ollama. There's a [dark theme](docs/img/review-ui-dark.png) too.</sub>
+<sub>Narrated by a local `qwen2.5-coder:7b-instruct-q4_K_M` through Ollama. There's a [dark theme](docs/img/review-ui-dark.png) too.</sub>
 
 ```
 cd ~/your-project && python ~/ai-pear-review/run.py
@@ -55,7 +56,7 @@ anything missing disables its own feature and nothing else.
 
 | Part | Everything local (a capable GPU) | Hosted models (company API access) |
 |---|---|---|
-| Narration + chat | Ollama (the default) | `provider: anthropic` + `ANTHROPIC_API_KEY` |
+| Narration + chat | Ollama (the default) | `provider: anthropic` + `ANTHROPIC_API_KEY`, or `provider: openai` for any OpenAI-compatible endpoint/gateway |
 | Act Now + Look deeper | Cline, set up with your local model | Cline, set up with Anthropic |
 | Voice in and out | [stt_tts](https://github.com/PearsReview/stt_tts) (CPU is enough) | Your company's STT/TTS endpoint |
 | Prep skills | Cline on the local model, or Claude Code | Claude Code or Cline |
@@ -64,19 +65,30 @@ Mix freely — e.g. local narration with a hosted model behind Cline. Local
 models are noticeably weaker at Act Now and Look deeper than at narrating.
 
 **On cost:** the app never runs the `claude` CLI, so it never spends a
-Claude Code subscription. `provider: anthropic` is the per-token API. Act
-Now and Look deeper use whatever model and credentials you gave Cline.
+Claude Code subscription. `provider: anthropic` is the per-token API, and
+`provider: openai` the per-token cost of whatever endpoint you point it at.
+Act Now and Look deeper use whatever model and credentials you gave Cline.
 
 ## Requirements
 
 - Python 3.10+ and `git` on PATH
 - A repo with at least one commit and some uncommitted changes
 - A model for narration: a local [Ollama](https://ollama.com) server (the
-  default), or an `ANTHROPIC_API_KEY`
+  default), an `ANTHROPIC_API_KEY`, or any OpenAI-compatible endpoint
+  (`provider: openai`)
 - Optional: [Cline](https://docs.cline.bot) (needs Node.js), an STT/TTS
   endpoint (e.g. [stt_tts](https://github.com/PearsReview/stt_tts)), and
   [Claude Code](https://claude.com/claude-code) or Cline for
   the prep skills
+
+## VS Code extension
+
+The same review runs inside VS Code: the Changes tree, the native diff, and a
+chat with voice. It also reviews GitHub pull requests, together with GitHub's
+own GitHub Pull Requests extension (optional, needed only for that). It lives
+in [`vscode/`](vscode/) and carries a copy of this backend; see
+[vscode/README.md](vscode/README.md). The rest of this README is about the web
+app.
 
 ## Install
 
@@ -93,6 +105,11 @@ pip install -r requirements.txt
 A virtualenv is recommended: `python -m venv .venv`, then
 `.venv\Scripts\activate` (Windows) or `source .venv/bin/activate`.
 
+`pip install -e .` instead of `-r requirements.txt` also puts two commands
+on your PATH — `pear-review` (same as `python run.py`) and `pear-install`
+(same as `python install_skills.py`) — so you can run them from any repo
+without naming the app's path.
+
 **2. Install and start [Ollama](https://ollama.com).** It must be
 *running*, not just installed — the desktop app starts it, as does
 `ollama serve`.
@@ -103,13 +120,16 @@ A virtualenv is recommended: `python -m venv .venv`, then
 ollama pull qwen2.5-coder:7b-instruct-q4_K_M
 ```
 
-> **Using Anthropic's API instead?** Skip steps 2 and 3 and make **both**
+> **Using a hosted model instead?** Skip steps 2 and 3 and make **both**
 > changes — the key alone changes nothing:
 >
-> 1. Set `conversation.provider: anthropic` in `app/config.yaml` (or pick
->    it in the app's settings panel).
-> 2. Put `ANTHROPIC_API_KEY=sk-ant-...` in a `.env` file at the app's root
->    (see `.env.example`), or set it in your shell.
+> - **Anthropic:** set `conversation.provider: anthropic` in
+>   `app/config.yaml` (or pick it in the settings panel), and put
+>   `ANTHROPIC_API_KEY=sk-ant-...` in a `.env` file at the app's root (see
+>   `.env.example`), or in your shell.
+> - **Any OpenAI-compatible endpoint or gateway** (LiteLLM, vLLM, an
+>   enterprise proxy): set `conversation.provider: openai`, a
+>   `conversation.openai.base_url` and `model`, and an `OPENAI_API_KEY`.
 
 **4. Run it against your repo** — see [Run it](#run-it). The app's working
 files (`.review/`, `.briefing/`, `.context/`) are kept out of your
@@ -176,6 +196,10 @@ Then, in Claude Code or Cline opened in that repo, run `/project-overview`,
 review". Run prep-review at the end of the session that made the changes,
 while it still knows *why* each change was made.
 
+For several repos at once, `--repos-file repos.txt` installs into every
+path listed in a file (one per line), and `--check-repos repos.txt` reports
+which of them have missing or out-of-date skills without writing anything.
+
 More in [docs/prep-skills.md](docs/prep-skills.md): the opt-in
 `--with-reminders` hook and Cline rule, and running the skills against a
 repo without installing them.
@@ -187,9 +211,15 @@ cd ~/your-project && python ~/ai-pear-review/run.py
 python run.py --repo ~/your-project        # the same, from the app's folder
 ```
 
+(Or just `pear-review` from anywhere, if you installed with
+`pip install -e .` — see [Install](#install).)
+
 It opens `http://127.0.0.1:8765` in your browser, or the next free port if
 that one is taken. Every setting lives in the commented `app/config.yaml`;
-[docs/configuration.md](docs/configuration.md) walks through it.
+[docs/configuration.md](docs/configuration.md) walks through it. To set
+defaults across every repo without editing that file, put the keys you want
+to override in `~/.config/pear-review/config.yaml` — it's layered on top of
+`app/config.yaml` at startup.
 
 **First time with a new repo?** The app runs without any of this, but the
 narration is much better with it:
@@ -197,12 +227,12 @@ narration is much better with it:
 1. Install the prep skills there, once:
    `python ~/ai-pear-review/install_skills.py --repo ~/your-project`
    (add `--with-reminders` for a nudge to brief your changes before a
-   session ends).
-2. Commit the installed `.claude/` files or add them to `.gitignore`.
-   Otherwise they show up in the review as new files.
-3. In Claude Code or Cline opened in that repo, run `/project-overview`,
+   session ends). The installer keeps them out of the review automatically;
+   commit the installed `.claude/` files only if you want to share them with
+   your team.
+2. In Claude Code or Cline opened in that repo, run `/project-overview`,
    `/call-map` and `/prep-review` ([Prep skills](#prep-skills-optional-recommended)).
-4. Start the app as above.
+3. Start the app as above.
 
 Later reviews in the same repo only need step 3's `/prep-review` (and
 `/call-map` once HEAD has moved). The settings panel shows how old the
@@ -211,7 +241,11 @@ overview and call map are.
 ## Using the review UI
 
 - **Start Review / End Review** — narration and chat begin only once you
-  click Start Review; browsing the diff always works.
+  click Start Review; browsing the diff always works. Ending a review (End
+  Review, or marking the last change reviewed) locks the reviewed marks,
+  comments and Act Now, and says so; you can still open any change, ask about
+  it and have it explained. **Reopen Review** picks the same review back up
+  with its marks and comments; **Start New Review** starts over.
 - **Prev / Next** — move between hunks.
 - **Explain** (next to Next) — asks the AI to explain the change you're on.
   By default nothing is explained until you click it, so you choose which
@@ -272,8 +306,10 @@ overview and call map are.
 
 ## TODO
 
-- **Review beyond the working tree** — a branch against its base, past
-  commits, and pull requests (posting the review back).
+- **Review beyond the working tree** — a branch against its base, and past
+  commits. (Pull requests are reviewed in the [VS Code
+  extension](vscode/README.md#reviewing-a-github-pull-request), not the web
+  app.)
 - **Comments and Act Now on unchanged files** — All files mode can ask
   about a file, but not comment on it or edit it.
 - **Keep the conversation** across restarts, and let it be exported.
@@ -283,8 +319,10 @@ overview and call map are.
   Client Protocol (ACP), so other ACP agents can be added alongside Cline.
 - **Skills for other assistants** — Cursor rules, Copilot instructions,
   `AGENTS.md`.
-- **Install as a command** — `pipx install`, with a user-level config file
-  instead of editing `app/config.yaml`.
+- **Install from PyPI** — `pip install -e .` already gives the `pear-review`
+  and `pear-install` commands and `~/.config/pear-review/config.yaml` is
+  layered over `app/config.yaml`; what's left is packaging `static/` and the
+  bundled skills so a plain `pipx install ai-pear-review` (no checkout) works.
 
 ## How it works
 

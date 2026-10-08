@@ -15,6 +15,13 @@ Inbound messages are registered with the `@handler` decorator and
 dispatched through [app/handlers/registry.py](../app/handlers/registry.py).
 `cancels` means `cancel_current` runs before the handler; `background`
 means it runs as `session.current_task` rather than inline.
+
+A handler registered with `writes=True` (`act_now`, `refine_act_now`,
+`confirm_act_now`, `finish_review`) is refused with an `error` (its
+`source` is the message type) when the server runs read-only: a pull
+request review started by the VS Code extension (`REVIEW_READ_ONLY=1`,
+diffing against `REVIEW_BASE_SHA`; see [app/web/config.py](../app/web/config.py)).
+The connect-time `service_status` then carries `read_only: true`.
 `test_wire_protocol_doc_matches_the_registry` in
 [tests/test_handler_registry.py](../tests/test_handler_registry.py) fails if
 this table and the registry disagree.
@@ -30,6 +37,7 @@ this table and the registry disagree.
 | `start_review` | — | `review_flow.handle_start_review` | — | — |
 | `end_review` | — | `review_flow.handle_end_review` | — | — |
 | `show_summary` | — | `review_flow.handle_show_summary` | — | — |
+| `reopen_review` | — | `review_flow.handle_reopen_review` | — | — |
 | `new_review` | — | `review_flow.handle_new_review` | — | — |
 | `toggle_reviewed` | — | `review_flow.handle_toggle_reviewed` | — | — |
 | `toggle_reviewed_all` | — | `review_flow.handle_toggle_reviewed_all` | — | — |
@@ -45,7 +53,7 @@ this table and the registry disagree.
 | `step_into` | `text` | `explore.handle_step_into` | — | — |
 | `list_all_files` | — | `explore.handle_list_all_files` | — | — |
 | `explore_file` | `file_path` | `explore.handle_explore_file` | — | — |
-| `explore_reply` | `text` \| `audio_base64`, `file_path` | `explore.handle_explore_reply` | yes | yes |
+| `explore_reply` | `text` \| `audio_base64`, `file_path`, `marked_lines?` | `explore.handle_explore_reply` | yes | yes |
 | `look_deeper` | `index`, `question?` | `research.handle_look_deeper` | yes | yes |
 | `get_settings` | `provider?` | `settings.handle_get_settings` | — | — |
 | `set_settings` | `settings` | `settings.handle_set_settings` | — | — |
@@ -56,8 +64,12 @@ this table and the registry disagree.
 | `explain_hunk` | `index` | `narration.handle_explain_hunk` | yes | yes |
 | `set_narration_prefs` | `auto_narrate` | `narration.handle_set_narration_prefs` | — | — |
 | `speak_text` | `text` | `voice.handle_speak_text` | yes | yes |
+| `start_recording` | — | `recording.handle_start_recording` | — | — |
+| `stop_recording` | — | `recording.handle_stop_recording` | — | — |
 
 `stop` is the wire name for the button the UI labels **Interrupt**.
+
+`start_recording` and `stop_recording` are sent only by the VS Code extension, which can't record in its webview; the browser records itself.
 
 ## Python → Browser
 
@@ -76,7 +88,7 @@ this table and the registry disagree.
 | `all_files` | `handlers/explore.py` |
 | `file_explore` | `handlers/explore.py` |
 | `definition` | `handlers/explore.py` |
-| `review_progress` | `web/progress.py` |
+| `review_progress` | `web/progress.py` (`files[]` each with `hunks[]`: `index`, `header`, `reviewed`) |
 | `review_comments_sync` | `app/server.py` (connect-time hydration) |
 | `review_comment_queued` | `handlers/comments.py` |
 | `review_comment_updated` | `handlers/comments.py` |
@@ -86,6 +98,8 @@ this table and the registry disagree.
 | `act_now_cleared` | `handlers/act_now.py` |
 | `agent_stopped` | `handlers/research.py`, `handlers/act_now.py` via `web/runtime.py`'s `send_agent_stopped` (a Look deeper, Act Now or refine run cancelled before it answered; `kind` says which) |
 | `settings` | `handlers/settings.py` |
+| `recording_state` | `handlers/recording.py` (`recording`) |
+| `recording_result` | `handlers/recording.py` (`audio_base64`, `mime_type`, `duration_seconds`) |
 | `context_too_large` | `handlers/narration.py`, `handlers/explore.py` |
 | `service_status` | many — any handler that learns a service is up or down |
 | `notice` | many — non-fatal, informational |
@@ -95,10 +109,12 @@ this table and the registry disagree.
 
 | Field | On | Defined in |
 |---|---|---|
-| `marked_lines` | `reply`, `request_change`, `act_now` | [app/web/context.py](../app/web/context.py) module docstring |
+| `marked_lines` | `reply`, `request_change`, `act_now`, `explore_reply` | [app/web/context.py](../app/web/context.py) module docstring |
 | `anchor` | `review_comment_queued`, `review_comments_sync` | `web/context.py`'s `line_context` |
 | `content_hash` | `md_preview`, `file_audio_chunk` | [app/handlers/voice.py](../app/handlers/voice.py) module docstring |
 | `chunk_index` / `chunk_count` | `audio_chunk`, `turn_audio_chunk`, `tour_audio_chunk`, `file_audio_chunk` | `web/speech.py`'s `try_speak` |
 | `weight` / `partial` | `file_audio_chunk` blocks | `utils/markdown_speech.py`'s `ChunkBlock` |
 | `sentences` (`text`, `weight`) | `audio_chunk`, `turn_audio_chunk`, `tour_audio_chunk` | `utils/speech_text.py`'s `sentence_segments` — the chat read-along highlight |
 | `spoken` | `narration`, `reviewer_turn`, `deeper_turn` | the sanitised text a turn's speaker button sends back as `speak_turn` |
+| `event` | `notice` | what the notice reports, for a client acting on it rather than showing it: `reading_started` / `reading_finished` (`voice.handle_speak_file`), `act_now_applied` with `files` (`act_now.handle_confirm_act_now`) |
+| `source` | `error` | the action that failed (`speak_file`), so its client-side state can end — `web/runtime.py`'s `send_error` |

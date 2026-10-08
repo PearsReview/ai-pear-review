@@ -13,6 +13,7 @@ configured by base_url, not a subclass tree.
 
 from __future__ import annotations
 
+import logging
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -23,6 +24,9 @@ from ..services.errors import ServiceError
 # The single home for conversation.provider's default. Every module that
 # needs it imports this rather than repeating the literal.
 DEFAULT_PROVIDER = "ollama"
+
+# How often a cancel watcher checks the cancel token while a stream is silent.
+_CANCEL_POLL_SECONDS = 0.1
 
 
 class ConversationError(ServiceError):
@@ -106,3 +110,29 @@ class ChatProvider(ABC):
         """One call. response_schema is only ever passed when this provider
         declares Capability.JSON_SCHEMA; cancel may be ignored by a provider
         without Capability.CANCELLATION."""
+
+
+def close_when_cancelled(cancel: threading.Event, done: threading.Event, stream) -> None:
+    """Closes the stream the moment cancel is set, and exits as soon as the call
+    finishes on its own — so a call that completes normally leaves no thread
+    behind waiting on a token that will never be set. Shared by the streaming
+    providers (anthropic, openai) whose complete() runs a watcher thread."""
+    while not done.is_set():
+        if cancel.wait(_CANCEL_POLL_SECONDS):
+            if not done.is_set():
+                stream.close()
+            return
+
+
+def raise_if_token_cap_empty(log: logging.Logger, model: str, max_tokens: int, text: str, config_key: str) -> None:
+    """Logs that a reply hit its token cap and, if nothing but reasoning came
+    back, raises ConversationError pointing at the setting to raise. Current
+    models think by default and that thinking spends the same cap, so a budget
+    sized for a local model's spoken turn can be gone before any prose is
+    written. Shared by the streaming providers."""
+    log.warning("%s hit the %d-token cap (text: %d chars)", model, max_tokens, len(text))
+    if not text:
+        raise ConversationError(
+            f"{model} used its whole {max_tokens}-token reply budget on reasoning "
+            f"before writing anything. Raise {config_key}."
+        )

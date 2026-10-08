@@ -15,8 +15,9 @@ of this file rather than of any one message:
   marked reviewed, comments still queued. So a fresh socket is not
   necessarily a fresh review, and "review_comments_sync" is not
   necessarily empty.
-- review_started and review_ended gate narration, replies and the review
-  marks, never browsing. Stepping through hunks, opening any file and
+- review_started and review_ended gate automatic narration, the review
+  marks, comments and Act Now — never browsing or chat ("reopen_review"
+  undoes an end). Stepping through hunks, opening any file and
   asking about it are all meant to work before a review starts and after
   it ends — see the individual handlers for which side each falls on.
 - A conversation agent that fails to construct is not fatal. The
@@ -136,7 +137,7 @@ async def websocket_endpoint(ws: WebSocket) -> None:
         # turned one slow/contended git call into a total server freeze
         # for all clients. Caught by qa_agent, not by any human tester,
         # since a human only ever opens one tab at a time.
-        hunks = await asyncio.to_thread(get_review_hunks, repo_path)
+        hunks = await asyncio.to_thread(get_review_hunks, repo_path, CONFIG["server"].get("base_sha"))
     except DiffError as exc:
         await send_error(ws, f"Could not read the diff: {exc}")
         await ws.close()
@@ -189,6 +190,8 @@ async def websocket_endpoint(ws: WebSocket) -> None:
             # (see get_briefing).
             "briefing": True,
             "act_now": act_now_status(),
+            # A pull request review: comments go to GitHub, nothing is written.
+            "read_only": bool(CONFIG["server"].get("read_only")),
         },
     )
     await send_review_progress(ws, session)
@@ -222,3 +225,4 @@ async def websocket_endpoint(ws: WebSocket) -> None:
             await dispatch(ws, session, msg.get("type"), msg.get("payload", {}))
     except WebSocketDisconnect:
         cancel_current(session)
+        session.recorder.cancel()

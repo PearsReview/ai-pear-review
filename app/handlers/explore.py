@@ -18,7 +18,7 @@ from ..services.voice_service import VoiceServiceError
 from ..utils.markdown_speech import block_to_payload, sanitize_persona_reply
 from ..web import runtime
 from ..web.config import CONFIG
-from ..web.context import estimate_tokens, prompt_budget
+from ..web.context import augment_with_marked_context, estimate_tokens, prompt_budget
 from ..web.runtime import run_llm, send_error, send_json
 from ..web.session import Session
 from ..web.speech import try_speak
@@ -147,9 +147,10 @@ async def handle_explore_reply(ws: WebSocket, session: Session, payload: dict) -
     Session.file_conversation_histories and
     ConversationClient.answer_about_file.
 
-    Marked-line context is not threaded through here the way handle_reply
-    does it with augment_with_marked_context: line marking belongs to hunk
-    review, not to explore mode.
+    Optional "marked_lines" (see web/context.py) is the VS Code extension's
+    editor selection, threaded through augment_with_marked_context as
+    handle_reply does. The browser's explore view has no line markers and
+    never sends it.
 
     There is no review_started or review_ended check either. Asking about
     unchanged code works before a review starts, unlike
@@ -193,6 +194,7 @@ async def handle_explore_reply(ws: WebSocket, session: Session, payload: dict) -
     if content is None:
         await send_error(ws, f"Couldn't read {file_path}.")
         return
+    question = augment_with_marked_context(human_text, payload.get("marked_lines"))
 
     # Explore mode embeds the WHOLE file on the first turn (see
     # ConversationClient._file_prompt), so this is the one path where a
@@ -204,7 +206,7 @@ async def handle_explore_reply(ws: WebSocket, session: Session, payload: dict) -
     file_tokens = estimate_tokens(content)
     if (
         budget is not None
-        and file_tokens + estimate_tokens(human_text) > budget
+        and file_tokens + estimate_tokens(question) > budget
         and not (session.file_conversation_histories.get(file_path))
     ):
         await send_json(
@@ -237,7 +239,7 @@ async def handle_explore_reply(ws: WebSocket, session: Session, payload: dict) -
             history,
             file_path,
             content,
-            human_text,
+            question,
             from_voice,
         )
     except ConversationError as exc:

@@ -1,0 +1,13 @@
+# Line endings are normalised to LF in the repository, and checked out as
+# LF everywhere. Without this, a Windows checkout with core.autocrlf=true
+# stores CRLF for some files and LF for others, and the next contributor on
+# any platform sees whole files rewritten in a diff that changes nothing.
+* text=auto eol=lf
+
+# Binary formats: never normalise, never try to diff as text.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.wav binary
+*.mp3 binary

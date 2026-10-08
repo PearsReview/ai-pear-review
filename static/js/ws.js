@@ -28,6 +28,7 @@ import { clearMarkedLines } from "./interactions.js";
 import {
   audioEl,
   backToSummaryBtn,
+  reopenReviewBtn,
   errorBannerEl,
   interruptBtn,
   nextBtn,
@@ -211,6 +212,7 @@ interruptBtn.addEventListener("click", () => {
 });
 reviewedBtn.addEventListener("click", () => send("toggle_reviewed"));
 backToSummaryBtn.addEventListener("click", () => send("show_summary", {}));
+reopenReviewBtn.addEventListener("click", () => send("reopen_review", {}));
 refreshDiffBtn.addEventListener("click", () => {
   refreshDiffBtn.disabled = true; // re-enabled by reenableActionButtons() once the resulting "presenting" arrives
   // Marked lines hold a reference into a specific full_lines array (see

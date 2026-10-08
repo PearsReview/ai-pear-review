@@ -1,6 +1,6 @@
 [project]
 name = "ai-pear-review"
-version = "0.0.1"
+version = "0.0.2"
 description = "A local web app that walks you through your own uncommitted git changes one hunk at a time, with an AI persona narrating each change."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -16,6 +16,7 @@ dependencies = [
     "requests>=2.31,<3.0",
     "python-multipart>=0.0.9,<1.0",
     "anthropic>=0.40,<2.0",
+    "openai>=1.0,<3.0",
     "python-dotenv>=1.0,<2.0",
 ]
 
@@ -26,11 +27,21 @@ dev = [
     "ruff>=0.16,<0.17",
     "mypy>=2.0,<3.0",
 ]
+# Server-side microphone capture, used only by the VS Code extension (see
+# app/services/recorder.py). The web app records in the browser instead.
+recording = [
+    "sounddevice>=0.4,<1.0",
+]
 
-# The app runs from a checkout (`python run.py`), so nothing here needs to
-# be installable. These two keys exist only so a build tool pointed at this
-# directory doesn't guess: flat-layout auto-discovery fails on a root
-# holding several top-level modules.
+# Flat-layout: auto-discovery would guess wrong on a root with several
+# top-level modules, so these are explicit. Editable install (pip install -e .)
+# is supported; a full dist install (pipx install from PyPI) additionally
+# requires static/ and .claude/skills/ to be packaged as data, which isn't
+# done yet.
+[project.scripts]
+pear-review = "run:main"
+pear-install = "install_skills:main"
+
 [tool.setuptools]
 packages = ["app"]
 py-modules = ["run", "install_skills"]

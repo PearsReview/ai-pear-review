@@ -3,6 +3,10 @@
 Reviews all changes to tracked files vs HEAD (staged + unstaged combined),
 plus untracked files (git status "??", respecting .gitignore) — each shown
 as a whole-file "all added" hunk, appended after the tracked-file hunks.
+
+A pull request review passes a base commit instead of HEAD (the merge-base
+of the PR's base branch and its head, checked out in a worktree), and then
+untracked files are left out: the PR is exactly what's committed.
 One hunk = one review step, binary files and rename-only diffs are skipped.
 """
 
@@ -65,6 +69,9 @@ class Hunk:
     full_lines: list[dict] = field(default_factory=list)
     highlight_start: int = -1
     highlight_end: int = -1
+    # The commit the old side came from: HEAD, or a PR review's base commit.
+    # line_history needs it, since the old-side line numbers belong to it.
+    base_ref: str = "HEAD"
     diff_context: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -132,8 +139,8 @@ def _run_git(repo_path: str, args: list[str], what: str, ok_codes: frozenset[int
     return result.stdout
 
 
-def get_diff(repo_path: str = ".") -> str:
-    return _run_git(repo_path, ["diff", "HEAD", "--no-color", "--unified=3"], "git diff HEAD")
+def get_diff(repo_path: str = ".", base_ref: str = "HEAD") -> str:
+    return _run_git(repo_path, ["diff", base_ref, "--no-color", "--unified=3"], f"git diff {base_ref}")
 
 
 def get_head_sha(repo_path: str = ".") -> str | None:
@@ -170,8 +177,9 @@ def line_history(repo_path: str, hunk: Hunk, limit: int = 3) -> list[str]:
     ask about (a new file) or git can't answer.
 
     Uses the hunk's old-side range, since those are the lines with a history
-    in HEAD. Returns [] rather than raising, like get_head_sha: this only
-    ever adds optional context to a reply. The marker prefix keeps parsing
+    in the hunk's base_ref (HEAD, or a PR review's base commit). Returns []
+    rather than raising, like get_head_sha: this only ever adds optional
+    context to a reply. The marker prefix keeps parsing
     independent of whether this git version honours -s with -L."""
     match = HUNK_HEADER_RE.match(hunk.header)
     if not match:
@@ -192,6 +200,7 @@ def line_history(repo_path: str, hunk: Hunk, limit: int = 3) -> list[str]:
                 "-s",
                 "-n",
                 str(limit),
+                hunk.base_ref,
             ],
             capture_output=True,
             text=True,
@@ -231,8 +240,8 @@ def _diff_lines_from_process(
     return []  # no hunk header at all — shouldn't happen for a non-binary, changed file
 
 
-def get_full_file_diff(repo_path: str, file_path: str) -> list[dict]:
-    """The whole file's diff against HEAD, as one contiguous list of lines.
+def get_full_file_diff(repo_path: str, file_path: str, base_ref: str = "HEAD") -> list[dict]:
+    """The whole file's diff against base_ref, as one contiguous list of lines.
 
     Uses a huge --unified context so git emits every line of the file in a
     single hunk instead of just a few lines around each change — this is
@@ -241,8 +250,8 @@ def get_full_file_diff(repo_path: str, file_path: str) -> list[dict]:
     """
     return _diff_lines_from_process(
         repo_path,
-        ["diff", "HEAD", "--no-color", "--unified=1000000", "--", file_path],
-        error_context=f"git diff HEAD for {file_path}",
+        ["diff", base_ref, "--no-color", "--unified=1000000", "--", file_path],
+        error_context=f"git diff {base_ref} for {file_path}",
     )
 
 
@@ -510,7 +519,7 @@ def _untracked_file_hunk(repo_path: str, file_path: str, index: int) -> Hunk | N
     )
 
 
-def get_review_hunks(repo_path: str = ".") -> list[Hunk]:
+def get_review_hunks(repo_path: str = ".", base_sha: str | None = None) -> list[Hunk]:
     """Read the working-tree diff against HEAD, plus untracked files, and
     return one Hunk per review step, in file order (untracked files appended
     after the tracked-file hunks — simpler than interleaving, and the file
@@ -520,8 +529,12 @@ def get_review_hunks(repo_path: str = ".") -> list[Hunk]:
     Skips binary files and rename/copy-only blocks (no content change) per v1 scope.
     Each hunk also carries the full file's diff (see Hunk.full_lines) so the UI
     can render the whole file with just this hunk's lines highlighted.
+
+    base_sha (a PR review) diffs against that commit instead of HEAD and
+    leaves untracked files out.
     """
-    diff_text = get_diff(repo_path)
+    base_ref = base_sha or "HEAD"
+    diff_text = get_diff(repo_path, base_ref)
     hunks: list[Hunk] = []
     full_lines_cache: dict[str, list[dict]] = {}
     for block in _split_file_blocks(diff_text):
@@ -531,14 +544,18 @@ def get_review_hunks(repo_path: str = ".") -> list[Hunk]:
         file_hunks = _hunks_from_block(block, file_path, start_index=len(hunks))
 
         if file_path not in full_lines_cache:
-            full_lines_cache[file_path] = get_full_file_diff(repo_path, file_path)
+            full_lines_cache[file_path] = get_full_file_diff(repo_path, file_path, base_ref)
         full_lines = full_lines_cache[file_path]
 
         for hunk in file_hunks:
+            hunk.base_ref = base_ref
             hunk.full_lines = full_lines
             hunk.highlight_start, hunk.highlight_end = _highlight_range(hunk.lines, full_lines)
 
         hunks.extend(file_hunks)
+
+    if base_sha:
+        return hunks
 
     for file_path in get_untracked_files(repo_path):
         untracked = _untracked_file_hunk(repo_path, file_path, index=len(hunks))

@@ -36,16 +36,16 @@ from .review_flow import refresh_diff
 log = logging.getLogger("ai_pear_review")
 
 
-@handler("act_now", cancels=True, background=True)
+@handler("act_now", cancels=True, background=True, writes=True)
 async def handle_act_now(ws: WebSocket, session: Session, payload: dict) -> None:
     """Runs the configured agent on a copy of the repo and returns what it
     changed as "act_now_preview" — nothing is written to disk here (see
     handle_confirm_act_now for the only step that writes)."""
     if session.review_ended:
-        # Same reasoning as handle_reply's identical guard: browsing a hunk
-        # post-end can put a real hunk on screen again, so this can't rely on
-        # the client alone.
-        await send_error(ws, "The review has ended — Act Now is no longer available.")
+        # Browsing a hunk post-end can put a real hunk on screen again, so
+        # this can't rely on the client alone. Act Now changes code, which
+        # belongs to an open review; chat about the change still works.
+        await send_error(ws, "The review has ended — reopen it to use Act Now.")
         return
     status = harness_status(CONFIG["harness"])
     if not status.available:
@@ -102,13 +102,13 @@ async def handle_act_now(ws: WebSocket, session: Session, payload: dict) -> None
         await send_json(ws, "notice", {"level": "info", "message": f"{message} {edit.summary}".strip()})
 
 
-@handler("refine_act_now", cancels=True, background=True)
+@handler("refine_act_now", cancels=True, background=True, writes=True)
 async def handle_refine_act_now(ws: WebSocket, session: Session, payload: dict) -> None:
     """Re-runs the agent on top of the pending preview with the reviewer's
     follow-up, and replaces that preview with the result. A failure leaves
     the pending preview as it was, still there to apply or refine again."""
     if session.review_ended:
-        await send_error(ws, "The review has ended — Act Now is no longer available.")
+        await send_error(ws, "The review has ended — reopen it to use Act Now.")
         return
     status = harness_status(CONFIG["harness"])
     if not status.available:
@@ -186,15 +186,18 @@ def _preview_entry(change: ProposedChange) -> dict | None:
     }
 
 
-@handler("confirm_act_now")
+@handler("confirm_act_now", writes=True)
 async def handle_confirm_act_now(ws: WebSocket, session: Session, payload: dict) -> None:
     """Writes exactly what the last "act_now" previewed — never re-runs the
-    agent, never trusts content from the client at this step."""
+    agent, never trusts content from the client at this step.
+
+    Success is a "notice" with "event": "act_now_applied" and the written
+    "files", the one signal a client can clear its proposal on."""
     if session.review_ended:
         # A preview generated before End Review isn't cleared by ending, so a
         # stale confirm bar or a crafted request could otherwise still write
         # after the reviewer said the review was done.
-        await send_error(ws, "The review has ended — Act Now is no longer available.")
+        await send_error(ws, "The review has ended — reopen it to use Act Now.")
         return
     pending = session.pending_act_now
     if pending is None:
@@ -208,6 +211,15 @@ async def handle_confirm_act_now(ws: WebSocket, session: Session, payload: dict)
         await send_error(ws, f"Act Now change not applied: {exc}")
         return
 
-    names = ", ".join(change.file_path for change in pending)
-    await send_json(ws, "notice", {"level": "success", "message": f"Applied the change to {names}."})
+    files = [change.file_path for change in pending]
+    await send_json(
+        ws,
+        "notice",
+        {
+            "level": "success",
+            "message": f"Applied the change to {', '.join(files)}.",
+            "event": "act_now_applied",
+            "files": files,
+        },
+    )
     await refresh_diff(ws, session)

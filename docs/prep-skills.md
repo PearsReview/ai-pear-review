@@ -45,12 +45,19 @@ you pass `--force`. `--dry-run` says what would change. It refuses a
 directory that isn't a git repository, since the skills describe
 uncommitted changes.
 
-The copies are ordinary files in that repo, so committing them (shared
-prep for your team) or gitignoring them (`/.claude/skills/`) is your call.
-Decide before your first review, though: the app reviews untracked files
-too, so until the copies are committed or ignored they appear in the review
-as new files. Whether to commit what they *write* is a separate decision:
-`.context/` is repo-level and worth sharing, while `.briefing/` and
+If you review several repos, two flags save going one at a time:
+`--repos-file repos.txt` installs into every path listed in a file (one per
+line; blank lines and `#` comments ignored), and `--check-repos repos.txt`
+reports which of them have missing or out-of-date skills — handy after
+updating this app — without writing anything.
+
+The copies are ordinary files in that repo. The installer adds the three
+skill directories to the repo's `.git/info/exclude`, so a fresh install
+doesn't show up as untracked changes in your first review. That exclude is
+local and uncommitted, so committing the skills (shared prep for your team)
+or gitignoring them (`/.claude/skills/`) for everyone is still your call.
+Whether to commit what they *write* is a separate decision: `.context/` is
+repo-level and worth sharing, while `.briefing/` and
 `.review/` are about one in-progress change (the app keeps those three out
 of the review itself).
 

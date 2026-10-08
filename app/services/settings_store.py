@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 from pathlib import Path
 
 from .harness_service import agent_model, research_note
@@ -36,9 +37,8 @@ _SETTINGS_FILENAME = "ui_settings.json"
 # whatever arrives": this file is written from a WebSocket message, and
 # without it a client could inject arbitrary config (server.host,
 # repo_path, the debug capture flag) into every future run of the app.
-# provider/model/base_url pick the endpoint; num_ctx/max_tokens/
-# timeout_seconds are the three knobs that actually decide whether a call
-# fits and how long it takes.
+# These are the shared conversation keys; the endpoint-picking ones
+# (model/base_url/num_ctx) live per-provider in ALLOWED_PROVIDER_KEYS below.
 ALLOWED_CONVERSATION_KEYS = ("provider", "max_tokens", "timeout_seconds")
 # max_tokens appears in both lists on purpose: the shared one above is the
 # fallback, and a provider block's own value wins (see ConversationClient's
@@ -77,12 +77,39 @@ def load_overrides(repo_path: str) -> dict:
     path = settings_path(repo_path)
     if not path.exists():
         return {}
+    # The file sits inside the repo under review, so a repo can ship one. A file git
+    # tracks came with the repo rather than from this machine's settings panel, and is
+    # ignored outright: even allowlisted keys (ollama.base_url, the speech endpoints)
+    # would send the reviewer's code and voice to a server of the repo's choosing.
+    if _is_tracked(repo_path, path):
+        log.warning("Ignoring %s: it is committed to the repository, not saved by this app.", path)
+        return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         log.warning("Ignoring unreadable %s: %s", path, exc)
         return {}
-    return data if isinstance(data, dict) else {}
+    if not isinstance(data, dict):
+        return {}
+    # The same allowlists the settings panel's own writes pass through, so a file
+    # edited by hand (or left by anything else) can't reach keys the panel can't —
+    # above all harness.<agent>.command, a program Act Now runs. Everything this app
+    # writes passes unchanged.
+    return {**sanitize(data), **sanitize_tts(data), **sanitize_stt(data), **sanitize_harness(data)}
+
+
+def _is_tracked(repo_path: str, path: Path) -> bool:
+    """Whether git tracks `path` in `repo_path`. False when git can't say (not a repo,
+    no git), which leaves the allowlists in load_overrides as the guard."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, "ls-files", "--error-unmatch", "--", str(path)],
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def save_overrides(repo_path: str, overrides: dict) -> None:
@@ -102,16 +129,16 @@ def sanitize(incoming: dict) -> dict:
     above, dropping anything unrecognised rather than trusting it.
 
     Shape out is {"provider": str, "max_tokens": int, "timeout_seconds":
-    int, "<provider>": {"model": str, "base_url": str, "num_ctx": int}} —
-    provider-specific keys nested under the provider they belong to,
-    mirroring config.yaml's own structure so a flat "model" can never be
-    sent to the wrong API (the footgun config.yaml's `conversation`
-    comment describes)."""
+    int, "<provider>": {"model": str, "base_url": str, "num_ctx": int,
+    "max_tokens": int}} — provider-specific keys nested under the provider
+    they belong to, mirroring config.yaml's own structure so a flat "model"
+    can never be sent to the wrong API (the footgun config.yaml's
+    `conversation` comment describes)."""
     clean: dict = {}
     for key in ALLOWED_CONVERSATION_KEYS:
         if key in incoming:
             clean[key] = incoming[key]
-    for provider in ("ollama", "anthropic"):
+    for provider in ("ollama", "anthropic", "openai"):
         section = incoming.get(provider)
         if isinstance(section, dict):
             kept = {k: section[k] for k in ALLOWED_PROVIDER_KEYS if k in section}
@@ -220,7 +247,7 @@ def apply_overrides(conversation_config: dict, overrides: dict) -> dict:
     those keys out first, for that reason."""
     merged = {**conversation_config}
     for key, value in overrides.items():
-        if key in ("ollama", "anthropic", *SECTION_OVERRIDE_KEYS) and isinstance(value, dict):
+        if key in ("ollama", "anthropic", "openai", *SECTION_OVERRIDE_KEYS) and isinstance(value, dict):
             merged[key] = {**merged.get(key, {}), **value}
         else:
             merged[key] = value
@@ -243,5 +270,10 @@ def effective_settings(conversation_config: dict) -> dict:
         "anthropic": {
             "model": conversation_config.get("anthropic", {}).get("model"),
             "max_tokens": conversation_config.get("anthropic", {}).get("max_tokens"),
+        },
+        "openai": {
+            "model": conversation_config.get("openai", {}).get("model"),
+            "base_url": conversation_config.get("openai", {}).get("base_url"),
+            "max_tokens": conversation_config.get("openai", {}).get("max_tokens"),
         },
     }

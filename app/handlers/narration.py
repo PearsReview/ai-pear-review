@@ -264,8 +264,8 @@ async def present_current_hunk(ws: WebSocket, session: Session) -> None:
     refresh call sites. "show_summary" is how the reviewer gets back to it
     after browsing away.
 
-    Narration itself stays frozen once the review has ended, via the
-    review_started/review_ended check below. Only the code view keeps
+    Automatic narration stops once the review has ended (see
+    _narrates_automatically); explaining on request and replies still work. Only the code view keeps
     working, which matches how the app already behaves before a review
     starts."""
     hunk = session.current_hunk
@@ -307,9 +307,10 @@ async def present_current_hunk(ws: WebSocket, session: Session) -> None:
             "narration_available": narration_available,
             "review_started": session.review_started,
             # A real hunk (done: False) can be on screen after the review has
-            # ended, because browsing still works then. The client needs this
-            # flag to keep Mark-as-reviewed, replies and Act Now locked in
-            # that case — see onPresenting's real-hunk branch in review-flow.js.
+            # ended, because browsing and chat still work then. The client
+            # needs this flag to keep Mark-as-reviewed, comments and Act Now
+            # locked in that case, and to say the review is over — see
+            # onPresenting's real-hunk branch in review-flow.js.
             "review_ended": session.review_ended,
             "narrated": already_shown,
             "narrating": narrating,
@@ -346,16 +347,12 @@ async def narrate_current_hunk(ws: WebSocket, session: Session, hunk: Hunk, *, o
     if (
         narration_available
         and not already_shown
-        and not (
-            _narrates_automatically(session) or (on_request and session.review_started and not session.review_ended)
-        )
+        and not (_narrates_automatically(session) or (on_request and session.review_started))
     ):
-        # Two reasons a FRESH narration call must not fire, both already
-        # true before browse-after-end existed and both still handled
-        # identically: the review hasn't started yet (existing case), or it
-        # has ended (new case) — never spend a new model call on a hunk
-        # nobody asked to be narrated for a review the reviewer explicitly
-        # finished. A hunk that WAS already narrated before ending still
+        # Two reasons a FRESH narration call must not fire on its own: the
+        # review hasn't started yet, or it has ended — never spend a model
+        # call on a hunk nobody asked to be narrated. Asking (on_request,
+        # the "Explain this change" button) still works after the end. A hunk that WAS already narrated before ending still
         # falls through past this (already_shown is True) to the cache-read
         # branch below, which sends no request anywhere — that's a pure
         # read of what was already generated, not new work, so it's fine
@@ -476,8 +473,8 @@ async def handle_explain_hunk(ws: WebSocket, session: Session, payload: dict) ->
     hunk = session.current_hunk
     if hunk is None or payload.get("index") != session.index:
         return
-    if not session.review_started or session.review_ended:
-        await send_error(ws, "Explanations are available once the review has started, and until it ends.")
+    if not session.review_started:
+        await send_error(ws, "Explanations are available once the review has started.")
         return
     if session.conversation is None:
         await send_error(ws, "Conversation agent unavailable — check it's configured correctly to enable explanations.")
@@ -496,14 +493,10 @@ async def handle_reply(ws: WebSocket, session: Session, payload: dict) -> None:
     Replies with "human_turn" as soon as the reviewer's words are known as
     text, then "reviewer_turn" once the model has answered — see
     _send_reviewer_turn."""
-    # Locked once the review has ended. The client disables the composer in
-    # this state too (see onPresenting), so this is the backstop rather than
-    # the primary gate — but it has to exist on its own: browsing a hunk
-    # after the end legitimately re-renders a real hunk, and a reply is a
-    # live model call, which "End Review" promises won't happen any more.
-    if session.review_ended:
-        await send_error(ws, "The review has ended — replies are no longer available.")
-        return
+    # Not gated on review_ended: ending a review freezes its marks and
+    # comments, not the conversation. Asking about a change after the
+    # review is over is as useful as before it (see "reopen_review" for
+    # getting the marks and comments back).
     hunk = session.current_hunk
     if hunk is None:
         await send_error(ws, "No hunk is currently being reviewed.")

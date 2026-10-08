@@ -1,0 +1,961 @@
+{
+  "name": "ai-pear-review",
+  "displayName": "AI Pear Review",
+  "description": "Walk through your uncommitted changes one hunk at a time with an AI reviewer you can talk to.",
+  "version": "0.0.2",
+  "publisher": "PearsReview",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PearsReview/ai-pear-review.git",
+    "directory": "vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/PearsReview/ai-pear-review/issues"
+  },
+  "homepage": "https://github.com/PearsReview/ai-pear-review/tree/main/vscode#readme",
+  "keywords": [
+    "code review",
+    "git diff",
+    "ai",
+    "voice",
+    "ollama",
+    "claude"
+  ],
+  "galleryBanner": {
+    "color": "#4d7c0f",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.106.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Pear Review runs a Python backend and a coding agent against the repository's files, so it needs a trusted workspace."
+    }
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "pearReview.startReview",
+        "title": "Start Review",
+        "category": "Pear Review",
+        "icon": "$(play)"
+      },
+      {
+        "command": "pearReview.stopBackend",
+        "title": "Stop Backend",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.toggleRecording",
+        "title": "Push to Talk (start/stop)",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.explain",
+        "title": "Explain This Change",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.explainHere",
+        "title": "Explain This Change",
+        "category": "Pear Review",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "pearReview.next",
+        "title": "Next Hunk",
+        "category": "Pear Review",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "pearReview.prev",
+        "title": "Previous Hunk",
+        "category": "Pear Review",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "pearReview.showLog",
+        "title": "Show Log",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.setAnthropicApiKey",
+        "title": "Set Anthropic API Key",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.setOpenaiApiKey",
+        "title": "Set OpenAI-compatible API Key",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.toggleReviewed",
+        "title": "Mark Reviewed / Unreviewed",
+        "category": "Pear Review",
+        "icon": "$(check)"
+      },
+      {
+        "command": "pearReview.refresh",
+        "title": "Refresh Changes",
+        "category": "Pear Review",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "pearReview.jumpToHunk",
+        "title": "Go to Change",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.interrupt",
+        "title": "Interrupt",
+        "category": "Pear Review",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "pearReview.createPlan",
+        "title": "Create Plan from Comments",
+        "category": "Pear Review",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "pearReview.reviewPullRequest",
+        "title": "Review Pull Request…",
+        "category": "Pear Review",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "pearReview.refreshPullRequest",
+        "title": "Refresh Pull Request",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.endReview",
+        "title": "End Review",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.mustFix",
+        "title": "Must fix",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.suggestion",
+        "title": "Suggestion",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.nit",
+        "title": "Nit",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.edit",
+        "title": "Edit",
+        "category": "Pear Review",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "pearReview.comment.severity",
+        "title": "Change Severity",
+        "category": "Pear Review",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "pearReview.comment.delete",
+        "title": "Delete",
+        "category": "Pear Review",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "pearReview.comment.save",
+        "title": "Save",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.cancel",
+        "title": "Cancel",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.chooseAgent",
+        "title": "Choose Coding Agent (Act Now, Look Deeper)",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.chooseModel",
+        "title": "Choose Reviewer Model",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.actNow.toggle",
+        "title": "Act Now: Toggle Act Mode",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.actNow.apply",
+        "title": "Act Now: Apply Proposal",
+        "category": "Pear Review",
+        "icon": "$(check)",
+        "enablement": "pearReview.hasProposal && !pearReview.proposalBusy"
+      },
+      {
+        "command": "pearReview.actNow.refine",
+        "title": "Act Now: Refine Proposal",
+        "category": "Pear Review",
+        "icon": "$(edit)",
+        "enablement": "pearReview.hasProposal && !pearReview.proposalBusy"
+      },
+      {
+        "command": "pearReview.actNow.discard",
+        "title": "Act Now: Discard Proposal",
+        "category": "Pear Review",
+        "icon": "$(close)",
+        "enablement": "pearReview.hasProposal && !pearReview.proposalBusy"
+      },
+      {
+        "command": "pearReview.actNow.openFile",
+        "title": "Act Now: Open Proposed File",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.askAboutFile",
+        "title": "Ask Pear About This File",
+        "category": "Pear Review",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "pearReview.readAloud",
+        "title": "Read Aloud",
+        "category": "Pear Review",
+        "icon": "$(unmute)"
+      },
+      {
+        "command": "pearReview.openRepoFile",
+        "title": "Open File",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.openChanges",
+        "title": "Open Changes",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.openChat",
+        "title": "Open Chat",
+        "category": "Pear Review",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "pearReview.settings",
+        "title": "Settings",
+        "category": "Pear Review",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "pearReview.reviewAll",
+        "title": "Mark All Reviewed / Unreviewed",
+        "category": "Pear Review",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "pearReview.showSummary",
+        "title": "Show Summary",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.reopenReview",
+        "title": "Reopen Review",
+        "category": "Pear Review",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "pearReview.newReview",
+        "title": "Start New Review",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.openPlan",
+        "title": "Open Plan",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.comment.voiceStart",
+        "title": "Speak the comment",
+        "category": "Pear Review",
+        "icon": "$(mic)"
+      },
+      {
+        "command": "pearReview.comment.voiceStop",
+        "title": "Stop recording and add the comment",
+        "category": "Pear Review",
+        "icon": "$(mic-filled)"
+      },
+      {
+        "command": "pearReview.tree.preview",
+        "title": "Open Preview",
+        "category": "Pear Review",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "pearReview.tree.readAloud",
+        "title": "Read Aloud",
+        "category": "Pear Review",
+        "icon": "$(unmute)"
+      },
+      {
+        "command": "pearReview.pauseReading",
+        "title": "Pause Reading",
+        "category": "Pear Review",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "pearReview.resumeReading",
+        "title": "Resume Reading",
+        "category": "Pear Review",
+        "icon": "$(play)"
+      },
+      {
+        "command": "pearReview.stopReading",
+        "title": "Stop Reading",
+        "category": "Pear Review",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "pearReview.cancelReading",
+        "title": "Getting speech… (click to cancel)",
+        "category": "Pear Review",
+        "icon": "$(loading~spin)"
+      },
+      {
+        "command": "pearReview.switchRepository",
+        "title": "Switch Repository",
+        "category": "Pear Review",
+        "icon": "$(repo)"
+      },
+      {
+        "command": "pearReview.setupPython",
+        "title": "Set Up Python Environment",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.getStarted",
+        "title": "Get Started",
+        "category": "Pear Review",
+        "icon": "$(book)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "pearReview.toggleRecording",
+        "key": "ctrl+alt+space",
+        "mac": "cmd+alt+space"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pearReview",
+          "title": "Pear Review",
+          "icon": "media/pear.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "pearReviewChat",
+          "title": "Pear Review",
+          "icon": "media/pear.svg"
+        }
+      ]
+    },
+    "views": {
+      "pearReview": [
+        {
+          "id": "pearReview.hunks",
+          "name": "Changes"
+        }
+      ],
+      "pearReviewChat": [
+        {
+          "type": "webview",
+          "id": "pearReview.chat",
+          "name": "Chat"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Pear Review",
+      "properties": {
+        "pearReview.pythonPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Python 3.10+ interpreter for the review backend and the audio player, with the backend's packages installed. Empty: the environment **Pear Review: Set Up Python Environment** made (or, when developing, this extension's own `.venv`)."
+        },
+        "pearReview.readPreviewSelection": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "**Read Aloud** pressed on a markdown preview reads only the text selected in it. VS Code doesn't tell extensions what a preview has selected, so this briefly copies the selection through the clipboard and then puts your clipboard's text back (other clipboard content, such as an image, is lost, and clipboard history records the copy). Off: a read started from a preview reads the whole file; a selection in the file's text editor always works."
+        }
+      }
+    },
+    "viewsWelcome": [
+      {
+        "view": "pearReview.hunks",
+        "when": "pearReview.noRepo",
+        "contents": "Pear Review walks through a git repository's uncommitted changes. Open a folder that is a git repository to start a review.\n[Open Folder](command:workbench.action.files.openFolder)"
+      },
+      {
+        "view": "pearReview.hunks",
+        "contents": "Browse your uncommitted changes and ask about them, or start a review to have the reviewer explain each one.\n[Open Changes](command:pearReview.openChanges)\n[Start Review](command:pearReview.startReview)\n[Review Pull Request](command:pearReview.reviewPullRequest)",
+        "when": "!pearReview.noRepo"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "pearReview.openChat",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@0"
+        },
+        {
+          "command": "pearReview.switchRepository",
+          "when": "view == pearReview.hunks && pearReview.multiRepo",
+          "group": "navigation@0"
+        },
+        {
+          "command": "pearReview.startReview",
+          "when": "view == pearReview.hunks && !pearReview.reviewStarted",
+          "group": "navigation@0"
+        },
+        {
+          "command": "pearReview.prev",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pearReview.next",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@2"
+        },
+        {
+          "command": "pearReview.refresh",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@3"
+        },
+        {
+          "command": "pearReview.reviewAll",
+          "when": "view == pearReview.hunks && pearReview.reviewStarted && !pearReview.reviewEnded && !pearReview.readOnly",
+          "group": "navigation@3"
+        },
+        {
+          "command": "pearReview.createPlan",
+          "when": "view == pearReview.hunks && !pearReview.readOnly",
+          "group": "navigation@4"
+        },
+        {
+          "command": "pearReview.endReview",
+          "when": "view == pearReview.hunks && pearReview.reviewStarted && !pearReview.reviewEnded && !pearReview.readOnly",
+          "group": "review@1"
+        },
+        {
+          "command": "pearReview.showSummary",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded && !pearReview.readOnly",
+          "group": "review@2"
+        },
+        {
+          "command": "pearReview.reopenReview",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded && !pearReview.readOnly",
+          "group": "navigation@0"
+        },
+        {
+          "command": "pearReview.newReview",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded && !pearReview.readOnly",
+          "group": "review@3"
+        },
+        {
+          "command": "pearReview.reviewPullRequest",
+          "when": "view == pearReview.hunks && !pearReview.readOnly",
+          "group": "review@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "pearReview.toggleReviewed",
+          "when": "view == pearReview.hunks && viewItem == hunk.current && !pearReview.readOnly",
+          "group": "inline"
+        },
+        {
+          "command": "pearReview.tree.preview",
+          "when": "view == pearReview.hunks && viewItem =~ /^file\\.markdown/",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.tree.preview",
+          "when": "view == pearReview.hunks && viewItem =~ /^file\\.markdown/",
+          "group": "markdown@1"
+        },
+        {
+          "command": "pearReview.tree.readAloud",
+          "when": "view == pearReview.hunks && viewItem == file.markdown",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.cancelReading",
+          "when": "view == pearReview.hunks && viewItem == file.markdown.loading",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "view == pearReview.hunks && viewItem == file.markdown.playing",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "view == pearReview.hunks && viewItem == file.markdown.paused",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "view == pearReview.hunks && viewItem =~ /^file\\.markdown\\.(playing|paused)$/",
+          "group": "inline@3"
+        },
+        {
+          "command": "pearReview.tree.readAloud",
+          "when": "view == pearReview.hunks && viewItem == file.markdown",
+          "group": "markdown@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "pearReview.jumpToHunk",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.mustFix",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.suggestion",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.nit",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.edit",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.severity",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.delete",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.save",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.cancel",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.actNow.openFile",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.openRepoFile",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.settings",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.chooseAgent",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.chooseModel",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.setAnthropicApiKey",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.setOpenaiApiKey",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.openPlan",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.voiceStart",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.comment.voiceStop",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.tree.preview",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.tree.readAloud",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "pearReview.reading"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "pearReview.reading"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "pearReview.reading"
+        },
+        {
+          "command": "pearReview.cancelReading",
+          "when": "pearReview.reading"
+        },
+        {
+          "command": "pearReview.switchRepository",
+          "when": "pearReview.multiRepo"
+        },
+        {
+          "command": "pearReview.actNow.toggle",
+          "when": "!pearReview.readOnly"
+        },
+        {
+          "command": "pearReview.createPlan",
+          "when": "!pearReview.readOnly"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "pearReview.comment.mustFix",
+          "when": "commentController == pearReview && commentThreadIsEmpty",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.comment.suggestion",
+          "when": "commentController == pearReview && commentThreadIsEmpty",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.comment.nit",
+          "when": "commentController == pearReview && commentThreadIsEmpty",
+          "group": "inline@3"
+        }
+      ],
+      "comments/comment/title": [
+        {
+          "command": "pearReview.comment.edit",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.comment.severity",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@2"
+        },
+        {
+          "command": "pearReview.comment.delete",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@3"
+        }
+      ],
+      "comments/comment/context": [
+        {
+          "command": "pearReview.comment.cancel",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.comment.save",
+          "when": "commentController == pearReview && comment == pearComment",
+          "group": "inline@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "pearReview.explainHere",
+          "when": "pearReview.reviewStarted && resourceScheme =~ /^(file|git|review)$/",
+          "group": "navigation@-1"
+        },
+        {
+          "command": "pearReview.actNow.apply",
+          "when": "resourceScheme == pear-proposal",
+          "group": "navigation@1"
+        },
+        {
+          "command": "pearReview.actNow.refine",
+          "when": "resourceScheme == pear-proposal",
+          "group": "navigation@2"
+        },
+        {
+          "command": "pearReview.actNow.discard",
+          "when": "resourceScheme == pear-proposal",
+          "group": "navigation@3"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "resourceLangId == markdown && resourceScheme == file && !(resource in pearReview.readingResources)",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.cancelReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == loading",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == playing",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == paused",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus != loading",
+          "group": "navigation@11"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "activeWebviewPanelId == 'markdown.preview' && !(activeWebviewPanelId == 'markdown.preview' && pearReview.reading)",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.cancelReading",
+          "when": "activeWebviewPanelId == 'markdown.preview' && pearReview.reading && pearReview.readingStatus == loading",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "activeWebviewPanelId == 'markdown.preview' && pearReview.reading && pearReview.readingStatus == playing",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "activeWebviewPanelId == 'markdown.preview' && pearReview.reading && pearReview.readingStatus == paused",
+          "group": "navigation@10"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "activeWebviewPanelId == 'markdown.preview' && pearReview.reading && pearReview.readingStatus != loading",
+          "group": "navigation@11"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "pearReview.askAboutFile",
+          "when": "!explorerResourceIsFolder && resourceScheme == file",
+          "group": "pearReview@1"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "resourceExtname == .md && resourceScheme == file && !(resource in pearReview.readingResources)",
+          "group": "pearReview@2"
+        },
+        {
+          "command": "pearReview.pauseReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == playing",
+          "group": "pearReview@2"
+        },
+        {
+          "command": "pearReview.resumeReading",
+          "when": "resource in pearReview.readingResources && pearReview.readingStatus == paused",
+          "group": "pearReview@2"
+        },
+        {
+          "command": "pearReview.stopReading",
+          "when": "resource in pearReview.readingResources",
+          "group": "pearReview@3"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "pearReview.askAboutFile",
+          "when": "resourceScheme == file",
+          "group": "pearReview@1"
+        },
+        {
+          "command": "pearReview.readAloud",
+          "when": "resourceLangId == markdown && resourceScheme == file",
+          "group": "pearReview@2"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "pearReview.askAboutFile",
+          "when": "resourceScheme == file",
+          "group": "pearReview@1"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "pearReview.comment.voiceStart",
+          "when": "commentController == pearReview && commentThreadIsEmpty && !pearReview.recording",
+          "group": "inline@1"
+        },
+        {
+          "command": "pearReview.comment.voiceStop",
+          "when": "commentController == pearReview && commentThreadIsEmpty && pearReview.recording",
+          "group": "inline@1"
+        }
+      ]
+    },
+    "markdown.markdownItPlugins": true,
+    "markdown.previewStyles": [
+      "./media/preview/reading.css"
+    ],
+    "markdown.previewScripts": [
+      "./media/preview/reading.js"
+    ],
+    "walkthroughs": [
+      {
+        "id": "getStarted",
+        "title": "Get started with Pear Review",
+        "description": "Walk through your uncommitted changes with an AI reviewer you can talk to.",
+        "steps": [
+          {
+            "id": "setupPython",
+            "title": "Set up Python",
+            "description": "The reviewer runs in a small Python service on your machine.\n[Set Up Python Environment](command:pearReview.setupPython)",
+            "media": {
+              "markdown": "media/walkthrough/setup.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.setupPython"
+            ]
+          },
+          {
+            "id": "openChanges",
+            "title": "Open your changes",
+            "description": "See every changed file and hunk, each as a native diff.\n[Open Changes](command:pearReview.openChanges)",
+            "media": {
+              "markdown": "media/walkthrough/changes.md"
+            },
+            "completionEvents": [
+              "onView:pearReview.hunks"
+            ]
+          },
+          {
+            "id": "startReview",
+            "title": "Start the review",
+            "description": "Mark changes reviewed, and have the reviewer explain them.\n[Start Review](command:pearReview.startReview)",
+            "media": {
+              "markdown": "media/walkthrough/review.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.startReview"
+            ]
+          },
+          {
+            "id": "ask",
+            "title": "Ask by text, voice or selection",
+            "description": "Ask about the change on screen, or about any file.\n[Open the Chat](command:pearReview.chat.focus)",
+            "media": {
+              "markdown": "media/walkthrough/ask.md"
+            },
+            "completionEvents": [
+              "onView:pearReview.chat"
+            ]
+          },
+          {
+            "id": "plan",
+            "title": "Comment, then create a plan",
+            "description": "Leave comments for your coding agent, and hand it one plan.\n[Create Plan](command:pearReview.createPlan)",
+            "media": {
+              "markdown": "media/walkthrough/plan.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.createPlan"
+            ]
+          },
+          {
+            "id": "actNow",
+            "title": "Act Now",
+            "description": "Have your coding agent propose a small change, as a diff you apply or discard.\n[Choose a Coding Agent](command:pearReview.chooseAgent)",
+            "media": {
+              "markdown": "media/walkthrough/actnow.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.chooseAgent"
+            ]
+          },
+          {
+            "id": "pullRequest",
+            "title": "Review a pull request",
+            "description": "Check a GitHub pull request out with the GitHub Pull Requests extension (optional, offered when needed), and ask Pear about its changes.\n[Review Pull Request…](command:pearReview.reviewPullRequest)",
+            "media": {
+              "markdown": "media/walkthrough/pullrequest.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.reviewPullRequest"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.webview.json",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "node --test \"test/unit/**/*.test.ts\"",
+    "sync-backend": "node scripts/syncBackend.mjs",
+    "vscode:prepublish": "node scripts/syncBackend.mjs && node esbuild.mjs --production",
+    "test:integration": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts",
+    "test:integration:ollama": "node esbuild.mjs && node esbuild.test.mjs && node test/integration/runTest.ts --ollama",
+    "package": "vsce package",
+    "test:package": "node scripts/syncBackend.mjs && node test/packaging/checkPackage.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/jsdom": "^30.0.0",
+    "@types/markdown-it": "^14.2.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.106.0",
+    "@types/ws": "^8.5.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "jsdom": "^30.1.1",
+    "markdown-it": "^15.0.2",
+    "mocha": "^12.0.3",
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.46-24",
+    "ws": "^8.18.0"
+  }
+}

@@ -11,6 +11,14 @@ For what the app does and how to run it, start with
 - [`docs/wire-protocol.md`](docs/wire-protocol.md) — every browser/server
   message, its payload, and the handler that owns it.
 
+## The VS Code extension
+
+[`vscode/`](vscode/) is a second client of the same backend, with its own
+[README](vscode/README.md) and [STYLE.md](vscode/docs/STYLE.md). It has its own CI
+jobs (`extension*` in ci.yml). A change to the backend's messages, `run.py`, or
+the files it needs at startup can break the extension while `tests/` stays
+green, so run `npm test` and `npm run test:package` in `vscode/` too.
+
 ## Testing
 
 Two separate suites:
@@ -91,6 +99,7 @@ static/
   index.html, style.css           the review UI (no build step — plain
   js/                              HTML/CSS/JS served as-is; js/ is ES
                                    modules, entry point js/main.js)
+vscode/                     the VS Code extension (TypeScript; has its own README, STYLE.md, tests)
 tests/                      pytest unit tests (import app.* directly)
 qa_agent/                   Playwright UI regression suite (external)
 docs/                       reference docs

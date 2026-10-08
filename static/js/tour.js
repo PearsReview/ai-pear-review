@@ -209,7 +209,7 @@ const TOUR_STEPS = [
   {
     selector: "#tour-btn",
     title: "Settings, and the end",
-    body: "The gear icon sets the model and provider, voice endpoints, and the coding agent Act Now and Look deeper use. It also shows whether the optional prep skills (run in Claude Code or Cline) are up to date. Click this ? icon any time to see this tour again.",
+    body: "This ? button replays the guided tour any time. For settings, open the gear under the chat's message box: the model and provider, voice endpoints, and the coding agent Act Now and Look deeper use — plus whether the optional prep skills (run in Claude Code or Cline) are up to date.",
   },
 ];
 

@@ -233,3 +233,117 @@ def test_the_installed_hook_runs_in_the_target_repo(target_repo: Path):
     )
     assert result.returncode == 0, result.stderr
     assert "no current review briefing" in json.loads(result.stdout)["systemMessage"]
+
+
+# --- .git/info/exclude: installed skills stay out of the review ---
+
+
+def _exclude_text(repo: Path) -> str:
+    path = repo / ".git" / "info" / "exclude"
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def test_install_excludes_the_skills_from_git_status(target_repo: Path):
+    install(target_repo)
+    for skill in REVIEWER_SKILLS:
+        assert f"/.claude/skills/{skill}/" in _exclude_text(target_repo)
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=target_repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert ".claude/skills" not in status.stdout
+
+
+def test_exclude_patterns_are_added_once(target_repo: Path):
+    install(target_repo)
+    first = _exclude_text(target_repo)
+    install(target_repo)
+    assert _exclude_text(target_repo) == first
+    assert first.count(install_skills._SKILL_EXCLUDE_HEADER) == 1
+
+
+def test_exclude_keeps_what_was_already_there(target_repo: Path):
+    exclude = target_repo / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    exclude.write_text("my-own-pattern", encoding="utf-8")  # no trailing newline
+    install(target_repo)
+    lines = _exclude_text(target_repo).splitlines()
+    assert lines[0] == "my-own-pattern"
+    assert f"/.claude/skills/{REVIEWER_SKILLS[0]}/" in lines
+
+
+def test_dry_run_leaves_exclude_alone(target_repo: Path):
+    before = _exclude_text(target_repo)
+    lines = install(target_repo, dry_run=True)
+    assert _exclude_text(target_repo) == before
+    assert any("would add to" in line for line in lines)
+
+
+# --- --repos-file / --check-repos ---
+
+
+def test_load_repos_file_skips_blanks_and_comments(tmp_path: Path):
+    repos = tmp_path / "repos.txt"
+    repos.write_text("# my repos\n\n  ../a  \n../b\n   # indented comment\n", encoding="utf-8")
+    assert install_skills._load_repos_file(repos) == ["../a", "../b"]
+
+
+def _run_cli(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(REPO_ROOT / "install_skills.py"), *args],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_repos_file_installs_into_each_repo_and_reports_failures(tmp_path: Path):
+    good = []
+    for name in ("one", "two"):
+        repo = tmp_path / name
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        good.append(repo)
+    not_a_repo = tmp_path / "plain-dir"
+    not_a_repo.mkdir()
+    repos = tmp_path / "repos.txt"
+    repos.write_text("\n".join(str(p) for p in [*good, not_a_repo]) + "\n", encoding="utf-8")
+
+    result = _run_cli("--repos-file", str(repos))
+
+    assert result.returncode == 0, result.stderr
+    for repo in good:
+        assert (repo / ".claude" / "skills" / "call-map" / "SKILL.md").is_file()
+    assert "[FAIL]" in result.stdout
+    assert str(not_a_repo) in result.stdout
+
+
+def test_repos_file_dry_run_writes_nothing(target_repo: Path, tmp_path: Path):
+    repos = tmp_path / "repos.txt"
+    repos.write_text(f"{target_repo}\n", encoding="utf-8")
+    result = _run_cli("--repos-file", str(repos), "--dry-run")
+    assert result.returncode == 0, result.stderr
+    assert "dry run" in result.stdout
+    assert not (target_repo / ".claude").exists()
+
+
+def test_check_repos_reports_outdated_then_ok_and_writes_nothing(target_repo: Path, tmp_path: Path):
+    repos = tmp_path / "repos.txt"
+    repos.write_text(f"{target_repo}\n", encoding="utf-8")
+
+    before = _run_cli("--check-repos", str(repos))
+    assert before.returncode == 0, before.stderr
+    assert "[WARN]" in before.stdout
+    assert not (target_repo / ".claude").exists()
+
+    install(target_repo)
+    after = _run_cli("--check-repos", str(repos))
+    assert "[OK  ]" in after.stdout
+
+
+def test_a_missing_repos_file_is_a_clear_error(tmp_path: Path):
+    result = _run_cli("--check-repos", str(tmp_path / "nope.txt"))
+    assert result.returncode != 0
+    assert "Could not read" in result.stderr
