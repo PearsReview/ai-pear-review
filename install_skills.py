@@ -2,6 +2,8 @@
 
     python install_skills.py                    # into the current directory
     python install_skills.py --repo ../myapp
+    python install_skills.py --repos-file repos.txt   # batch: one path per line
+    python install_skills.py --check-repos repos.txt  # report freshness, write nothing
     python install_skills.py --dry-run          # say what would change, write nothing
 
 The skills are instructions for *your* coding agent, not for this app: it
@@ -54,9 +56,53 @@ HOOK_SETTINGS = Path(".claude/settings.local.json")
 _SKIP_DIRS = {"__pycache__"}
 _SKIP_SUFFIXES = {".pyc", ".pyo"}
 
+# .git/info/exclude: patterns added when skills are installed so they don't
+# appear as untracked files in the reviewer's own `git status`. Mirrors what
+# session_store.ensure_artifacts_ignored does for the app's runtime files.
+_SKILL_EXCLUDE_HEADER = "# AI Pear Review prep skills (auto-excluded by install_skills.py):"
+_SKILL_EXCLUDE_PATTERNS = tuple(f"/.claude/skills/{s}/" for s in REVIEWER_SKILLS)
+
 
 class InstallError(Exception):
     """Something about the target repo means we should not write to it."""
+
+
+def _exclude_skills_from_git(repo: Path, dry_run: bool = False) -> str | None:
+    """Adds the prep skill directories to .git/info/exclude.
+
+    Returns a one-line status string if anything was added, None if already
+    present. Best-effort: a missing .git directory, read-only files, or
+    worktrees whose .git is a file are silently skipped.
+    """
+    info_dir = repo / ".git" / "info"
+    if not (repo / ".git").is_dir():
+        return None
+    exclude = info_dir / "exclude"
+    try:
+        existing = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
+        missing = [p for p in _SKILL_EXCLUDE_PATTERNS if p.strip("/") not in existing]
+        if not missing:
+            return None
+        if not dry_run:
+            info_dir.mkdir(parents=True, exist_ok=True)
+            prefix = "" if not existing or existing.endswith("\n") else "\n"
+            exclude.write_text(
+                f"{existing}{prefix}\n{_SKILL_EXCLUDE_HEADER}\n" + "".join(f"{p}\n" for p in missing),
+                encoding="utf-8",
+            )
+        verb = "would add to" if dry_run else "added to"
+        return f"  .git/info/exclude: {verb} .git/info/exclude ({len(missing)} pattern(s))"
+    except OSError as exc:
+        return f"  .git/info/exclude: could not update ({exc})"
+
+
+def _load_repos_file(path: Path) -> list[str]:
+    """Reads repo paths from a file, one per line. Ignores blank lines and # comments."""
+    return [
+        line.strip()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
 
 
 def _source_files(skill: str) -> list[Path]:
@@ -185,12 +231,23 @@ def install(repo: Path, force: bool = False, dry_run: bool = False, with_reminde
     if conflicts and not force:
         lines.append("")
         lines.append(f"{conflicts} file(s) differ from this app's copy and were kept. Pass --force to overwrite them.")
+    exclude_line = _exclude_skills_from_git(repo, dry_run)
+    if exclude_line:
+        lines.append(exclude_line)
     return lines
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--repo", default=".", help="the repo to install into (default: the current directory)")
+    parser.add_argument(
+        "--repos-file", metavar="FILE", help="file of repo paths (one per line) to install into in batch"
+    )
+    parser.add_argument(
+        "--check-repos",
+        metavar="FILE",
+        help="report which repos listed in FILE have outdated or missing skills; writes nothing",
+    )
     parser.add_argument("--force", action="store_true", help="overwrite files that differ from this app's copy")
     parser.add_argument("--dry-run", action="store_true", help="report what would change, write nothing")
     parser.add_argument(
@@ -199,6 +256,19 @@ def main() -> None:
         help="also install the Claude Code Stop hook and Cline rule that remind you to run prep-review",
     )
     args = parser.parse_args()
+
+    if args.check_repos:
+        _cmd_check_repos(Path(args.check_repos))
+        return
+
+    if args.repos_file:
+        _cmd_batch_install(
+            Path(args.repos_file),
+            force=args.force,
+            dry_run=args.dry_run,
+            with_reminders=args.with_reminders,
+        )
+        return
 
     try:
         repo = check_target(Path(args.repo))
@@ -214,9 +284,59 @@ def main() -> None:
         "\nOpen your coding agent (Claude Code or Cline) in that repo and run the\n"
         "project-overview, call-map and prep-review skills before starting a review.\n"
         "The files they write (.context/, .briefing/) are read by this app.\n"
-        "\nThe installed files are new, untracked files in that repo, so the review\n"
-        "will list them as changes until you commit them or add them to .gitignore."
+        "\nThe installed files were added to .git/info/exclude, so they stay out of\n"
+        "the review. Commit them (or add them to .gitignore) if you'd rather share\n"
+        "them with your team."
     )
+
+
+def _cmd_check_repos(repos_file: Path) -> None:
+    try:
+        repo_paths = _load_repos_file(repos_file)
+    except OSError as exc:
+        raise SystemExit(f"Could not read {repos_file}: {exc}") from exc
+
+    n = len(repo_paths)
+    print(f"Skill freshness check ({n} repo{'s' if n != 1 else ''}):\n")
+    for rp in repo_paths:
+        try:
+            repo = check_target(Path(rp).expanduser())
+        except InstallError as exc:
+            print(f"  [FAIL] {rp}  —  {exc}")
+            continue
+        outdated = sum(1 for entries in plan(repo).values() for _, _, state in entries if state != "same")
+        label = str(repo)
+        if outdated:
+            hint = f"python install_skills.py --repo {repo}"
+            print(f"  [WARN] {label}  —  {outdated} file(s) outdated, run: {hint}")
+        else:
+            print(f"  [OK  ] {label}  —  all skills up to date")
+
+
+def _cmd_batch_install(
+    repos_file: Path,
+    force: bool = False,
+    dry_run: bool = False,
+    with_reminders: bool = False,
+) -> None:
+    try:
+        repo_paths = _load_repos_file(repos_file)
+    except OSError as exc:
+        raise SystemExit(f"Could not read {repos_file}: {exc}") from exc
+
+    n = len(repo_paths)
+    mode = "dry run" if dry_run else "install"
+    print(f"Batch {mode} ({n} repo{'s' if n != 1 else ''}):\n")
+    for rp in repo_paths:
+        try:
+            repo = check_target(Path(rp).expanduser())
+        except InstallError as exc:
+            print(f"{rp}\n  [FAIL] {exc}\n")
+            continue
+        print(f"{repo}")
+        for line in install(repo, force=force, dry_run=dry_run, with_reminders=with_reminders):
+            print(line)
+        print()
 
 
 if __name__ == "__main__":
