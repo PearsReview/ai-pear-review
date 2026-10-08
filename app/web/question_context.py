@@ -5,10 +5,7 @@ A small model on CPU pays for every token in the window, and a narration
 already carries project context, the call map and the briefing. So the
 facts below are fetched only when a reply's question makes them relevant:
 
-    "is this tested?"          -> direct test calls (call map)
-    "who calls this?"          -> callers (call map), unless already in history
-    "why was this changed?"    -> commit subjects for these lines, when no briefing says why
-    "what does `foo` do?"      -> foo's definition, for identifiers the hunk mentions
+    (see the _*_RE patterns below for the routes)
 
 Routing is keyword matching, deliberately not a model call: classifying
 the question with the same CPU model would double the wait for a reply.
@@ -35,9 +32,13 @@ from .session import Session
 # Total characters added to one reply's prompt, all routes together
 # (~225 tokens). A block that doesn't fit whole is skipped, not truncated:
 # half a definition or half a caller list misleads more than none.
-_MAX_CHARS = 900
+_MAX_CHARS = 1200
 _MAX_DEFINITIONS = 2
 _DEFINITION_CONTEXT_LINES = 3
+# [TEST] added block for the PR review scratch test.
+_MAX_CALLERS = 5
+_MAX_TESTS = 3
+_MAX_HISTORY = 4
 
 _TESTS_RE = re.compile(r"\b(tests?|tested|testing|coverage|covered)\b", re.IGNORECASE)
 _CALLERS_RE = re.compile(

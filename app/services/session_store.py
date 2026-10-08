@@ -82,7 +82,7 @@ def ensure_artifacts_ignored(repo_path: str) -> list[str]:
         )
         return missing
     except OSError as exc:
-        log.info("Could not update %s: %s", exclude, exc)
+        log.warning("Could not update %s: %s", exclude, exc)
         return []
 
 
