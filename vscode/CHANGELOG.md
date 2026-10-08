@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Reopen Review** (↻ on the Changes view, and on the end-of-review
+  notification) picks an ended review back up with its marks and comments.
+  An ended review says so at the top of the Changes view and in the chat's
+  header, and the chat keeps working: ask about any change, explain it, Look
+  deeper. Marks, comments and Act Now stay locked until it's reopened. In a
+  pull request review, the end-of-review notification offers **Submit review**
+  rather than Create plan.
 - **Review Pull Request…** reviews a GitHub pull request: it's fetched into a
   separate worktree (your checkout is untouched) and diffed against its
   merge-base, as GitHub's Files changed shows it. The review is read-only (no

@@ -303,11 +303,13 @@ export function backToHunk() {
 // least tells the reviewer why nothing's here.
 
 export function applyActNowAvailability() {
-  actNowBtn.disabled = textInput.disabled || !state.actNowStatus.available;
-  actNowBtn.title = state.actNowStatus.available
-    ? `Act Now — your next message goes to ${state.actNowStatus.agent} as a change to make (you'll get a preview to confirm first)`
-    : `Act Now is unavailable: ${state.actNowStatus.detail}`;
-  if (!state.actNowStatus.available && state.actNowActive) setActNowActive(false);
+  actNowBtn.disabled = textInput.disabled || !state.actNowStatus.available || state.reviewEnded;
+  actNowBtn.title = state.reviewEnded
+    ? "Act Now — the review has ended; reopen it to make changes"
+    : state.actNowStatus.available
+      ? `Act Now — your next message goes to ${state.actNowStatus.agent} as a change to make (you'll get a preview to confirm first)`
+      : `Act Now is unavailable: ${state.actNowStatus.detail}`;
+  if ((!state.actNowStatus.available || state.reviewEnded) && state.actNowActive) setActNowActive(false);
   // Buttons already in the transcript were created against the old status.
   for (const button of document.querySelectorAll(".look-deeper-btn")) applyLookDeeperAvailability(button);
 }

@@ -148,9 +148,13 @@ below.
     comments to `.review/review_<time>.md`, optionally as an `/apply-review`
     skill too, and gives you the line to hand your coding agent.
 12. When every change is marked reviewed (one at a time, or all at once with
-    ✓✓ on the Changes view), or you choose **End Review**, a notification
-    sums it up: how much was reviewed, the comments waiting, and buttons to
-    create the plan, open the last plan, or start a new review.
+    ✓✓ on the Changes view), or you choose **End Review**, the review ends: a
+    notification sums it up (how much was reviewed, the comments waiting, and
+    buttons to create the plan, open the last plan, reopen the review or start
+    a new one), and the Changes view and the chat's header say it has ended.
+    Reviewed marks, comments and Act Now are locked from then on, but you can
+    still open any change and ask about it. **Reopen Review** (↻ on the
+    Changes view) picks the same review back up, marks and comments included.
 
 ### Reviewing a GitHub pull request
 

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
+import { prReviewFor } from "../github/prReviews.ts";
 import { publish } from "../testProbe.ts";
 
 // What the backend reports about actions — notices, errors, an agent stopping, an Act Now
@@ -58,20 +59,28 @@ export function register(backend: Backend): vscode.Disposable[] {
       if (summarised) return;
       summarised = true;
       const pending = p.pending_comment_count ?? 0;
+      // A pull request review's comments go to the PR, not to a plan.
+      const pr = prReviewFor(backend.repoPath) !== undefined;
       const parts = [`${p.reviewed_count ?? 0} of ${p.total} changes reviewed`];
-      if (pending) parts.push(`${pending} comment${pending === 1 ? "" : "s"} waiting for a plan`);
+      if (pending)
+        parts.push(`${pending} comment${pending === 1 ? "" : "s"} waiting ${pr ? "to be submitted" : "for a plan"}`);
       const buttons = [
-        ...(pending ? ["Create plan"] : []),
-        ...(p.review_plan ? ["Open plan"] : []),
-        "Start new review",
+        ...(pending ? [pr ? "Submit review" : "Create plan"] : []),
+        ...(p.review_plan && !pr ? ["Open plan"] : []),
+        "Reopen review",
+        ...(pr ? [] : ["Start new review"]),
       ];
-      void inform(`${p.ended_early ? "Review ended" : "Review finished"}: ${parts.join(", ")}.`, ...buttons).then(
-        (choice) => {
-          if (choice === "Create plan") void vscode.commands.executeCommand("pearReview.createPlan");
-          else if (choice === "Open plan") void vscode.commands.executeCommand("pearReview.openPlan", p.review_plan);
-          else if (choice === "Start new review") void vscode.commands.executeCommand("pearReview.newReview");
-        },
-      );
+      void inform(
+        `${p.ended_early ? "Review ended" : "Review finished"}: ${parts.join(", ")}. ` +
+          "You can still ask about any change; reopen the review to change marks or add comments.",
+        ...buttons,
+      ).then((choice) => {
+        if (choice === "Create plan") void vscode.commands.executeCommand("pearReview.createPlan");
+        else if (choice === "Submit review") void vscode.commands.executeCommand("pearReview.submitPullRequestReview");
+        else if (choice === "Open plan") void vscode.commands.executeCommand("pearReview.openPlan", p.review_plan);
+        else if (choice === "Reopen review") void vscode.commands.executeCommand("pearReview.reopenReview");
+        else if (choice === "Start new review") void vscode.commands.executeCommand("pearReview.newReview");
+      });
     }),
     backend.onStateChange((state) => {
       if (state === "starting") summarised = false;

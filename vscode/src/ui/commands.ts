@@ -125,7 +125,7 @@ export function register(
     vscode.commands.registerCommand("pearReview.toggleReviewed", () => send(() => backend.send("toggle_reviewed", {}))),
     vscode.commands.registerCommand("pearReview.endReview", async () => {
       const choice = await vscode.window.showWarningMessage(
-        "End the review? Explanations, replies and reviewed marks stop; queued comments stay for Create Plan.",
+        "End the review? Reviewed marks and comments are locked until you reopen it; you can still ask about any change. Queued comments are kept.",
         { modal: true },
         "End Review",
       );
@@ -133,6 +133,7 @@ export function register(
     }),
     vscode.commands.registerCommand("pearReview.reviewAll", () => send(() => backend.send("toggle_reviewed_all", {}))),
     vscode.commands.registerCommand("pearReview.showSummary", () => send(() => backend.send("show_summary", {}))),
+    vscode.commands.registerCommand("pearReview.reopenReview", () => send(() => backend.send("reopen_review", {}))),
     // `{ confirmed: true }` skips the question, for a keybinding or the tests.
     vscode.commands.registerCommand("pearReview.newReview", async (preset?: unknown) => {
       const confirmed =

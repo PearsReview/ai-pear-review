@@ -27,6 +27,7 @@ export const backBtn = document.getElementById("back-btn");
 export const interruptBtn = document.getElementById("interrupt-btn");
 export const refreshDiffBtn = document.getElementById("refresh-diff-btn");
 export const backToSummaryBtn = document.getElementById("back-to-summary-btn");
+export const reopenReviewBtn = document.getElementById("reopen-review-btn");
 export const actNowBtn = document.getElementById("act-now-btn");
 export const startReviewBtn = document.getElementById("start-review-btn");
 export const endReviewBtn = document.getElementById("end-review-btn");

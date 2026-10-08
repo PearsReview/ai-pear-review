@@ -84,6 +84,9 @@ export function register(backend: Backend, comments: Comments, reader: Reader, r
       progress = p;
       void vscode.commands.executeCommand("setContext", "pearReview.reviewStarted", p.review_started);
       void vscode.commands.executeCommand("setContext", "pearReview.reviewEnded", p.review_ended);
+      view.message = p.review_ended
+        ? "The review has ended. You can still open any change and ask about it; Reopen Review (↻) to mark changes or add comments."
+        : undefined;
       provider.setProgress(p);
       describe();
       revealCurrent();

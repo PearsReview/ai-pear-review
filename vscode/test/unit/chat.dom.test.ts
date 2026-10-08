@@ -325,6 +325,23 @@ void describe("chat webview", () => {
     assert.match(chat.$("hunk").textContent ?? "", /ended/);
   });
 
+  void test("after the review ends, a change can still be asked about and explained, but not acted on", () => {
+    chat.server("service_status", { act_now: { available: true, detail: "ok", agent: "Cline" } });
+    chat.server("presenting", { ...hunk, review_ended: true });
+    assert.match(chat.$("hunk").textContent ?? "", /change 1 of 2\s+·\s+review ended/);
+    assert.equal((chat.$("send") as HTMLButtonElement).disabled, false);
+    assert.equal((chat.$("explain") as HTMLButtonElement).disabled, false);
+    assert.equal((chat.$("act") as HTMLButtonElement).disabled, true);
+    assert.match(chat.$("act").title, /reopen/i);
+    chat.server("narration", narration);
+    assert.equal(chat.doc.querySelector<HTMLButtonElement>(".look-deeper")?.disabled, false);
+
+    // Reopened: Act Now is back.
+    chat.server("presenting", hunk);
+    assert.equal((chat.$("act") as HTMLButtonElement).disabled, false);
+    assert.doesNotMatch(chat.$("hunk").textContent ?? "", /ended/);
+  });
+
   void test("sends a typed question on Enter", () => {
     chat.server("presenting", hunk);
     const input = chat.$("input") as HTMLTextAreaElement;

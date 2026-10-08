@@ -42,10 +42,10 @@ async def handle_act_now(ws: WebSocket, session: Session, payload: dict) -> None
     changed as "act_now_preview" — nothing is written to disk here (see
     handle_confirm_act_now for the only step that writes)."""
     if session.review_ended:
-        # Same reasoning as handle_reply's identical guard: browsing a hunk
-        # post-end can put a real hunk on screen again, so this can't rely on
-        # the client alone.
-        await send_error(ws, "The review has ended — Act Now is no longer available.")
+        # Browsing a hunk post-end can put a real hunk on screen again, so
+        # this can't rely on the client alone. Act Now changes code, which
+        # belongs to an open review; chat about the change still works.
+        await send_error(ws, "The review has ended — reopen it to use Act Now.")
         return
     status = harness_status(CONFIG["harness"])
     if not status.available:
@@ -108,7 +108,7 @@ async def handle_refine_act_now(ws: WebSocket, session: Session, payload: dict) 
     follow-up, and replaces that preview with the result. A failure leaves
     the pending preview as it was, still there to apply or refine again."""
     if session.review_ended:
-        await send_error(ws, "The review has ended — Act Now is no longer available.")
+        await send_error(ws, "The review has ended — reopen it to use Act Now.")
         return
     status = harness_status(CONFIG["harness"])
     if not status.available:
@@ -197,7 +197,7 @@ async def handle_confirm_act_now(ws: WebSocket, session: Session, payload: dict)
         # A preview generated before End Review isn't cleared by ending, so a
         # stale confirm bar or a crafted request could otherwise still write
         # after the reviewer said the review was done.
-        await send_error(ws, "The review has ended — Act Now is no longer available.")
+        await send_error(ws, "The review has ended — reopen it to use Act Now.")
         return
     pending = session.pending_act_now
     if pending is None:

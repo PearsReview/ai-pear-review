@@ -117,11 +117,12 @@ def test_an_unknown_hunk_is_an_error_not_a_crash(tmp_path, agent, payload):
     assert agent == []
 
 
-def test_an_ended_review_is_refused(tmp_path, agent):
+def test_an_ended_review_is_still_answered(tmp_path, agent):
+    """Ending a review freezes its marks and comments, not the conversation."""
     session = Session([HUNK], None, str(tmp_path))
     session.review_ended = True
     ws = _look(session, {"index": 0})
-    assert ws.sent[0]["type"] == "error" and agent == []
+    assert ws.sent[0]["type"] == "deeper_turn" and len(agent) == 1
 
 
 def test_an_unavailable_agent_explains_why(tmp_path, monkeypatch):

@@ -341,6 +341,9 @@
                to the wrap-up screen, since Prev/Next/a file click now stay
                live in that state instead of being silently dead. -->
           <button id="back-to-summary-btn" type="button" class="back-to-summary-btn hidden" title="Review summary"><svg class="icon"><use href="#icon-chevron-left"></use></svg><span class="btn-label">Review summary</span></button>
+          <!-- Same visibility as back-to-summary-btn: picks the ended review
+               back up, with its marks and comments (reopen_review). -->
+          <button id="reopen-review-btn" type="button" class="back-to-summary-btn hidden" title="Reopen the review: mark changes and add comments again"><svg class="icon"><use href="#icon-rotate-cw"></use></svg><span class="btn-label">Reopen review</span></button>
           <div id="view-mode-toggle" class="view-mode-toggle" role="group" aria-label="Diff view mode">
             <button id="view-merged-btn" class="view-mode-btn active" data-mode="merged" aria-pressed="true" title="Merged view: old and new lines in one column"><svg class="icon"><use href="#icon-rows"></use></svg><span class="btn-label">Merged</span></button>
             <button id="view-split-btn" class="view-mode-btn" data-mode="split" aria-pressed="false" title="Split view: old on the left, new on the right"><svg class="icon"><use href="#icon-columns"></use></svg><span class="btn-label">Split</span></button>

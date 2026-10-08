@@ -37,6 +37,7 @@ this table and the registry disagree.
 | `start_review` | — | `review_flow.handle_start_review` | — | — |
 | `end_review` | — | `review_flow.handle_end_review` | — | — |
 | `show_summary` | — | `review_flow.handle_show_summary` | — | — |
+| `reopen_review` | — | `review_flow.handle_reopen_review` | — | — |
 | `new_review` | — | `review_flow.handle_new_review` | — | — |
 | `toggle_reviewed` | — | `review_flow.handle_toggle_reviewed` | — | — |
 | `toggle_reviewed_all` | — | `review_flow.handle_toggle_reviewed_all` | — | — |

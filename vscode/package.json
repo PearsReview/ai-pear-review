@@ -276,6 +276,12 @@
         "category": "Pear Review"
       },
       {
+        "command": "pearReview.reopenReview",
+        "title": "Reopen Review",
+        "category": "Pear Review",
+        "icon": "$(debug-restart)"
+      },
+      {
         "command": "pearReview.newReview",
         "title": "Start New Review",
         "category": "Pear Review"
@@ -472,6 +478,11 @@
           "command": "pearReview.showSummary",
           "when": "view == pearReview.hunks && pearReview.reviewEnded",
           "group": "review@2"
+        },
+        {
+          "command": "pearReview.reopenReview",
+          "when": "view == pearReview.hunks && pearReview.reviewEnded",
+          "group": "navigation@0"
         },
         {
           "command": "pearReview.newReview",

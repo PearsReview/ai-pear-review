@@ -10,6 +10,7 @@ import {
   actNowConfirmRow,
   backBtn,
   backToSummaryBtn,
+  reopenReviewBtn,
   codeViewEl,
   endReviewBtn,
   hunkMetaEl,
@@ -101,15 +102,16 @@ export function onPresenting(payload) {
 
   if (payload.done) {
     backToSummaryBtn.classList.add("hidden"); // already on the summary — nowhere for it to go
+    reopenReviewBtn.classList.add("hidden"); // the summary has its own Reopen button
     if (payload.ended) {
       state.reviewEnded = true;
       // Reachable from any hunk, not just past the last one — see
-      // send_summary_screen in web/progress.py. Narration/replies and the
-      // review-mark controls are frozen for the rest of this connection,
-      // whether this was reached automatically (every hunk reviewed) or
-      // by pressing End Review early. Browsing away from this screen
-      // (Prev/Next/a file click) still works — see the real-hunk branch
-      // below — this is just what shows before that first happens.
+      // send_summary_screen in web/progress.py. The review-mark controls
+      // and comments are frozen until the review is reopened, whether this
+      // was reached automatically (every hunk reviewed) or by pressing End
+      // Review early. Browsing away from this screen (Prev/Next/a file
+      // click) and asking about a change still work — see the real-hunk
+      // branch below — this is just what shows before that first happens.
       const headline = payload.ended_early
         ? `Review ended — ${payload.reviewed_count} / ${payload.total} hunks reviewed.`
         : `Review complete — all ${payload.total} hunks reviewed.`;
@@ -117,6 +119,7 @@ export function onPresenting(payload) {
         payload.pending_comment_count > 0
           ? ` ${payload.pending_comment_count} comment(s) still queued — use Create plan to hand them off.`
           : "";
+      const chatNote = " You can still open any change and ask about it.";
       hunkMetaEl.textContent = headline;
       showReviewPlanRow(payload.review_plan);
       showEmptyCodeView(
@@ -124,8 +127,15 @@ export function onPresenting(payload) {
           " " +
           headline +
           commentNote +
+          chatNote +
           (payload.review_plan ? ' <button id="summary-view-plan-btn" type="button" title="Open the last review plan in the preview">View review plan</button>' : "") +
+          ' <button id="reopen-review-summary-btn" type="button" title="Carry on with this review: mark changes and add comments again">Reopen Review</button>' +
           ' <button id="new-review-btn" type="button" title="Re-read the diff and review it again from the start">Start New Review</button>'
+      );
+      document.getElementById("reopen-review-summary-btn").addEventListener(
+        "click",
+        () => send("reopen_review", {}),
+        { once: true }
       );
       const summaryPlanBtn = document.getElementById("summary-view-plan-btn");
       if (summaryPlanBtn) summaryPlanBtn.addEventListener("click", openReviewPlan);
@@ -171,7 +181,9 @@ export function onPresenting(payload) {
     renderPromptSuggestions();
     return;
   }
-  hunkMetaEl.textContent = `Hunk ${payload.index + 1} / ${payload.total} — ${payload.file_path}`;
+  hunkMetaEl.textContent = `Hunk ${payload.index + 1} / ${payload.total} — ${payload.file_path}${
+    payload.review_ended ? " — review ended" : ""
+  }`;
   state.currentFilePath = payload.file_path;
   applyChatTabFilter(); // File chat tab must re-filter to the newly active file
   renderPromptSuggestions();
@@ -204,7 +216,9 @@ export function onPresenting(payload) {
   state.reviewEnded = !!payload.review_ended;
   state.currentHunkIndex = payload.index;
   state.hunkExplained = !!payload.narrated;
-  state.hunkExplainable = !!payload.narration_available && !!payload.review_started && !state.reviewEnded;
+  // Asking for an explanation still works after the review ends; only the
+  // automatic one per hunk stops (see narrate_current_hunk).
+  state.hunkExplainable = !!payload.narration_available && !!payload.review_started;
   updateExplainBtn();
   // The inline "+" add-comment button (see .line-comment-add in
   // style.css) is a review action like Mark as reviewed — locked behind
@@ -216,18 +230,19 @@ export function onPresenting(payload) {
   codeViewEl.classList.toggle("comments-locked", !payload.review_started || state.reviewEnded);
   state.lastKnownReviewStarted = !!payload.review_started; // see backToHunk's restore of comments-locked
   backToSummaryBtn.classList.toggle("hidden", !state.reviewEnded);
+  reopenReviewBtn.classList.toggle("hidden", !state.reviewEnded);
   if (state.reviewEnded) {
-    // Narration/replies and the review-mark controls are frozen for the
-    // rest of this connection (same "End Review" promise as the summary
-    // screen's own branch above) — browsing is the one thing that still
-    // works. setComposerEnabled(false) also covers Act Now (see its own
-    // docstring), and the server backs all of this with its own guards
-    // (handle_reply/handle_act_now/handle_confirm_act_now) rather than
-    // trusting this client state alone.
+    // The review-mark controls, comments and Act Now are frozen until the
+    // review is reopened (same as the summary screen's own branch above);
+    // browsing and asking about the change still work, so the composer
+    // stays enabled. applyActNowAvailability keeps Act Now off while
+    // state.reviewEnded, and the server backs all of this with its own
+    // guards (handle_toggle_reviewed/handle_request_change/handle_act_now)
+    // rather than trusting this client state alone.
     hideStartReviewBtn();
     hideEndReviewBtn();
     setReviewControlsVisible(false);
-    setComposerEnabled(false);
+    setComposerEnabled(true);
   } else {
     // A real hunk is now on screen, so there's something to reply to
     // regardless of review_started — see setComposerEnabled's docstring.

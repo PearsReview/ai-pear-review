@@ -26,6 +26,7 @@ export interface ClientPayloads {
   start_review: Empty;
   end_review: Empty;
   show_summary: Empty;
+  reopen_review: Empty;
   new_review: Empty;
   toggle_reviewed: Empty;
   toggle_reviewed_all: Empty;
@@ -354,6 +355,7 @@ export const CLIENT_MESSAGE_TYPES = Object.keys({
   start_review: true,
   end_review: true,
   show_summary: true,
+  reopen_review: true,
   new_review: true,
   toggle_reviewed: true,
   toggle_reviewed_all: true,

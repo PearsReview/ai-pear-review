@@ -239,7 +239,11 @@ overview and call map are.
 ## Using the review UI
 
 - **Start Review / End Review** — narration and chat begin only once you
-  click Start Review; browsing the diff always works.
+  click Start Review; browsing the diff always works. Ending a review (End
+  Review, or marking the last change reviewed) locks the reviewed marks,
+  comments and Act Now, and says so; you can still open any change, ask about
+  it and have it explained. **Reopen Review** picks the same review back up
+  with its marks and comments; **Start New Review** starts over.
 - **Prev / Next** — move between hunks.
 - **Explain** (next to Next) — asks the AI to explain the change you're on.
   By default nothing is explained until you click it, so you choose which

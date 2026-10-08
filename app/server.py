@@ -15,8 +15,9 @@ of this file rather than of any one message:
   marked reviewed, comments still queued. So a fresh socket is not
   necessarily a fresh review, and "review_comments_sync" is not
   necessarily empty.
-- review_started and review_ended gate narration, replies and the review
-  marks, never browsing. Stepping through hunks, opening any file and
+- review_started and review_ended gate automatic narration, the review
+  marks, comments and Act Now — never browsing or chat ("reopen_review"
+  undoes an end). Stepping through hunks, opening any file and
   asking about it are all meant to work before a review starts and after
   it ends — see the individual handlers for which side each falls on.
 - A conversation agent that fails to construct is not fatal. The

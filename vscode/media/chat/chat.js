@@ -168,7 +168,7 @@
   }
 
   function applyLookDeeper(button) {
-    /** @type {HTMLButtonElement} */ (button).disabled = !state.actNow.available || state.ended;
+    /** @type {HTMLButtonElement} */ (button).disabled = !state.actNow.available;
     button.title = state.actNow.available
       ? "A more thorough answer: your coding agent searches the whole repository and its history (read-only). Takes longer."
       : `Not available yet: ${state.actNow.detail}`;
@@ -274,10 +274,10 @@
   // --- controls ----------------------------------------------------------------------
 
   function updateControls() {
-    const onHunk = state.current !== null && !state.ended;
+    // A change on screen can be asked about before the review starts and after it ends.
+    const onHunk = state.current !== null;
     /** @type {HTMLButtonElement} */ ($("explain")).disabled =
       !onHunk || !state.started || !state.narrationAvailable || state.narrating || state.narrated.has(state.current);
-    // Questions about a file work before the review starts and after it ends.
     const canAsk = onHunk || state.targetFile !== null;
     /** @type {HTMLButtonElement} */ ($("send")).disabled = !canAsk;
     const recording = mic.classList.contains("recording");
@@ -288,10 +288,13 @@
     input.disabled = !canAsk;
     const act = /** @type {HTMLButtonElement} */ ($("act"));
     act.hidden = state.readOnly;
-    act.disabled = !onHunk || !state.actNow.available;
-    act.title = state.actNow.available
-      ? `Ask ${agentName()} to make a change. It proposes it as a diff; nothing is written until you apply it.`
-      : `Act Now is off: ${state.actNow.detail} Choose an agent in settings (⚙).`;
+    // Act Now changes code, which belongs to an open review.
+    act.disabled = !onHunk || !state.actNow.available || state.ended;
+    act.title = state.ended
+      ? "Act Now is off: the review has ended. Reopen it to make changes."
+      : state.actNow.available
+        ? `Ask ${agentName()} to make a change. It proposes it as a diff; nothing is written until you apply it.`
+        : `Act Now is off: ${state.actNow.detail} Choose an agent in settings (⚙).`;
     act.classList.toggle("active", state.actMode);
     act.setAttribute("aria-pressed", String(state.actMode));
     input.placeholder = state.actMode
@@ -308,7 +311,7 @@
   // specific question), then the file asked about, then the change on screen.
   function renderSuggestions() {
     const box = $("suggestions");
-    const canAsk = (state.current !== null && !state.ended) || state.targetFile !== null;
+    const canAsk = state.current !== null || state.targetFile !== null;
     const list = !canAsk
       ? null
       : state.actMode
@@ -419,7 +422,7 @@
         state.ended = !!p.review_ended;
         state.narrationAvailable = p.narration_available !== false;
         state.narrating = !!p.narrating && !state.narrated.has(p.index);
-        header.textContent = `${p.file_path}  ·  change ${p.index + 1} of ${p.total}`;
+        header.textContent = `${p.file_path}  ·  change ${p.index + 1} of ${p.total}${state.ended ? "  ·  review ended" : ""}`;
         state.reviewFile = p.file_path;
         applyFilter();
         if (state.narrating) showThinking();

@@ -112,11 +112,17 @@ async def handle_request_change(ws: WebSocket, session: Session, payload: dict) 
     if not session.review_started or session.review_ended:
         # Comments are a review action like marking a hunk reviewed —
         # nothing to queue before the review has started, and nothing new
-        # to add once it's ended (see Session docstring). The "+" button
-        # is already hidden client-side in both states (see .comments-
-        # locked in style.css); this is defense-in-depth against a
-        # crafted/stale request, not the primary gate.
-        await send_error(ws, "Start the review before adding comments.")
+        # to add once it's ended (see Session docstring) until it's
+        # reopened. The "+" button is already hidden client-side in both
+        # states (see .comments-locked in style.css); this is
+        # defense-in-depth against a crafted/stale request, not the
+        # primary gate.
+        await send_error(
+            ws,
+            "The review has ended — reopen it to add comments."
+            if session.review_ended
+            else "Start the review before adding comments.",
+        )
         return
     hunk = session.current_hunk
     marked_lines = payload.get("marked_lines")

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- An ended review no longer goes quiet: replies, explaining a change on
+  request and Look deeper keep working. Reviewed marks, comments and Act Now
+  stay locked, and now say so ("The review has ended — reopen it to …")
+  instead of silently doing nothing. New `reopen_review` message and
+  **Reopen Review** button (on the summary and while browsing after the end)
+  pick the same review back up, marks and comments included.
 - `provider: openai` talks to any OpenAI-compatible endpoint: a self-hosted
   server, or a gateway (LiteLLM, vLLM, an enterprise LLM proxy) fronting
   several model families. Set `conversation.openai.base_url` and `model`; the

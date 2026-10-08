@@ -28,6 +28,9 @@ _PREP_LABELS = {
 }
 
 
+_ENDED_MARKS_MESSAGE = "The review has ended — reopen it to change what's marked reviewed."
+
+
 async def _maybe_auto_end_review(ws: WebSocket, session: Session) -> bool:
     """Ends the review once every hunk is marked reviewed.
 
@@ -55,6 +58,7 @@ async def handle_toggle_reviewed(ws: WebSocket, session: Session, payload: dict)
     "request_change" sit behind. Marking the last unreviewed hunk ends the
     review outright — see _maybe_auto_end_review."""
     if session.review_ended:  # locked once the review has ended — see Session docstring
+        await send_error(ws, _ENDED_MARKS_MESSAGE)
         return
     if session.current_hunk is None:
         return
@@ -72,6 +76,7 @@ async def handle_toggle_reviewed_all(ws: WebSocket, session: Session, payload: d
     version: if everything is already reviewed, this clears all of it
     instead of being a one-way ratchet with no way back via this control."""
     if session.review_ended:  # locked once the review has ended — see Session docstring
+        await send_error(ws, _ENDED_MARKS_MESSAGE)
         return
     if not session.hunks:
         return
@@ -288,8 +293,8 @@ async def handle_end_review(ws: WebSocket, session: Session, payload: dict) -> N
     the review (no payload) and swaps the code pane to the summary screen —
     reachable from whatever hunk is on screen, not only from past the last
     one. Also reached automatically once every hunk is marked reviewed (see
-    _maybe_auto_end_review). review_started and review_ended only ever go
-    False -> True on their own; "new_review" is the one way back."""
+    _maybe_auto_end_review). Chat keeps working afterwards; "reopen_review"
+    picks the same review back up, and "new_review" starts over."""
     if not session.review_ended:
         session.review_ended = True
         save_persisted_state(session.repo_path, session)
@@ -308,6 +313,33 @@ async def handle_show_summary(ws: WebSocket, session: Session, payload: dict) ->
     if session.review_ended:
         cancel_current(session)
         await send_summary_screen(ws, session)
+
+
+@handler("reopen_review")
+async def handle_reopen_review(ws: WebSocket, session: Session, payload: dict) -> None:
+    """Undoes "end_review" (no payload): the same review carries on, with
+    its reviewed marks and queued comments as they were, so marks can be
+    changed and comments added again. Lands on the hunk that was on screen,
+    or the first one coming back from the summary screen. Unlike
+    "new_review", nothing is re-read or cleared.
+
+    Reopening a review whose hunks are all marked reviewed doesn't end it
+    again straight away: that only happens when a mark changes (see
+    _maybe_auto_end_review)."""
+    if not session.review_ended:
+        return  # not ended — nothing to reopen; a duplicate/late click
+    cancel_current(session)
+    session.review_ended = False
+    save_persisted_state(session.repo_path, session)
+    await send_json(
+        ws, "notice", {"level": "info", "message": "Review reopened — you can mark changes and add comments again."}
+    )
+    if not session.hunks:
+        await send_review_progress(ws, session)
+        return
+    if not 0 <= session.index < len(session.hunks):
+        session.index = 0
+    session.current_task = asyncio.create_task(present_current_hunk(ws, session))
 
 
 @handler("new_review")
