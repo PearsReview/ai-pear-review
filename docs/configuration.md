@@ -11,22 +11,33 @@ Companion docs: [README.md](../README.md) (how to run it),
 
 Every setting lives here; nothing is a hardcoded default buried in code.
 
+To change a setting across *every* repo without editing `app/config.yaml`,
+put the keys you want to override in `~/.config/pear-review/config.yaml`. It
+is deep-merged over `app/config.yaml` at startup (your keys win; everything
+else falls through to the defaults). The app never writes it — create it
+yourself. Per-repo overrides from the settings panel still layer on top of
+both (they land in `.review/ui_settings.json`). Set `REVIEW_USER_CONFIG` to
+use a different file.
+
 - **`server`** — host/port (default `127.0.0.1:8765`) and `repo_path`
   (`"."` — the directory you launch `python run.py` from).
 - **`conversation`** — the live reviewer persona
   (`present_hunk`/`respond_to_reviewer`).
-  - `provider: ollama` (default) or `provider: anthropic` — each has its
-    own `model`/connection settings under its own key, so switching
-    providers can never accidentally send one provider's model name to
-    the other's API.
+  - `provider: ollama` (default), `provider: anthropic`, or `provider:
+    openai` (any OpenAI-compatible endpoint or gateway) — each has its own
+    `model`/connection settings under its own key, so switching providers
+    can never accidentally send one provider's model name to the other's API.
 
-    **Switching to Anthropic is two changes, not one:** set this key *and*
-    provide `ANTHROPIC_API_KEY`. A key on its own changes nothing — this is
-    what decides who gets called. The settings panel writes the same choice
-    per-repo, if you'd rather not edit the file.
+    **Switching to a hosted provider is two changes, not one:** set this key
+    *and* provide the API key. A key on its own changes nothing — this is
+    what decides who gets called. For `anthropic` the key is
+    `ANTHROPIC_API_KEY`; for `openai` it is `OPENAI_API_KEY`, plus a
+    `conversation.openai.base_url` naming the endpoint (include the version
+    path it expects, e.g. `.../v1`) and a `model` id it routes. The settings
+    panel writes the same choices per-repo, if you'd rather not edit the file.
   - `prompt_tier: auto | small | frontier` — which prompt set to use (see
-    `app/prompts/`); `auto` picks frontier for `anthropic`, and for
-    `ollama` guesses from the model name.
+    `app/prompts/`); `auto` picks frontier for `anthropic` and `openai`, and
+    for `ollama` guesses from the model name.
   - `max_tokens`, `timeout_seconds` — see
     [Performance and hardware](#performance-and-hardware) before changing
     the timeout.

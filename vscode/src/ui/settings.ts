@@ -18,6 +18,11 @@ const AGENT_LABELS: Record<string, string> = {
 const PROVIDERS = [
   { id: "ollama", label: "Ollama", detail: "A local model" },
   { id: "anthropic", label: "Anthropic", detail: "Claude, through the API (needs an Anthropic API key)" },
+  {
+    id: "openai",
+    label: "OpenAI-compatible",
+    detail: "Any OpenAI-compatible endpoint or proxy/gateway (LiteLLM, vLLM) — set a base URL and API key",
+  },
 ];
 
 const PREP_LABELS: Record<string, string> = {
@@ -85,6 +90,25 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
       { title: "Model provider for the reviewer" },
     );
     if (!provider) return;
+    // The OpenAI-compatible provider needs a base URL before it can list what the
+    // endpoint serves. Ask for it first (saving it applies to the live config), so the
+    // model picker below is populated. The key is set separately — it's a secret that
+    // reaches the backend in its environment at start (see the API key menu item).
+    if (provider.id === "openai") {
+      const existing = (await fetchSettings()).settings.openai?.base_url ?? "";
+      const baseUrl = await vscode.window.showInputBox({
+        title: "OpenAI-compatible base URL",
+        value: existing,
+        prompt:
+          "The endpoint's base URL, including the version path it expects (e.g. http://localhost:6655/litellm/v1).",
+        ignoreFocusOut: true,
+      });
+      if (baseUrl === undefined) return;
+      if (baseUrl.trim() && baseUrl.trim() !== existing) {
+        const saved = await save({ provider: "openai", openai: { base_url: baseUrl.trim() } });
+        if (saved.applies_on_reconnect) await backend.reconnect();
+      }
+    }
     const listing = await fetchSettings(provider.id);
     const section = listing.settings[provider.id] as { model?: string } | undefined;
     const typeOwn = "Type a model name…";
@@ -125,10 +149,17 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
     return value?.trim() ? Number(value.trim()) : undefined;
   };
 
+  // The reply-token limit actually in force for the current provider: a provider
+  // block's own value wins over the shared top-level one (see conversation_service).
+  const providerMaxTokens = (s: Settings["settings"]): number | null | undefined => {
+    const block = s.provider ? (s[s.provider] as { max_tokens?: number | null } | undefined) : undefined;
+    return block?.max_tokens ?? s.max_tokens;
+  };
+
   const modelLimits = async (current: Settings): Promise<void> => {
     const s = current.settings;
     const changes: Record<string, unknown> = {};
-    if (s.provider !== "anthropic") {
+    if (s.provider === "ollama") {
       const numCtx = await askNumber(
         "Context size (tokens)",
         s.ollama?.num_ctx,
@@ -136,8 +167,23 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
       );
       if (numCtx !== undefined) changes.ollama = { num_ctx: numCtx };
     }
-    const maxTokens = await askNumber("Max reply tokens", s.max_tokens, "The longest reply the reviewer may write.");
-    if (maxTokens !== undefined) changes.max_tokens = maxTokens;
+    const maxTokens = await askNumber(
+      "Max reply tokens",
+      providerMaxTokens(s),
+      "The longest reply the reviewer may write.",
+    );
+    if (maxTokens !== undefined) {
+      // max_tokens resolves per-provider: a provider block's own value wins over the
+      // shared top-level one (conversation_service), and anthropic/openai set theirs in
+      // config.yaml — so a top-level write would be shadowed and do nothing for them.
+      // Write it where that provider actually reads it; ollama has no own value and uses
+      // the shared one.
+      if (s.provider === "anthropic" || s.provider === "openai") {
+        changes[s.provider] = { ...(changes[s.provider] as object | undefined), max_tokens: maxTokens };
+      } else {
+        changes.max_tokens = maxTokens;
+      }
+    }
     const timeout = await askNumber("Timeout (seconds)", s.timeout_seconds, "How long one reply may take.");
     if (timeout !== undefined) changes.timeout_seconds = timeout;
     if (!Object.keys(changes).length) return;
@@ -152,6 +198,7 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
       title: `${name} endpoint`,
       value: existing?.endpoint ?? "",
       prompt: "The URL of the speech service.",
+      ignoreFocusOut: true,
     });
     if (endpoint === undefined) return;
     const token = await vscode.window.showInputBox({
@@ -190,41 +237,41 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
 
   const onOff = (on: boolean): string => (on ? "On" : "Off");
 
-  const openMenu = async (): Promise<void> => {
-    // Reopens after each change, like a settings panel, until Escape.
+  const modelSummary = (s?: Settings["settings"]): string =>
+    s ? `${s.provider ?? "?"} · ${(s.provider && (s[s.provider] as { model?: string })?.model) || "?"}` : "";
+
+  // The settings panel and its submenus: one loop that rebuilds its items after each
+  // action (so toggles and summaries refresh) and reopens like a panel until Escape.
+  // buildItems runs each iteration; it fetches live settings when it needs them.
+  const runMenu = async (title: string, buildItems: () => Promise<MenuItem[]>): Promise<void> => {
     for (;;) {
-      const p = prefs.values;
+      const live = backend.state === "ready";
+      const picked = await vscode.window.showQuickPick(await buildItems(), {
+        title,
+        placeHolder: live
+          ? "Choose a setting to change"
+          : "Model, speech and agent settings appear once the changes are open",
+      });
+      if (!picked?.run) return;
+      if (!live && picked.needsBackend) {
+        if (!(await ensureBackend())) return;
+        continue;
+      }
+      await picked.run();
+      if (picked.closes) return;
+    }
+  };
+
+  const llmMenu = (): Promise<void> =>
+    runMenu("LLM", async () => {
       const live = backend.state === "ready";
       const current = live ? await fetchSettings() : undefined;
       const s = current?.settings;
-      const model = s
-        ? `${s.provider ?? "?"} · ${(s.provider && (s[s.provider] as { model?: string })?.model) || "?"}`
-        : "";
-      const harness = current?.harness_settings;
-      const items: MenuItem[] = [
-        {
-          label: "$(book) Get started",
-          description: "a walkthrough of Pear Review",
-          run: () => void vscode.commands.executeCommand("pearReview.getStarted"),
-          closes: true,
-        },
-        { label: "Preferences", kind: vscode.QuickPickItemKind.Separator },
-        {
-          label: "$(sparkle) Explain changes",
-          description: p.autoNarrate ? "Automatically" : "When I ask",
-          run: () => prefs.set({ autoNarrate: !p.autoNarrate }),
-        },
-        {
-          label: "$(unmute) Speak replies aloud",
-          description: onOff(p.tts),
-          detail: "The speaker button on each message works either way.",
-          run: () => prefs.set({ tts: !p.tts }),
-        },
-        { label: "$(mic) Voice input", description: onOff(p.stt), run: () => prefs.set({ stt: !p.stt }) },
-        { label: "Reviewer model", kind: vscode.QuickPickItemKind.Separator },
+      const p = prefs.values;
+      return [
         {
           label: "$(hubot) Model",
-          description: live ? model : "open the changes to see",
+          description: live ? modelSummary(s) : "open the changes to see",
           run: chooseModel,
           needsBackend: true,
         },
@@ -233,8 +280,8 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
           needsBackend: true,
           description: s
             ? [
-                s.provider !== "anthropic" && s.ollama?.num_ctx ? `context ${s.ollama.num_ctx}` : "",
-                s.max_tokens ? `reply ${s.max_tokens} tokens` : "",
+                s.provider === "ollama" && s.ollama?.num_ctx ? `context ${s.ollama.num_ctx}` : "",
+                providerMaxTokens(s) ? `reply ${providerMaxTokens(s)} tokens` : "",
                 s.timeout_seconds ? `${s.timeout_seconds} s` : "",
               ]
                 .filter(Boolean)
@@ -251,7 +298,34 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
             await vscode.commands.executeCommand("pearReview.setAnthropicApiKey");
           },
         },
-        { label: "Speech", kind: vscode.QuickPickItemKind.Separator },
+        {
+          label: "$(key) OpenAI-compatible API key",
+          description: (await context.secrets.get("pearReview.openaiApiKey")) ? "set" : "not set",
+          run: async () => {
+            await vscode.commands.executeCommand("pearReview.setOpenaiApiKey");
+          },
+        },
+        {
+          label: "$(sparkle) Explain changes",
+          description: p.autoNarrate ? "Automatically" : "When I ask",
+          run: () => prefs.set({ autoNarrate: !p.autoNarrate }),
+        },
+      ];
+    });
+
+  const voiceMenu = (): Promise<void> =>
+    runMenu("Voice", async () => {
+      const live = backend.state === "ready";
+      const current = live ? await fetchSettings() : undefined;
+      const p = prefs.values;
+      return [
+        {
+          label: "$(unmute) Speak replies aloud",
+          description: onOff(p.tts),
+          detail: "The speaker button on each message works either way.",
+          run: () => prefs.set({ tts: !p.tts }),
+        },
+        { label: "$(mic) Voice input", description: onOff(p.stt), run: () => prefs.set({ stt: !p.stt }) },
         {
           label: "$(unmute) Text-to-speech service",
           needsBackend: true,
@@ -268,18 +342,41 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
             if (current) await speechService("stt", current);
           },
         },
-        { label: "Coding agent", kind: vscode.QuickPickItemKind.Separator },
+      ];
+    });
+
+  const openMenu = (): Promise<void> =>
+    runMenu("Pear Review settings", async () => {
+      const live = backend.state === "ready";
+      const current = live ? await fetchSettings() : undefined;
+      const harness = current?.harness_settings;
+      return [
         {
-          label: "$(tools) Agent for Act Now and Look deeper",
+          label: "$(book) Get started",
+          description: "a walkthrough of Pear Review",
+          run: () => void vscode.commands.executeCommand("pearReview.getStarted"),
+          closes: true,
+        },
+        {
+          label: "$(hubot) LLM",
+          description: live ? modelSummary(current?.settings) : "model, limits, API keys",
+          run: () => llmMenu(),
+        },
+        {
+          label: "$(unmute) Voice",
+          description: "narration, speech services",
+          run: () => voiceMenu(),
+        },
+        {
+          label: "$(tools) Coding agent",
           needsBackend: true,
           description: harness
             ? `${AGENT_LABELS[harness.agent] ?? harness.agent}${harness.agent !== "none" && harness.model ? ` · ${harness.model}` : ""}`
             : "",
           run: () => chooseAgent(),
         },
-        { label: "Review context", kind: vscode.QuickPickItemKind.Separator },
         {
-          label: "$(book) Prep files",
+          label: "$(book) Review context",
           needsBackend: true,
           description: current?.context_status
             ? Object.entries(current.context_status)
@@ -296,24 +393,10 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
           closes: true,
         },
       ];
-      const picked = await vscode.window.showQuickPick(items, {
-        title: "Pear Review settings",
-        placeHolder: live
-          ? "Choose a setting to change"
-          : "Model, speech and agent settings appear once the changes are open",
-      });
-      if (!picked?.run) return;
-      if (!live && picked.needsBackend) {
-        if (!(await ensureBackend())) return;
-        continue;
-      }
-      await picked.run();
-      if (picked.closes) return;
-    }
-  };
+    });
 
   const run = (fn: (arg?: unknown) => Promise<void>) => (arg?: unknown) =>
-    fn(arg).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+    fn(arg).catch((err: unknown) => showError(err));
 
   return [
     vscode.commands.registerCommand("pearReview.settings", run(openMenu)),

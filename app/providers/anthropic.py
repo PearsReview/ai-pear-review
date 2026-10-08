@@ -10,13 +10,19 @@ from typing import cast
 import anthropic
 from anthropic.types import MessageParam
 
-from .base import Capability, ChatProvider, Completion, ConversationCancelled, ConversationError
+from .base import (
+    Capability,
+    ChatProvider,
+    Completion,
+    ConversationCancelled,
+    ConversationError,
+    close_when_cancelled,
+    raise_if_token_cap_empty,
+)
 
 log = logging.getLogger(__name__)
 
 _DEFAULT_API_KEY_ENV = "ANTHROPIC_API_KEY"
-# How often the watcher checks the cancel token while the stream is silent.
-_CANCEL_POLL_SECONDS = 0.1
 
 
 class AnthropicProvider(ChatProvider):
@@ -105,7 +111,7 @@ class AnthropicProvider(ChatProvider):
             ) as stream:
                 if cancel is not None:
                     threading.Thread(
-                        target=_close_when_cancelled, args=(cancel, done, stream), daemon=True, name="anthropic-cancel"
+                        target=close_when_cancelled, args=(cancel, done, stream), daemon=True, name="anthropic-cancel"
                     ).start()
                 try:
                     for _event in stream:
@@ -129,31 +135,13 @@ class AnthropicProvider(ChatProvider):
 
         text = "".join(block.text for block in response.content if block.type == "text").strip()
         if response.stop_reason == "max_tokens":
-            # Current models think by default and that thinking spends the same
-            # cap, so a budget sized for a local model's spoken turn can be
-            # gone before any prose is written. Measured on claude-sonnet-5 at
-            # max_tokens=300: [thinking, text] with the text cut mid-sentence,
-            # and on a longer prompt a thinking block alone.
-            log.warning("%s hit the %d-token cap (text: %d chars)", self.model, max_tokens, len(text))
-            if not text:
-                raise ConversationError(
-                    f"{self.model} used its whole {max_tokens}-token reply budget on reasoning "
-                    "before writing anything. Raise conversation.anthropic.max_tokens."
-                )
+            # Measured on claude-sonnet-5 at max_tokens=300: [thinking, text]
+            # with the text cut mid-sentence, and on a longer prompt a thinking
+            # block alone.
+            raise_if_token_cap_empty(log, self.model, max_tokens, text, "conversation.anthropic.max_tokens")
         usage = response.usage
         return Completion(
             text=text,
             input_tokens=usage.input_tokens if usage else 0,
             output_tokens=usage.output_tokens if usage else 0,
         )
-
-
-def _close_when_cancelled(cancel: threading.Event, done: threading.Event, stream) -> None:
-    """Closes the stream the moment cancel is set, and exits as soon as the call
-    finishes on its own — so a call that completes normally leaves no thread
-    behind waiting on a token that will never be set."""
-    while not done.is_set():
-        if cancel.wait(_CANCEL_POLL_SECONDS):
-            if not done.is_set():
-                stream.close()
-            return

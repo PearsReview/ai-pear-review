@@ -69,7 +69,7 @@ export function register(backend: Backend, target: ChatTarget): vscode.Disposabl
 
   return [
     vscode.commands.registerCommand("pearReview.askAboutFile", (arg: unknown) =>
-      askAboutFile(arg).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err))),
+      askAboutFile(arg).catch((err: unknown) => showError(err)),
     ),
     vscode.commands.registerCommand("pearReview.openRepoFile", (filePath: unknown) => {
       if (typeof filePath === "string" && backend.repoPath) {

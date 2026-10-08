@@ -3,10 +3,8 @@ import * as vscode from "vscode";
 
 import { log } from "../log.ts";
 import { publish } from "../testProbe.ts";
-import { PythonBackend, type Backend, type BackendState } from "./backend.ts";
+import { nextMessage, NEXT_TIMEOUT_MS, PythonBackend, type Backend, type BackendState } from "./backend.ts";
 import type { ClientMessageType, ClientPayloads, ServerMessage, ServerMessageType, ServerPayloads } from "./protocol.ts";
-
-const NEXT_TIMEOUT_MS = 15_000;
 
 // One backend per repository, behind the one Backend the UI talks to. The UI follows
 // the *active* repository: only its backend's messages and states reach the UI, and
@@ -112,17 +110,7 @@ export class BackendManager implements Backend, vscode.Disposable {
   }
 
   next<T extends ServerMessageType>(type: T, timeoutMs = NEXT_TIMEOUT_MS): Promise<ServerPayloads[T]> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        subscription.dispose();
-        reject(new Error(`No "${type}" reply from the backend within ${timeoutMs / 1000}s.`));
-      }, timeoutMs);
-      const subscription = this.on(type, (payload) => {
-        clearTimeout(timer);
-        subscription.dispose();
-        resolve(payload);
-      });
-    });
+    return nextMessage((t, l) => this.on(t, l), type, timeoutMs);
   }
 
   reconnect(): Promise<void> {

@@ -13,6 +13,19 @@
   listed, signing in with VS Code's GitHub Enterprise account.
 - Backend: `REVIEW_BASE_SHA` diffs against a commit instead of HEAD (no
   untracked files), and `REVIEW_READ_ONLY=1` refuses every handler that writes.
+- **Set OpenAI-compatible API Key** and an **OpenAI-compatible** provider in
+  the settings panel: it asks for the base URL, then lists the endpoint's
+  models. The key is kept in VS Code's secret storage and passed to the
+  backend as `OPENAI_API_KEY`.
+- **Open Chat** button on the Changes view's title bar.
+- Python: the managed venv from **Set Up Python Environment** is now used in
+  preference to `pearReview.pythonPath`; that setting is used to create the
+  venv, and as the backend's interpreter only when no venv exists. Setup also
+  looks for `python3.13` … `python3.10` on PATH (Homebrew, pyenv). Existing
+  users should run **Set Up Python Environment** again to install the
+  `openai` package (only needed for the OpenAI-compatible provider).
+- Internal: `errorMessage()` / `showError(unknown)` and a shared
+  `nextMessage()` replace code repeated across the backend and UI modules.
 
 ## 0.0.2
 

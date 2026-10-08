@@ -33,7 +33,27 @@ export interface Backend {
   setConnectQuery(query: () => string): void;
 }
 
-const NEXT_TIMEOUT_MS = 15_000;
+export const NEXT_TIMEOUT_MS = 15_000;
+
+// The next message of a type, for request/reply pairs like get_settings → settings.
+// Shared by PythonBackend and BackendManager, which both expose the same `on`.
+export function nextMessage<T extends ServerMessageType>(
+  on: Backend["on"],
+  type: T,
+  timeoutMs = NEXT_TIMEOUT_MS,
+): Promise<ServerPayloads[T]> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      subscription.dispose();
+      reject(new Error(`No "${type}" reply from the backend within ${timeoutMs / 1000}s.`));
+    }, timeoutMs);
+    const subscription = on(type, (payload) => {
+      clearTimeout(timer);
+      subscription.dispose();
+      resolve(payload);
+    });
+  });
+}
 
 // A dropped socket with the process still alive is retried once; anything worse is
 // an error state the user restarts from.
@@ -98,11 +118,16 @@ export class PythonBackend implements Backend, vscode.Disposable {
     });
     try {
       const apiKey = await this.secrets.get("pearReview.anthropicApiKey");
+      const openaiKey = await this.secrets.get("pearReview.openaiApiKey");
       this.port = await proc.start({
         python: resolvePython(this.extensionPath),
         extensionPath: this.extensionPath,
         repoPath,
-        env: { ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}), ...backendEnv(repoPath) },
+        env: {
+          ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}),
+          ...(openaiKey ? { OPENAI_API_KEY: openaiKey } : {}),
+          ...backendEnv(repoPath),
+        },
       });
       await this.connect();
       this.setState("ready");
@@ -171,17 +196,7 @@ export class PythonBackend implements Backend, vscode.Disposable {
   }
 
   next<T extends ServerMessageType>(type: T, timeoutMs = NEXT_TIMEOUT_MS): Promise<ServerPayloads[T]> {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        subscription.dispose();
-        reject(new Error(`No "${type}" reply from the backend within ${timeoutMs / 1000}s.`));
-      }, timeoutMs);
-      const subscription = this.on(type, (payload) => {
-        clearTimeout(timer);
-        subscription.dispose();
-        resolve(payload);
-      });
-    });
+    return nextMessage((t, l) => this.on(t, l), type, timeoutMs);
   }
 
   setConnectQuery(query: () => string): void {

@@ -90,6 +90,11 @@
         "category": "Pear Review"
       },
       {
+        "command": "pearReview.setOpenaiApiKey",
+        "title": "Set OpenAI-compatible API Key",
+        "category": "Pear Review"
+      },
+      {
         "command": "pearReview.toggleReviewed",
         "title": "Mark Reviewed / Unreviewed",
         "category": "Pear Review",
@@ -246,6 +251,12 @@
         "command": "pearReview.openChanges",
         "title": "Open Changes",
         "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.openChat",
+        "title": "Open Chat",
+        "category": "Pear Review",
+        "icon": "$(comment-discussion)"
       },
       {
         "command": "pearReview.settings",
@@ -407,6 +418,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "pearReview.openChat",
+          "when": "view == pearReview.hunks",
+          "group": "navigation@0"
+        },
         {
           "command": "pearReview.switchRepository",
           "when": "view == pearReview.hunks && pearReview.multiRepo",
@@ -579,6 +595,10 @@
         },
         {
           "command": "pearReview.setAnthropicApiKey",
+          "when": "false"
+        },
+        {
+          "command": "pearReview.setOpenaiApiKey",
           "when": "false"
         },
         {

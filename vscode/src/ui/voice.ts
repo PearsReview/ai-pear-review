@@ -56,7 +56,7 @@ export function register({ backend, selection, actNow, target, comments }: Voice
       try {
         backend.send(type, {});
       } catch (err) {
-        showError(err instanceof Error ? err.message : String(err));
+        showError(err);
       }
     },
     onDidChange: changes.event,
@@ -87,7 +87,7 @@ export function register({ backend, selection, actNow, target, comments }: Voice
           else backend.send("reply", { audio_base64, ...extra });
           selection.clear();
         } catch (err) {
-          showError(err instanceof Error ? err.message : String(err));
+          showError(err);
         }
       }),
       backend.onStateChange((state) => {

@@ -55,7 +55,7 @@ export function register(manager: BackendManager): { repos: Repos; disposables: 
         () => manager.start(picked.root),
       );
     } catch (err) {
-      showError(err instanceof Error ? err.message : String(err));
+      showError(err);
     }
   };
 

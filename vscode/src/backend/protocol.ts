@@ -204,6 +204,7 @@ export interface Settings {
     timeout_seconds?: number | null;
     ollama?: { model?: string | null; base_url?: string | null; num_ctx?: number | null };
     anthropic?: { model?: string | null; max_tokens?: number | null };
+    openai?: { model?: string | null; base_url?: string | null; max_tokens?: number | null };
     [section: string]: unknown;
   };
   tts_settings?: SpeechSettings;

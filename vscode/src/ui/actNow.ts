@@ -81,7 +81,7 @@ export function register(backend: Backend): { actNow: ActNow; disposables: vscod
     try {
       fn();
     } catch (err) {
-      showError(err instanceof Error ? err.message : String(err));
+      showError(err);
     }
   };
 

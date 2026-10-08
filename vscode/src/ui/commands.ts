@@ -20,7 +20,40 @@ export function register(
     try {
       fn();
     } catch (err) {
-      showError(err instanceof Error ? err.message : String(err));
+      showError(err);
+    }
+  };
+
+  // Stores (or clears) a provider API key in VS Code's secret storage. The key reaches
+  // the backend in its environment at start, so a running backend is offered a restart to
+  // pick it up; the review resumes from its saved state. Shared by the Anthropic and the
+  // OpenAI-compatible keys — same mechanism, different secret.
+  const setApiKey = async (secretId: string, label: string): Promise<void> => {
+    const key = await vscode.window.showInputBox({
+      prompt: `${label} (stored in VS Code's secret storage; used on the next backend start)`,
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (key === undefined) return;
+    if (key.trim()) await context.secrets.store(secretId, key.trim());
+    else await context.secrets.delete(secretId);
+    const repo = backend.repoPath;
+    if (backend.state !== "ready" || !repo) return;
+    const choice = await vscode.window.showInformationMessage(
+      "Pear Review: the backend uses the new key once it restarts.",
+      "Restart Now",
+    );
+    if (choice !== "Restart Now") return;
+    try {
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Window, title: "Pear Review: restarting backend" },
+        async () => {
+          await backend.stop();
+          await backend.start(repo);
+        },
+      );
+    } catch (err) {
+      showError(err);
     }
   };
 
@@ -55,7 +88,7 @@ export function register(
       );
       return true;
     } catch (err) {
-      showError(err instanceof Error ? err.message : String(err));
+      showError(err);
       return false;
     }
   };
@@ -78,6 +111,10 @@ export function register(
   return [
     backend.on("presenting", (p) => (currentIndex = p.done ? undefined : p.index)),
     vscode.commands.registerCommand("pearReview.openChanges", openChanges),
+    vscode.commands.registerCommand("pearReview.openChat", async () => {
+      if (!(await openChanges())) return;
+      await vscode.commands.executeCommand("pearReview.chat.focus");
+    }),
     vscode.commands.registerCommand("pearReview.startReview", startReview),
     vscode.commands.registerCommand("pearReview.stopBackend", () => backend.stop()),
     vscode.commands.registerCommand("pearReview.next", () => send(() => backend.send("next", {}))),
@@ -137,35 +174,11 @@ export function register(
       voice.toggle();
     }),
     vscode.commands.registerCommand("pearReview.showLog", () => output.show()),
-    vscode.commands.registerCommand("pearReview.setAnthropicApiKey", async () => {
-      const key = await vscode.window.showInputBox({
-        prompt: "Anthropic API key (stored in VS Code's secret storage; used on the next backend start)",
-        password: true,
-        ignoreFocusOut: true,
-      });
-      if (key === undefined) return;
-      if (key.trim()) await context.secrets.store("pearReview.anthropicApiKey", key.trim());
-      else await context.secrets.delete("pearReview.anthropicApiKey");
-      // The key reaches the backend in its environment, at start. A restart picks it up;
-      // the review resumes from its saved state.
-      const repo = backend.repoPath;
-      if (backend.state !== "ready" || !repo) return;
-      const choice = await vscode.window.showInformationMessage(
-        "Pear Review: the backend uses the new key once it restarts.",
-        "Restart Now",
-      );
-      if (choice !== "Restart Now") return;
-      try {
-        await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Window, title: "Pear Review: restarting backend" },
-          async () => {
-            await backend.stop();
-            await backend.start(repo);
-          },
-        );
-      } catch (err) {
-        showError(err instanceof Error ? err.message : String(err));
-      }
-    }),
+    vscode.commands.registerCommand("pearReview.setAnthropicApiKey", () =>
+      setApiKey("pearReview.anthropicApiKey", "Anthropic API key"),
+    ),
+    vscode.commands.registerCommand("pearReview.setOpenaiApiKey", () =>
+      setApiKey("pearReview.openaiApiKey", "OpenAI-compatible API key (for your proxy/gateway, e.g. the LiteLLM key)"),
+    ),
   ];
 }

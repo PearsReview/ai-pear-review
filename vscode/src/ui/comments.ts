@@ -183,7 +183,7 @@ export function register(
         const result = fn(...args);
         if (result instanceof Promise) result.catch((err: unknown) => showError(String(err)));
       } catch (err) {
-        showError(err instanceof Error ? err.message : String(err));
+        showError(err);
       }
     };
 

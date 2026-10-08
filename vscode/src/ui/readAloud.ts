@@ -291,7 +291,7 @@ export function register(
         if (who === "chat") stopReading();
       }),
       vscode.commands.registerCommand("pearReview.readAloud", (arg: unknown) =>
-        readFileAloud(arg).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err))),
+        readFileAloud(arg).catch((err: unknown) => showError(err)),
       ),
       vscode.commands.registerCommand("pearReview.pauseReading", pauseReading),
       vscode.commands.registerCommand("pearReview.resumeReading", resumeReading),

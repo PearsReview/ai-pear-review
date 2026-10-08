@@ -237,7 +237,7 @@ class ChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable 
           return;
       }
     } catch (err) {
-      showError(err instanceof Error ? err.message : String(err));
+      showError(err);
     }
   }
 

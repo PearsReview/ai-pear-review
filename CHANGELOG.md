@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- `provider: openai` talks to any OpenAI-compatible endpoint: a self-hosted
+  server, or a gateway (LiteLLM, vLLM, an enterprise LLM proxy) fronting
+  several model families. Set `conversation.openai.base_url` and `model`; the
+  key comes from `OPENAI_API_KEY` (or the env var `api_key_env` names). The
+  settings panel lists the endpoint's models. Streamed and cancellable, like
+  the Anthropic provider. Adds the `openai` package to `requirements.txt`;
+  without it, only this provider is unavailable.
+- `~/.config/pear-review/config.yaml`, if present, is deep-merged over
+  `app/config.yaml` at startup, for settings you want across every repo.
+  `REVIEW_USER_CONFIG` names a different file.
+- `install_skills.py --repos-file FILE` installs into every repo listed in
+  FILE; `--check-repos FILE` reports which have missing or outdated skills
+  and writes nothing. Installed skills are now added to the target repo's
+  `.git/info/exclude`, so they no longer show up as changes in the review.
+- `pip install -e .` provides `pear-review` and `pear-install` commands.
+- STT: a lone "you" is no longer discarded as a Whisper hallucination.
+
 ## 0.0.2
 
 - The VS Code extension now lives in this repo, in `vscode/` (its history

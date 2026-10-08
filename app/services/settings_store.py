@@ -37,9 +37,8 @@ _SETTINGS_FILENAME = "ui_settings.json"
 # whatever arrives": this file is written from a WebSocket message, and
 # without it a client could inject arbitrary config (server.host,
 # repo_path, the debug capture flag) into every future run of the app.
-# provider/model/base_url pick the endpoint; num_ctx/max_tokens/
-# timeout_seconds are the three knobs that actually decide whether a call
-# fits and how long it takes.
+# These are the shared conversation keys; the endpoint-picking ones
+# (model/base_url/num_ctx) live per-provider in ALLOWED_PROVIDER_KEYS below.
 ALLOWED_CONVERSATION_KEYS = ("provider", "max_tokens", "timeout_seconds")
 # max_tokens appears in both lists on purpose: the shared one above is the
 # fallback, and a provider block's own value wins (see ConversationClient's
@@ -130,16 +129,16 @@ def sanitize(incoming: dict) -> dict:
     above, dropping anything unrecognised rather than trusting it.
 
     Shape out is {"provider": str, "max_tokens": int, "timeout_seconds":
-    int, "<provider>": {"model": str, "base_url": str, "num_ctx": int}} —
-    provider-specific keys nested under the provider they belong to,
-    mirroring config.yaml's own structure so a flat "model" can never be
-    sent to the wrong API (the footgun config.yaml's `conversation`
-    comment describes)."""
+    int, "<provider>": {"model": str, "base_url": str, "num_ctx": int,
+    "max_tokens": int}} — provider-specific keys nested under the provider
+    they belong to, mirroring config.yaml's own structure so a flat "model"
+    can never be sent to the wrong API (the footgun config.yaml's
+    `conversation` comment describes)."""
     clean: dict = {}
     for key in ALLOWED_CONVERSATION_KEYS:
         if key in incoming:
             clean[key] = incoming[key]
-    for provider in ("ollama", "anthropic"):
+    for provider in ("ollama", "anthropic", "openai"):
         section = incoming.get(provider)
         if isinstance(section, dict):
             kept = {k: section[k] for k in ALLOWED_PROVIDER_KEYS if k in section}
@@ -248,7 +247,7 @@ def apply_overrides(conversation_config: dict, overrides: dict) -> dict:
     those keys out first, for that reason."""
     merged = {**conversation_config}
     for key, value in overrides.items():
-        if key in ("ollama", "anthropic", *SECTION_OVERRIDE_KEYS) and isinstance(value, dict):
+        if key in ("ollama", "anthropic", "openai", *SECTION_OVERRIDE_KEYS) and isinstance(value, dict):
             merged[key] = {**merged.get(key, {}), **value}
         else:
             merged[key] = value
@@ -271,5 +270,10 @@ def effective_settings(conversation_config: dict) -> dict:
         "anthropic": {
             "model": conversation_config.get("anthropic", {}).get("model"),
             "max_tokens": conversation_config.get("anthropic", {}).get("max_tokens"),
+        },
+        "openai": {
+            "model": conversation_config.get("openai", {}).get("model"),
+            "base_url": conversation_config.get("openai", {}).get("base_url"),
+            "max_tokens": conversation_config.get("openai", {}).get("max_tokens"),
         },
     }

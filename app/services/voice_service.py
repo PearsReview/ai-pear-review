@@ -9,10 +9,8 @@ talks to the STTClient/TTSClient interface below, so the actual
 multipart/JSON shape can still be adjusted here in one place if the service
 changes.
 
-Availability isn't polled proactively (there's a GET /health but nothing
-here calls it) — each adapter just reports whether its *last* call
-succeeded, and the server treats a failure as "unavailable for this turn"
-rather than crashing.
+A failed call raises VoiceServiceError; callers treat that as "unavailable
+for this turn" rather than crashing.
 """
 
 from __future__ import annotations
@@ -43,7 +41,6 @@ _HALLUCINATION_PHRASES = {
     "like and subscribe",
     "see you next time",
     "bye",
-    "you",
 }
 
 
@@ -61,22 +58,30 @@ def _audio_upload(audio_bytes: bytes) -> tuple[str, bytes, str]:
     return ("audio.webm", audio_bytes, "audio/webm")
 
 
-class STTClient:
+class _SpeechClient:
+    """Shared endpoint and auth wiring for the STT and TTS adapters.
+
+    Auth is optional — the self-hosted service this app is tested against
+    needs none. Set a token only for a hosted/remote endpoint that requires
+    one. It is never logged or echoed to the client (see
+    settings_store.effective_{stt,tts}_settings, which report only whether
+    one is set)."""
+
     def __init__(self, config: dict) -> None:
         self.endpoint = config["endpoint"]
         self.method = config.get("method", "POST")
-        self.request_format = config.get("request_format", "multipart")
-        self.response_field = config.get("response_field", "text")
-        self.timeout = config.get("timeout_seconds", 15)
-        # Optional — the self-hosted service this app is tested against
-        # needs no auth at all. Set only for a hosted/remote STT endpoint
-        # that requires one. Never logged, never echoed back to the client
-        # (see settings_store.effective_stt_settings, which reports only
-        # whether a token is set, not its value).
         self.token = config.get("token")
 
     def _auth_headers(self) -> dict:
         return {"Authorization": f"Bearer {self.token}"} if self.token else {}
+
+
+class STTClient(_SpeechClient):
+    def __init__(self, config: dict) -> None:
+        super().__init__(config)
+        self.request_format = config.get("request_format", "multipart")
+        self.response_field = config.get("response_field", "text")
+        self.timeout = config.get("timeout_seconds", 15)
 
     def transcribe(self, audio_bytes: bytes) -> str:
         """Sends raw recorded audio to the configured STT endpoint and
@@ -109,17 +114,11 @@ class STTClient:
         return "" if _looks_like_hallucination(text) else text
 
 
-class TTSClient:
+class TTSClient(_SpeechClient):
     def __init__(self, config: dict) -> None:
-        self.endpoint = config["endpoint"]
-        self.method = config.get("method", "POST")
+        super().__init__(config)
         self.request_format = config.get("request_format", "json")
         self.timeout = config.get("timeout_seconds", 30)
-        # Optional — same reasoning as STTClient.token above.
-        self.token = config.get("token")
-
-    def _auth_headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
 
     def synthesize(self, text: str) -> bytes:
         """Sends text to the configured TTS endpoint and returns raw audio

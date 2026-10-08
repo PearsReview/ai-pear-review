@@ -11,5 +11,6 @@ nothing outside that environment changes.
 Already have an environment with the packages? Set `pearReview.pythonPath` to
 its interpreter instead.
 
-The reviewer itself is a model: Ollama on your machine by default, or Claude
-through the Anthropic API (set the key in the chat's ⚙).
+The reviewer itself is a model: Ollama on your machine by default, Claude
+through the Anthropic API, or any OpenAI-compatible endpoint (set the
+provider, and its key, in the chat's ⚙).

@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import { managedVenv, venvPython } from "../backend/python.ts";
-import { log, output, showError } from "../log.ts";
+import { errorMessage, log, output, showError } from "../log.ts";
 
 // "Set Up Python Environment": a venv in the extension's global storage with the
 // backend's packages and sounddevice (the mic and the audio player), made from a
@@ -20,9 +20,12 @@ interface Candidate {
 }
 
 // The interpreters to make the venv from, best first: the one the Python extension has
-// selected for this workspace, then the launcher and the usual names on PATH.
+// selected for this workspace, then the launcher and the usual names on PATH, then the
+// versioned python3.x names (newest first) a Homebrew or pyenv install goes by.
 async function candidates(): Promise<Candidate[]> {
   const found: Candidate[] = [];
+  const configured = vscode.workspace.getConfiguration("pearReview").get<string>("pythonPath")?.trim();
+  if (configured) found.push({ command: configured, args: [], label: `${configured} (pearReview.pythonPath)` });
   const pythonExt = vscode.extensions.getExtension<PythonExtensionApi>("ms-python.python");
   if (pythonExt) {
     try {
@@ -37,6 +40,11 @@ async function candidates(): Promise<Candidate[]> {
   }
   if (process.platform === "win32") found.push({ command: "py", args: ["-3"], label: "py -3" });
   found.push({ command: "python3", args: [], label: "python3" }, { command: "python", args: [], label: "python" });
+  // Versioned names, newest first: on macOS `python3` is often Apple's old build (or
+  // absent), while a usable 3.1x from Homebrew or pyenv is only on PATH as python3.12 etc.
+  for (let minor = 13; minor >= MIN_VERSION[1]; minor--) {
+    found.push({ command: `python${MIN_VERSION[0]}.${minor}`, args: [], label: `python${MIN_VERSION[0]}.${minor}` });
+  }
   return found;
 }
 
@@ -122,7 +130,7 @@ export function register(context: vscode.ExtensionContext): vscode.Disposable[] 
       );
     } catch (err) {
       if (err instanceof vscode.CancellationError) return;
-      showError(`Setting up Python failed: ${err instanceof Error ? err.message : String(err)}`);
+      showError(`Setting up Python failed: ${errorMessage(err)}`);
       return;
     }
     log(`Python setup: ready at ${venv}.`);
@@ -130,8 +138,6 @@ export function register(context: vscode.ExtensionContext): vscode.Disposable[] 
   };
 
   return [
-    vscode.commands.registerCommand("pearReview.setupPython", () =>
-      setUp().catch((err: unknown) => showError(err instanceof Error ? err.message : String(err))),
-    ),
+    vscode.commands.registerCommand("pearReview.setupPython", () => setUp().catch((err: unknown) => showError(err))),
   ];
 }

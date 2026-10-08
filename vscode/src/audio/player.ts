@@ -3,7 +3,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 
 import { resolvePython } from "../backend/python.ts";
-import { log } from "../log.ts";
+import { errorMessage, log } from "../log.ts";
 
 // Speech played by the extension rather than a webview (python/player.py): a webview
 // won't play sound until it has been clicked, and Read Aloud is started from the editor
@@ -63,7 +63,7 @@ export class AudioPlayer implements vscode.Disposable {
     try {
       python = resolvePython(this.extensionPath);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessage(err);
       log(`Player: ${message}`);
       this.events.fire({ event: "error", message });
       return;

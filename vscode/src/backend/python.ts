@@ -33,10 +33,14 @@ export class PythonSetupNeeded extends Error {
 }
 
 export function resolvePython(extensionPath: string): string {
-  const configured = vscode.workspace.getConfiguration("pearReview").get<string>("pythonPath")?.trim();
-  if (configured) return configured;
+  // Prefer the managed venv (created by Set Up Python Environment) and the dev venv over
+  // pearReview.pythonPath: the setting may point at a base interpreter used only to create
+  // the venv, not a fully-equipped one. Fall back to it only when no venv exists, for users
+  // who point it at an interpreter that already has the backend's packages.
   for (const venv of [storageDir ? managedVenv() : undefined, path.join(extensionPath, ".venv")]) {
     if (venv && existsSync(venvPython(venv))) return venvPython(venv);
   }
+  const configured = vscode.workspace.getConfiguration("pearReview").get<string>("pythonPath")?.trim();
+  if (configured) return configured;
   throw new PythonSetupNeeded();
 }

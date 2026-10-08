@@ -28,6 +28,58 @@ unaffected and still works on its own.
   Ollama, plus a local STT/TTS service on port 8000). See the backend's
   [README](https://github.com/PearsReview/ai-pear-review#readme).
 
+## Installing
+
+The extension isn't on the Marketplace, so build it from this repo and install
+the `.vsix`. You need [Node.js](https://nodejs.org) 20 or later.
+
+1. Build the `.vsix`:
+
+   ```
+   git clone https://github.com/PearsReview/ai-pear-review.git
+   cd ai-pear-review/vscode
+   npm install
+   npm run package
+   ```
+
+   This writes `ai-pear-review-<version>.vsix` into the `vscode/` folder, with a
+   copy of the backend inside it.
+
+2. Install it into VS Code, either from the command line:
+
+   ```
+   code --install-extension ai-pear-review-<version>.vsix
+   ```
+
+   or from VS Code itself: open the Extensions view
+   (**Ctrl+Shift+X**, **Cmd+Shift+X** on macOS), click the **⋯** menu at the top
+   of it, and choose **Install from VSIX…**.
+
+3. Reload VS Code when it offers to, then run **Pear Review: Set Up Python
+   Environment** (see [Requirements](#requirements) above) before your first
+   review.
+
+**Platform notes for step 3:**
+
+- **macOS**: if your `python3` is Apple's system build (3.9), the command
+  automatically tries versioned names (`python3.12`, `python3.11`, …), so a
+  Homebrew or pyenv install is found without extra configuration.
+- **Linux**: many distributions ship `python3` without the venv module. If
+  setup fails, install it first:
+  ```
+  sudo apt install python3-venv python3-dev   # Debian/Ubuntu
+  sudo dnf install python3-devel              # Fedora/RHEL
+  ```
+  `sounddevice` also needs PortAudio at runtime for the mic and read-aloud:
+  ```
+  sudo apt install libportaudio2              # Debian/Ubuntu
+  sudo dnf install portaudio                 # Fedora/RHEL
+  ```
+- **Windows**: `py -3` (the Python Launcher) is tried automatically, so a
+  standard python.org install works with no extra steps.
+
+To work on the extension itself instead, see [Developing](#developing) below.
+
 ## Your code and your data
 
 The extension runs a backend on your machine and sends parts of the repository
@@ -132,7 +184,9 @@ settings as the web app's panel:
 - **Preferences**: explain changes automatically or only when you ask, speak
   replies aloud, and voice input on or off. Kept by the extension.
 - **Reviewer model**: provider and model, context size, reply length and
-  timeout, and the Anthropic API key.
+  timeout, and the API key. The provider can be a local Ollama model, the
+  Anthropic API, or any OpenAI-compatible endpoint or gateway (set its base
+  URL and key under **Reviewer model**).
 - **Speech**: the text-to-speech and speech-to-text service endpoints and
   tokens.
 - **Coding agent**: Cline, or none. Act Now and Look deeper need one. The agent
@@ -145,9 +199,11 @@ Model, speech and agent settings are saved per repository, in the same place
 the web app keeps them.
 
 To use the Anthropic API instead of a local model, set the key under
-**Reviewer model** in settings (⚙), then choose Anthropic as the model. The key
-is kept in VS Code's secret storage and passed to the backend when it starts;
-setting it offers to restart the backend so it takes effect.
+**Reviewer model** in settings (⚙), then choose Anthropic as the model. For
+an OpenAI-compatible endpoint, choose OpenAI-compatible, set its base URL,
+and set the key the same way. The key is kept in VS Code's secret storage
+and passed to the backend when it starts; setting it offers to restart the
+backend so it takes effect.
 
 ## Developing
 
@@ -156,7 +212,10 @@ git clone https://github.com/PearsReview/ai-pear-review.git
 cd ai-pear-review/vscode
 npm install
 python -m venv .venv
+# Windows:
 .venv/Scripts/python -m pip install -r ../requirements.txt "sounddevice>=0.4,<1.0"
+# macOS / Linux:
+.venv/bin/python -m pip install -r ../requirements.txt "sounddevice>=0.4,<1.0"
 ```
 
 `npm run package` (and `npm run test:package`) copy the repo's backend into

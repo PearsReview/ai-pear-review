@@ -242,7 +242,7 @@ export function register(
   const guarded =
     (fn: (preset?: unknown) => Promise<void>) =>
     (preset?: unknown): Promise<void> =>
-      fn(preset).catch((err: unknown) => showError(err instanceof Error ? err.message : String(err)));
+      fn(preset).catch((err: unknown) => showError(err));
 
   return [
     manager.onDidChangeActiveRepo(setReadOnly),

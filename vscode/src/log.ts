@@ -12,9 +12,16 @@ export function log(line: string): void {
   output.appendLine(line);
 }
 
+// Any thrown value as a message string — the shape repeated at every catch site.
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 // Every user-facing failure goes through here: logged, then shown with a way to the log
-// (and to the Python set-up when that's the fix).
-export function showError(message: string): void {
+// (and to the Python set-up when that's the fix). Takes any thrown value, so callers can
+// pass a caught error straight through without coercing it first.
+export function showError(error: unknown): void {
+  const message = errorMessage(error);
   log(`ERROR ${message}`);
   const setUp = message.includes(SETUP_PYTHON) ? ["Set Up Python"] : [];
   void vscode.window.showErrorMessage(`Pear Review: ${message}`, ...setUp, "Show Log").then((choice) => {

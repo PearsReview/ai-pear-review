@@ -16,10 +16,12 @@ from .base import (
     ConversationError,
 )
 from .ollama import OllamaProvider
+from .openai_compat import OpenAICompatProvider
 
 REGISTRY: dict[str, type[ChatProvider]] = {
     OllamaProvider.name: OllamaProvider,
     AnthropicProvider.name: AnthropicProvider,
+    OpenAICompatProvider.name: OpenAICompatProvider,
 }
 
 
@@ -48,6 +50,7 @@ __all__ = [
     "ConversationCancelled",
     "ConversationError",
     "OllamaProvider",
+    "OpenAICompatProvider",
     "build_provider",
     "provider_class",
 ]
