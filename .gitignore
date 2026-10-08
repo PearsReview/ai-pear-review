@@ -18,3 +18,7 @@ qa_agent/results/
 qa_agent/pytest_summary.json
 qa_agent/live/results/
 .claude/scheduled_tasks.lock
+# macOS metadata: Finder state, and the AppleDouble sidecars a copy to a
+# non-Apple filesystem (exFAT, SMB) writes next to every file.
+.DS_Store
+._*
