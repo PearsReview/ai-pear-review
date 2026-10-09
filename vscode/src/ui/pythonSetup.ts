@@ -1,15 +1,17 @@
-import { execFile, spawn } from "node:child_process";
-import { existsSync, rmSync } from "node:fs";
-import * as path from "node:path";
+import { execFile } from "node:child_process";
+import { rmSync } from "node:fs";
 import * as vscode from "vscode";
 
-import { managedVenv, venvPython } from "../backend/python.ts";
+import { managedVenv } from "../backend/python.ts";
+import { installPackages, run } from "../backend/pythonPackages.ts";
 import { errorMessage, log, output, showError } from "../log.ts";
 
 // "Set Up Python Environment": a venv in the extension's global storage with the
 // backend's packages and sounddevice (the mic and the audio player), made from a
 // Python 3.10+ found on this machine. One platform-neutral .vsix, at the cost of a
-// download on first use; resolvePython (backend/python.ts) uses it from then on.
+// download on first use; resolvePython (backend/python.ts) uses it from then on, and
+// each backend start refreshes it when a release changes requirements.txt
+// (backend/pythonPackages.ts).
 
 const MIN_VERSION = [3, 10] as const;
 
@@ -72,27 +74,6 @@ function probe(candidate: Candidate): Promise<string | undefined> {
   });
 }
 
-// Runs a command, its output going to the log; rejects on a non-zero exit.
-function run(command: string, args: string[], token: vscode.CancellationToken): Promise<void> {
-  log(`Python setup: ${command} ${args.join(" ")}`);
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { windowsHide: true });
-    const cancel = token.onCancellationRequested(() => child.kill());
-    child.stdout.on("data", (chunk: Buffer) => output.append(chunk.toString("utf8")));
-    child.stderr.on("data", (chunk: Buffer) => output.append(chunk.toString("utf8")));
-    child.once("error", (err) => {
-      cancel.dispose();
-      reject(err);
-    });
-    child.once("exit", (code) => {
-      cancel.dispose();
-      if (token.isCancellationRequested) reject(new vscode.CancellationError());
-      else if (code === 0) resolve();
-      else reject(new Error(`${path.basename(command)} exited with code ${code}. See the log.`));
-    });
-  });
-}
-
 export function register(context: vscode.ExtensionContext): vscode.Disposable[] {
   const setUp = async (): Promise<void> => {
     let base: string | undefined;
@@ -109,9 +90,6 @@ export function register(context: vscode.ExtensionContext): vscode.Disposable[] 
       return;
     }
     const venv = managedVenv();
-    // The .vsix holds the backend in backend/; a checkout (F5) has it one level up.
-    const packaged = path.join(context.extensionPath, "backend", "requirements.txt");
-    const requirements = existsSync(packaged) ? packaged : path.join(context.extensionPath, "..", "requirements.txt");
     try {
       await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: "Pear Review: setting up Python", cancellable: true },
@@ -121,11 +99,7 @@ export function register(context: vscode.ExtensionContext): vscode.Disposable[] 
           rmSync(venv, { recursive: true, force: true });
           await run(base, ["-m", "venv", venv], token);
           progress.report({ message: "installing the backend's packages (a few minutes the first time)" });
-          await run(
-            venvPython(venv),
-            ["-m", "pip", "install", "--disable-pip-version-check", "-r", requirements, "sounddevice>=0.4,<1.0"],
-            token,
-          );
+          await installPackages(venv, context.extensionPath, token);
         },
       );
     } catch (err) {

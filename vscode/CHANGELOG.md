@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- After an upgrade, the Python environment from **Set Up Python Environment**
+  updates itself when the release needs new or different packages (shown as
+  "Pear Review: updating Python packages" when the backend starts), instead of
+  failing until the command is run again.
 - When a review opens with changes that have no up-to-date briefing, a
   warning says so and offers **Brief in Claude Code** / **Brief in Cline**:
   it copies the prep-review instruction and opens that assistant's chat.

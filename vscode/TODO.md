@@ -21,19 +21,18 @@
 
 ## Before sharing
 
-- [ ] `repository`, `bugs` and `homepage` in package.json (the remote is
+- [x] `repository`, `bugs` and `homepage` in package.json (the remote is
       https://github.com/PearsReview/ai-pear-review), then drop
       `--allow-missing-repository` / `--no-rewrite-relative-links`.
-- [ ] Remove `"private": true` from package.json (`vsce publish` refuses it).
-- [ ] A 128×128 PNG icon (`icon` in package.json), and the `PearsReview` publisher
-      created on the Marketplace, with a PAT for `vsce login`.
-- [ ] The backend's 22 mypy errors (all pre-existing): its CI runs mypy.
-- [ ] **Refresh the Python environment on upgrade.** `pythonSetup.ts` installs
-      `backend/requirements.txt` only when the reviewer runs Set Up Python
-      Environment, so a package a release adds stays missing: `openai` did,
-      and the OpenAI-compatible provider failed until the command was rerun.
-      Store a hash of the requirements file in the venv and reinstall when it
-      changes. The main blocker for dropping the beta label.
+- [x] Remove `"private": true` from package.json (`vsce publish` refuses it).
+- [x] A 128×128 PNG icon (`icon` in package.json).
+- [ ] The `PearsReview` publisher created on the Marketplace, with a PAT for
+      `vsce login` (an account step, not code).
+- [x] The backend's mypy errors: `mypy` is clean and CI's Types job passes.
+- [x] **Refresh the Python environment on upgrade.** Each backend start
+      compares a stamp of `requirements.txt` kept in the managed venv
+      (`backend/pythonPackages.ts`) and reinstalls when a release changed it,
+      so a package a release adds (as `openai` was) no longer stays missing.
 
 ## Not yet verified
 

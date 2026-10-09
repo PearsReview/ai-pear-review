@@ -9,4 +9,6 @@ media/chat/codicons/
 .pytest_cache/
 __pycache__/
 .ruff_cache/
-backend/
+# The generated copy of the backend (scripts/syncBackend.mjs). Anchored: unanchored,
+# it also hid new files in src/backend/.
+/backend/

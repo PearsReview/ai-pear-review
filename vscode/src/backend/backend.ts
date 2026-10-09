@@ -5,6 +5,7 @@ import { log } from "../log.ts";
 import { BackendProcess } from "./backendProcess.ts";
 import type { ClientMessageType, ClientPayloads, ServerMessage, ServerMessageType, ServerPayloads } from "./protocol.ts";
 import { resolvePython } from "./python.ts";
+import { refreshPythonPackages } from "./pythonPackages.ts";
 import { WsClient } from "./wsClient.ts";
 
 export type BackendState = "stopped" | "starting" | "ready" | "error";
@@ -117,6 +118,8 @@ export class PythonBackend implements Backend, vscode.Disposable {
       this.setState("error");
     });
     try {
+      // A release may need packages the environment wasn't filled with (never throws).
+      await refreshPythonPackages(this.extensionPath);
       const apiKey = await this.secrets.get("pearReview.anthropicApiKey");
       const openaiKey = await this.secrets.get("pearReview.openaiApiKey");
       // The coding agent's key. The backend passes CLINE_API_KEY to Cline ahead of the
