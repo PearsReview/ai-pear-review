@@ -368,3 +368,33 @@ def test_degraded_mode_shows_the_briefing_as_text(tmp_path):
 
     text = ws.payload("narration")["text"]
     assert "Narration unavailable" in text and SUMMARY in text and INTENT in text
+
+
+def test_degraded_mode_says_why_the_model_is_unavailable(tmp_path):
+    """The connection's own error, not a fixed hint that only names Ollama
+    and Anthropic: an OpenAI-compatible setup missing its key was told to
+    check ANTHROPIC_API_KEY."""
+    session, _ = _session(tmp_path, [_hunk(3)], _briefing())
+    session.conversation = None
+    session.conversation_error = "OPENAI_API_KEY is not set — set it in the settings panel."
+    ws = FakeSocket()
+
+    asyncio.run(narration.present_current_hunk(ws, session))
+
+    text = ws.payload("narration")["text"]
+    assert text.startswith("Narration unavailable: OPENAI_API_KEY is not set")
+    assert "ANTHROPIC_API_KEY" not in text
+
+
+def test_explain_says_why_the_model_is_unavailable(tmp_path):
+    """The Explain button's error carries the connect error too: "check it's
+    configured correctly" left a missing openai package to be found in the log."""
+    session, _ = _session(tmp_path, [_hunk(3)], None)
+    session.conversation = None
+    session.conversation_error = "The openai package is not installed."
+    ws = FakeSocket()
+
+    asyncio.run(narration.handle_explain_hunk(ws, session, {"index": 0}))
+
+    message = ws.payload("error")["message"]
+    assert "no explanations" in message and "openai package is not installed" in message

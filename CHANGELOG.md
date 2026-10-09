@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- `install_skills.py --with-auto-brief`: a Claude Code Stop hook that has the
+  session that made a change run prep-review on it before stopping — only for
+  hunks in files that session edited, at most 15 at a time, once per set. The
+  Cline rule now briefs the task's own changes instead of offering to.
+- The prep-review scanner no longer counts the app's own quick briefings as
+  done, so hunks you'd only looked at in Pear stop reading as briefed.
+- The installer keeps its reminder hook, Cline rule and
+  `.claude/settings.local.json` out of git, as it does the skills: a real
+  auto-brief run listed them as unbriefed changes.
+- When the model can't be reached, "Narration unavailable" and the Explain,
+  reply and file-question errors now give the actual reason (a missing key or
+  package, for the provider in use) instead of a fixed hint about Ollama and
+  `ANTHROPIC_API_KEY`.
+- Explanations with Claude are shorter: 2-3 sentences, about 60 words, drawing
+  on the briefing rather than retelling it.
+
+- Docs: the README now leads with the VS Code extension (its screenshot,
+  install and features, pull request reviews and Read Aloud), with the web
+  app as its own section. Known issues no longer say pull requests can't be
+  reviewed. The web app's guided tour mentions Reopen review.
 - Startup checks: a pull request review counts the PR's commits since its
   merge-base instead of warning that the (normally clean) checkout has nothing
   to review, and `provider: openai` is checked (package, model, key) instead

@@ -3,8 +3,10 @@ import * as vscode from "vscode";
 
 import type { Backend } from "../backend/backend.ts";
 import type { ProgressFile, ProgressHunk, ReviewProgress } from "../backend/protocol.ts";
+import { hunkBriefingLabel } from "../review/briefings.ts";
 import { fileChange, hunkLabel } from "../review/hunks.ts";
 import { publish } from "../testProbe.ts";
+import type { Briefings } from "./briefings.ts";
 import type { Comments } from "./comments.ts";
 import type { Reader } from "./readAloud.ts";
 import type { Repos } from "./repositories.ts";
@@ -14,10 +16,17 @@ type Node = { kind: "file"; file: ProgressFile } | { kind: "hunk"; hunk: Progres
 
 // Files → hunks, from review_progress (which the backend resends on every move and
 // every reviewed toggle), with the hunk on screen marked and revealed.
-export function register(backend: Backend, comments: Comments, reader: Reader, repos: Repos): vscode.Disposable[] {
+export function register(
+  backend: Backend,
+  comments: Comments,
+  reader: Reader,
+  repos: Repos,
+  briefings: Briefings,
+): vscode.Disposable[] {
   const provider = new HunkTreeProvider(
     () => backend.repoPath,
     () => reader.state,
+    briefings,
   );
   const view = vscode.window.createTreeView("pearReview.hunks", { treeDataProvider: provider });
   // Showing the view opens the changes (pearReview.openChanges, quietly): browsing and
@@ -69,6 +78,8 @@ export function register(backend: Backend, comments: Comments, reader: Reader, r
     view.onDidChangeVisibility(openWhenShown),
     // A markdown row's speaker follows its read: pause, play, stop.
     reader.onDidChange(() => provider.refresh()),
+    // A change's row says when it has no up-to-date briefing.
+    briefings.onDidChange(() => provider.refresh()),
     // The row passes its node; these hand its file to VS Code's preview and to Read Aloud.
     vscode.commands.registerCommand("pearReview.tree.preview", (node: Node) => {
       const uri = fileUri(node);
@@ -127,6 +138,7 @@ class HunkTreeProvider implements vscode.TreeDataProvider<Node>, vscode.Disposab
   constructor(
     private readonly repoPath: () => string | undefined,
     private readonly reading: () => { filePath: string; status: string } | undefined,
+    private readonly briefings: Briefings,
   ) {}
 
   refresh(): void {
@@ -188,8 +200,14 @@ class HunkTreeProvider implements vscode.TreeDataProvider<Node>, vscode.Disposab
     const isCurrent = hunk.index === this.current;
     const item = new vscode.TreeItem(hunkLabel(hunk.header), vscode.TreeItemCollapsibleState.None);
     item.id = `hunk:${hunk.index}`;
-    item.description = hunk.reviewed ? "reviewed" : undefined;
-    item.tooltip = hunk.header;
+    const briefing = this.briefings.state(hunk.index);
+    const notes = [hunk.reviewed ? "reviewed" : undefined, hunkBriefingLabel(briefing)].filter(Boolean);
+    item.description = notes.join(" · ") || undefined;
+    item.tooltip =
+      briefing === "out_of_date"
+        ? `${hunk.header}
+No up-to-date briefing: Pear explains this change from the diff alone.`
+        : hunk.header;
     item.iconPath = hunk.reviewed
       ? new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"))
       : new vscode.ThemeIcon(isCurrent ? "arrow-right" : "circle-large-outline");

@@ -15,18 +15,8 @@ from ..web.progress import send_review_progress, send_summary_screen
 from ..web.runtime import cancel_current, send_error, send_json
 from ..web.session import Session
 from .narration import present_current_hunk
+from .prep import send_prep_status
 from .registry import handler
-from .settings import context_status
-
-# What to call each prep file in the drift warning. The settings panel has
-# its own copy of these labels (CONTEXT_FILE_LABELS in settings.js) because it
-# renders the full status list; this only ever names the stale ones.
-_PREP_LABELS = {
-    "project_overview": "project overview",
-    "call_map": "call map",
-    "changeset": "change themes",
-}
-
 
 _ENDED_MARKS_MESSAGE = "The review has ended — reopen it to change what's marked reviewed."
 
@@ -160,6 +150,8 @@ async def refresh_diff(ws: WebSocket, session: Session, notice_message: str | No
             or "Diff refreshed — briefings and reviewed status carried over for unchanged hunks.",
         },
     )
+    if session.hunks:
+        await send_prep_status(ws, session)
 
     if not session.hunks:
         session.index = -1
@@ -232,35 +224,6 @@ async def handle_jump_to_hunk(ws: WebSocket, session: Session, payload: dict) ->
         await send_error(ws, "Invalid hunk to jump to.")
 
 
-async def _warn_about_stale_prep(ws: WebSocket, session: Session) -> None:
-    """Once per review, name any prep file that was written at an earlier
-    commit.
-
-    Only PRESENT-but-stale files, never missing ones: narration runs fine
-    without a prep file, so "you could generate one" is the settings
-    panel's business, not a notice. Stale is the case worth interrupting
-    for, because the app feeds it to the model as fact — measured here, a
-    call map written before a refactor named a deleted module and knew
-    nothing of the package that replaced it."""
-    status = await asyncio.to_thread(context_status, session.repo_path)
-    stale = [key for key, info in status.items() if info.get("present") and info.get("head_moved")]
-    if not stale:
-        return
-    names = ", ".join(_PREP_LABELS.get(key, key) for key in stale)
-    hints = " ".join(f"{status[key]['refresh_hint']}." for key in stale)
-    await send_json(
-        ws,
-        "notice",
-        {
-            "level": "info",
-            "message": (
-                f"The {names} recorded for this repo predate the current commit, and narration uses "
-                f"them as background — they can name code that has since moved or gone. {hints}"
-            ),
-        },
-    )
-
-
 @handler("start_review")
 async def handle_start_review(ws: WebSocket, session: Session, payload: dict) -> None:
     """Starts the review, which is what lets briefing and conversation run
@@ -274,7 +237,6 @@ async def handle_start_review(ws: WebSocket, session: Session, payload: dict) ->
     if not session.review_started:
         session.review_started = True
         save_persisted_state(session.repo_path, session)
-        await _warn_about_stale_prep(ws, session)
         cancel_current(session)
         # Re-present the current hunk rather than duplicating the
         # briefing+conversation logic here: this resends

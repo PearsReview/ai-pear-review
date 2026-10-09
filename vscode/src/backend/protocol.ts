@@ -200,6 +200,20 @@ export interface PrepStatus {
   refresh_hint: string;
 }
 
+// Whether the briefings still describe the change (handlers/prep.py's prep_status),
+// sent when the review opens and after a diff refresh. Indices are hunk indices; a PR
+// review counts none as out of date.
+export interface BriefingStatus {
+  total: number;
+  out_of_date: number[];
+  changed: number;
+  stale_context: string[];
+  latest_change: string | null;
+  latest_briefing: string | null;
+  // The warning to show, or null when there's nothing to say.
+  message: string | null;
+}
+
 export interface Settings {
   settings: {
     provider?: string;
@@ -328,6 +342,7 @@ export interface ServerPayloads {
   recording_result: { audio_base64: string; mime_type: string; duration_seconds: number };
   context_too_large: ContextTooLarge;
   service_status: ServiceStatus;
+  prep_status: BriefingStatus;
   // `event` says what a notice reports, for acting on it rather than its wording
   // (wire-protocol.md, "Fields shared across messages").
   notice: {
@@ -416,6 +431,7 @@ export const SERVER_MESSAGE_TYPES = Object.keys({
   recording_result: true,
   context_too_large: true,
   service_status: true,
+  prep_status: true,
   notice: true,
   error: true,
 } satisfies Record<ServerMessageType, true>);

@@ -236,5 +236,11 @@ export function register(
     vscode.commands.registerCommand("pearReview.setOpenaiApiKey", () =>
       setApiKey("pearReview.openaiApiKey", "OpenAI-compatible API key (for your proxy/gateway, e.g. the LiteLLM key)"),
     ),
+    vscode.commands.registerCommand("pearReview.setAgentApiKey", () =>
+      setApiKey(
+        "pearReview.agentApiKey",
+        "Coding agent API key, for the provider Cline uses (overrides the key saved by `cline auth`; empty to clear)",
+      ),
+    ),
   ];
 }

@@ -388,11 +388,13 @@ async def narrate_current_hunk(ws: WebSocket, session: Session, hunk: Hunk, *, o
         # revisit doesn't re-log this either.
         text = session.narrations.get(session.index)
         if text is None:
-            text = (
-                "Narration unavailable — check the conversation agent is configured "
-                "correctly (Ollama running, or ANTHROPIC_API_KEY set, depending on "
-                "conversation.provider in config.yaml). Showing the raw diff only."
+            # The connection's own error names the provider and what to fix
+            # (a missing key, an unreachable server); without one, point at
+            # where the provider is chosen.
+            reason = session.conversation_error or (
+                "Check the model provider in Pear's settings (conversation.provider in config.yaml)."
             )
+            text = f"Narration unavailable: {reason} Showing the raw diff only."
             briefing = await cached_briefing_only(session, hunk)
             if briefing.usable:
                 context = await load_change_context(session, briefing)
@@ -477,7 +479,7 @@ async def handle_explain_hunk(ws: WebSocket, session: Session, payload: dict) ->
         await send_error(ws, "Explanations are available once the review has started.")
         return
     if session.conversation is None:
-        await send_error(ws, "Conversation agent unavailable — check it's configured correctly to enable explanations.")
+        await send_error(ws, session.conversation_unavailable("explanations"))
         return
     await narrate_current_hunk(ws, session, hunk, on_request=True)
 
@@ -503,7 +505,7 @@ async def handle_reply(ws: WebSocket, session: Session, payload: dict) -> None:
         return
 
     if session.conversation is None:
-        await send_error(ws, "Conversation agent unavailable — check it's configured correctly to enable replies.")
+        await send_error(ws, session.conversation_unavailable("replies"))
         return
 
     human_text = payload.get("text")

@@ -115,47 +115,6 @@ def test_rapid_next_clicks_each_advance(tmp_path, monkeypatch):
     assert session.index == 2
 
 
-def _run_stale_prep_warning(tmp_path, monkeypatch, status: dict) -> FakeSocket:
-    monkeypatch.setattr(review_flow, "context_status", lambda repo_path: status)
-    ws = FakeSocket()
-    asyncio.run(review_flow._warn_about_stale_prep(ws, Session([], None, str(tmp_path))))
-    return ws
-
-
-def test_prep_written_before_the_current_commit_is_warned_about(tmp_path, monkeypatch):
-    """Stale prep is fed to the model as background fact. Measured on this
-    repo: a call map written before a refactor named a module that had been
-    deleted, and knew nothing of the package that replaced it."""
-    ws = _run_stale_prep_warning(
-        tmp_path,
-        monkeypatch,
-        {
-            "call_map": {
-                "present": True,
-                "head_moved": True,
-                "refresh_hint": "Ask Claude Code: use the call-map skill",
-            },
-        },
-    )
-    assert ws.types() == ["notice"]
-    assert "call map" in ws.sent[0]["payload"]["message"]
-    assert "use the call-map skill" in ws.sent[0]["payload"]["message"]
-
-
-def test_a_missing_prep_file_is_not_warned_about(tmp_path, monkeypatch):
-    """Narration runs fine without one, so "you could generate this" stays
-    in the settings panel rather than interrupting a review."""
-    ws = _run_stale_prep_warning(
-        tmp_path,
-        monkeypatch,
-        {
-            "call_map": {"present": False, "refresh_hint": "Ask Claude Code: use the call-map skill"},
-            "project_overview": {"present": True, "head_moved": False, "refresh_hint": "x"},
-        },
-    )
-    assert ws.sent == []
-
-
 def test_tts_settings_change_reaches_the_next_spoken_turn(tmp_path, monkeypatch):
     """runtime.TTS is rebound by set_settings; a module that had done
     `from runtime import TTS` would keep speaking through the old client."""

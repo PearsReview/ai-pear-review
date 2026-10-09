@@ -24,6 +24,12 @@ reminders: a Claude Code Stop hook, registered in .claude/settings.local.json
 (personal, not the team's shared settings.json), and a Cline rule under
 .clinerules/. Opt-in, because it changes how the agent behaves in that repo
 rather than only adding skills it can be asked to run.
+
+--with-auto-brief installs the same files, but registers the hook in its
+blocking mode: when a Claude Code session stops with unbriefed hunks in
+files it edited, the hook has it carry on and run prep-review there and
+then (see .claude/hooks/briefing_reminder.py). It replaces the reminder
+hook if that was registered, and the other way round.
 """
 
 from __future__ import annotations
@@ -39,7 +45,9 @@ SOURCE_DIR = APP_DIR / ".claude" / "skills"
 
 # judge-live-review is deliberately not here: it reads this project's own
 # qa_agent/live/ results, so it means nothing in a repo being reviewed.
-REVIEWER_SKILLS = ("project-overview", "call-map", "prep-review")
+# call-map is left out while the app doesn't read its output (see
+# vscode/TODO.md).
+REVIEWER_SKILLS = ("project-overview", "prep-review")
 
 # --with-reminders: report name -> file, relative to both this app and the
 # target repo. The hook needs prep-review's scan_hunks.py, which the skills
@@ -49,6 +57,7 @@ REMINDER_FILES = {
     "Cline reminder rule": Path(".clinerules/prep-review-reminder.md"),
 }
 HOOK_COMMAND = 'python "$CLAUDE_PROJECT_DIR/.claude/hooks/briefing_reminder.py"'
+AUTO_BRIEF_HOOK_COMMAND = f"{HOOK_COMMAND} --auto-brief"
 HOOK_SETTINGS = Path(".claude/settings.local.json")
 
 # Build artefacts of the scripts, created by running them. Copying them
@@ -61,14 +70,22 @@ _SKIP_SUFFIXES = {".pyc", ".pyo"}
 # session_store.ensure_artifacts_ignored does for the app's runtime files.
 _SKILL_EXCLUDE_HEADER = "# AI Pear Review prep skills (auto-excluded by install_skills.py):"
 _SKILL_EXCLUDE_PATTERNS = tuple(f"/.claude/skills/{s}/" for s in REVIEWER_SKILLS)
+# The reminder files and the personal settings the hook is registered in.
+# Left out, they show up in the review as unbriefed changes that nobody in
+# the session wrote (seen in a real auto-brief run).
+_REMINDER_EXCLUDE_PATTERNS = (
+    *(f"/{path.as_posix()}" for path in REMINDER_FILES.values()),
+    f"/{HOOK_SETTINGS.as_posix()}",
+)
 
 
 class InstallError(Exception):
     """Something about the target repo means we should not write to it."""
 
 
-def _exclude_skills_from_git(repo: Path, dry_run: bool = False) -> str | None:
-    """Adds the prep skill directories to .git/info/exclude.
+def _exclude_skills_from_git(repo: Path, dry_run: bool = False, with_reminders: bool = False) -> str | None:
+    """Adds the prep skill directories, and with_reminders the reminder
+    files and settings.local.json, to .git/info/exclude.
 
     Returns a one-line status string if anything was added, None if already
     present. Best-effort: a missing .git directory, read-only files, or
@@ -80,7 +97,8 @@ def _exclude_skills_from_git(repo: Path, dry_run: bool = False) -> str | None:
     exclude = info_dir / "exclude"
     try:
         existing = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
-        missing = [p for p in _SKILL_EXCLUDE_PATTERNS if p.strip("/") not in existing]
+        patterns = _SKILL_EXCLUDE_PATTERNS + (_REMINDER_EXCLUDE_PATTERNS if with_reminders else ())
+        missing = [p for p in patterns if p.strip("/") not in existing]
         if not missing:
             return None
         if not dry_run:
@@ -152,9 +170,11 @@ def _cline_rules_is_a_file(repo: Path) -> bool:
     return (repo / ".clinerules").is_file()
 
 
-def register_hook(repo: Path, dry_run: bool = False) -> str:
-    """Adds the reminder to settings.local.json's Stop hooks, keeping
-    everything already there. Returns one report line."""
+def register_hook(repo: Path, dry_run: bool = False, auto_brief: bool = False) -> str:
+    """Adds the hook to settings.local.json's Stop hooks, in reminder or
+    auto-brief mode, keeping everything already there except this app's
+    hook in the other mode (with both, the reminder would nag about what
+    is being briefed). Returns one report line."""
     path = repo / HOOK_SETTINGS
     try:
         settings = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -163,15 +183,23 @@ def register_hook(repo: Path, dry_run: bool = False) -> str:
     if not isinstance(settings, dict):
         return f"  hook registration: skipped — {HOOK_SETTINGS.as_posix()} isn't a JSON object"
 
+    wanted, other = (AUTO_BRIEF_HOOK_COMMAND, HOOK_COMMAND) if auto_brief else (HOOK_COMMAND, AUTO_BRIEF_HOOK_COMMAND)
+    mode = "auto-brief" if auto_brief else "reminder"
     stop = settings.setdefault("hooks", {}).setdefault("Stop", [])
     commands = [hook.get("command") for group in stop for hook in group.get("hooks", [])]
-    if HOOK_COMMAND in commands:
-        return f"  hook registration: already in {HOOK_SETTINGS.as_posix()}"
-    stop.append({"hooks": [{"type": "command", "command": HOOK_COMMAND, "timeout": 20}]})
+    replacing = other in commands
+    if wanted in commands and not replacing:
+        return f"  hook registration ({mode}): already in {HOOK_SETTINGS.as_posix()}"
+    for group in stop:
+        group["hooks"] = [hook for hook in group.get("hooks", []) if hook.get("command") != other]
+    stop[:] = [group for group in stop if group["hooks"]]
+    if wanted not in commands:
+        stop.append({"hooks": [{"type": "command", "command": wanted, "timeout": 20}]})
     if not dry_run:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-    return f"  hook registration: {'to add to' if dry_run else 'added to'} {HOOK_SETTINGS.as_posix()}"
+    note = f", replacing the {'reminder' if auto_brief else 'auto-brief'} hook" if replacing else ""
+    return f"  hook registration ({mode}): {'to add to' if dry_run else 'added to'} {HOOK_SETTINGS.as_posix()}{note}"
 
 
 def check_target(repo: Path) -> Path:
@@ -189,14 +217,22 @@ def check_target(repo: Path) -> Path:
     return resolved
 
 
-def install(repo: Path, force: bool = False, dry_run: bool = False, with_reminders: bool = False) -> list[str]:
+def install(
+    repo: Path,
+    force: bool = False,
+    dry_run: bool = False,
+    with_reminders: bool = False,
+    auto_brief: bool = False,
+) -> list[str]:
     """Copies what's missing or outdated. Returns one report line per skill
-    (and per reminder piece, with_reminders).
+    (and per reminder piece, with_reminders or auto_brief: the same files,
+    with the hook registered in its blocking mode for auto_brief).
 
     Never silently overwrites a file whose content differs: that file may be
     your own edit of a skill, and losing it is worse than leaving the install
     incomplete. Those are reported and skipped unless force is set.
     """
+    with_reminders = with_reminders or auto_brief
     lines = []
     conflicts = 0
     for skill, entries in plan(repo, with_reminders).items():
@@ -227,11 +263,11 @@ def install(repo: Path, force: bool = False, dry_run: bool = False, with_reminde
         else:
             lines.append(f"  {skill}: already up to date")
     if with_reminders:
-        lines.append(register_hook(repo, dry_run))
+        lines.append(register_hook(repo, dry_run, auto_brief))
     if conflicts and not force:
         lines.append("")
         lines.append(f"{conflicts} file(s) differ from this app's copy and were kept. Pass --force to overwrite them.")
-    exclude_line = _exclude_skills_from_git(repo, dry_run)
+    exclude_line = _exclude_skills_from_git(repo, dry_run, with_reminders)
     if exclude_line:
         lines.append(exclude_line)
     return lines
@@ -255,6 +291,12 @@ def main() -> None:
         action="store_true",
         help="also install the Claude Code Stop hook and Cline rule that remind you to run prep-review",
     )
+    parser.add_argument(
+        "--with-auto-brief",
+        action="store_true",
+        help="as --with-reminders, but the Stop hook has Claude Code run prep-review on the hunks it edited "
+        "before it stops (adds roughly 14 s a hunk to the end of a turn)",
+    )
     args = parser.parse_args()
 
     if args.check_repos:
@@ -267,6 +309,7 @@ def main() -> None:
             force=args.force,
             dry_run=args.dry_run,
             with_reminders=args.with_reminders,
+            auto_brief=args.with_auto_brief,
         )
         return
 
@@ -276,13 +319,19 @@ def main() -> None:
         raise SystemExit(f"Not installing — {exc}") from exc
 
     print(f"Prep skills -> {repo / '.claude' / 'skills'}\n")
-    for line in install(repo, force=args.force, dry_run=args.dry_run, with_reminders=args.with_reminders):
+    for line in install(
+        repo,
+        force=args.force,
+        dry_run=args.dry_run,
+        with_reminders=args.with_reminders,
+        auto_brief=args.with_auto_brief,
+    ):
         print(line)
     if args.dry_run:
         return
     print(
         "\nOpen your coding agent (Claude Code or Cline) in that repo and run the\n"
-        "project-overview, call-map and prep-review skills before starting a review.\n"
+        "project-overview and prep-review skills before starting a review.\n"
         "The files they write (.context/, .briefing/) are read by this app.\n"
         "\nThe installed files were added to .git/info/exclude, so they stay out of\n"
         "the review. Commit them (or add them to .gitignore) if you'd rather share\n"
@@ -318,6 +367,7 @@ def _cmd_batch_install(
     force: bool = False,
     dry_run: bool = False,
     with_reminders: bool = False,
+    auto_brief: bool = False,
 ) -> None:
     try:
         repo_paths = _load_repos_file(repos_file)
@@ -334,7 +384,7 @@ def _cmd_batch_install(
             print(f"{rp}\n  [FAIL] {exc}\n")
             continue
         print(f"{repo}")
-        for line in install(repo, force=force, dry_run=dry_run, with_reminders=with_reminders):
+        for line in install(repo, force=force, dry_run=dry_run, with_reminders=with_reminders, auto_brief=auto_brief):
             print(line)
         print()
 

@@ -61,6 +61,14 @@ describe("a pull request review", () => {
     assert.deepEqual(tree.files.map((f) => f.label).sort(), ["calc.py", "mul.py"]);
   });
 
+  it("doesn't ask for briefings: a PR's own text says why", async () => {
+    const status = await waitFor("the briefing status", () =>
+      probe<{ out_of_date: number[] } | undefined>("briefings.status"),
+    );
+    assert.deepEqual(status.out_of_date, []);
+    assert.deepEqual(await probe<string[]>("briefings.warnings"), []);
+  });
+
   it("has no Act Now", async () => {
     await vscode.commands.executeCommand("pearReview.actNow.toggle");
     assert.equal((await probe<{ active: boolean }>("actNow.state")).active, false);

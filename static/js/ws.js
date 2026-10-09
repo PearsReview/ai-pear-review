@@ -108,6 +108,11 @@ ws.addEventListener("message", (event) => {
     case "notice":
       showNotice(msg.payload.message, msg.payload.level);
       break;
+    case "prep_status":
+      // Briefings behind the code (handlers/prep.py): said when the review
+      // opens or the diff is refreshed. The message says how to brief them.
+      if (msg.payload.message) showNotice(msg.payload.message, "info");
+      break;
     case "settings":
       onSettings(msg.payload);
       break;

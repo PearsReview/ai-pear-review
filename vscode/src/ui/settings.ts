@@ -27,7 +27,6 @@ const PROVIDERS = [
 
 const PREP_LABELS: Record<string, string> = {
   project_overview: "Project overview",
-  call_map: "Call map",
   changeset: "Change briefings",
 };
 
@@ -374,6 +373,16 @@ export function register(context: vscode.ExtensionContext, backend: Backend, pre
             ? `${AGENT_LABELS[harness.agent] ?? harness.agent}${harness.agent !== "none" && harness.model ? ` · ${harness.model}` : ""}`
             : "",
           run: () => chooseAgent(),
+        },
+        {
+          label: "$(key) Coding agent API key",
+          description: (await context.secrets.get("pearReview.agentApiKey"))
+            ? "set"
+            : "not set — uses the key saved by `cline auth`",
+          detail: "For Act Now and Look deeper. The Cline extension's own key doesn't reach them.",
+          run: async () => {
+            await vscode.commands.executeCommand("pearReview.setAgentApiKey");
+          },
         },
         {
           label: "$(book) Review context",

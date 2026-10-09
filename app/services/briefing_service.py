@@ -85,6 +85,9 @@ _BRIEFING_SCHEMA = {
 # mechanical rename as N unrelated edits) — the prompt adds summary and
 # related hunks for these even when the diff fits. See _briefing_lines.
 MISLEADING_DIFF_KINDS = ("move", "mechanical")
+# Who wrote a briefing that counts as investigated: the prep-review skill
+# (write_briefing.py). The app's own are "generated", a guess from the diff.
+SOURCE_SKILL = "prep-review-skill"
 
 # Match the prep-review skill's write_briefing.py caps. The skill refuses
 # longer text; truncating here is the safety net for a hand-edited file.
@@ -228,6 +231,66 @@ def prune_briefing_cache(repo_path: str, hunks: list[Hunk]) -> None:
                 path.unlink()  # unreadable is as useless as stale
             except OSError:
                 pass  # caching is a nice-to-have, never worth failing the request over
+
+
+def briefing_states(repo_path: str, hunks: list[Hunk]) -> list[str]:
+    """Each hunk's investigated briefing, as "current", "changed" or "missing".
+
+    current — an investigated briefing matches this exact diff (a "low"
+              confidence one counts: it records that someone looked).
+    changed — an investigated briefing was written for this hunk, or for
+              another spot in the same file that matches no current hunk,
+              and the code has moved on since.
+    missing — nothing investigated was ever written for it.
+
+    The app's own "generated" briefings never make a hunk current: they're
+    a guess from the diff alone, which is what the warning is about.
+    "changed" is best-effort — prune_briefing_cache deletes outdated files
+    on a diff refresh, after which those hunks read as "missing"."""
+    current_hashes = {_hunk_content_hash(hunk.diff_context) for hunk in hunks}
+    outdated_files: set[str] = set()
+    cache_dir = Path(repo_path) / _CACHE_DIR
+    if cache_dir.is_dir():
+        for path in cache_dir.glob("*.json"):
+            data = _read_json(path)
+            if (
+                data
+                and data.get("source") == SOURCE_SKILL
+                and data.get("content_hash") not in current_hashes
+                and isinstance(data.get("file_path"), str)
+            ):
+                outdated_files.add(data["file_path"])
+
+    states = []
+    for hunk in hunks:
+        data = _read_json(_pregenerated_briefing_path(repo_path, hunk))
+        investigated = bool(data) and data.get("source") == SOURCE_SKILL
+        if investigated and data.get("content_hash") == _hunk_content_hash(hunk.diff_context) and data.get("intent"):
+            states.append("current")
+        elif investigated or hunk.file_path in outdated_files:
+            states.append("changed")
+        else:
+            states.append("missing")
+    return states
+
+
+def newest_investigated_briefing(repo_path: str) -> float | None:
+    """When the newest investigated briefing was written (a file mtime), or None."""
+    cache_dir = Path(repo_path) / _CACHE_DIR
+    times = [
+        path.stat().st_mtime
+        for path in (cache_dir.glob("*.json") if cache_dir.is_dir() else [])
+        if (_read_json(path) or {}).get("source") == SOURCE_SKILL
+    ]
+    return max(times, default=None)
+
+
+def _read_json(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 class BriefingClient:

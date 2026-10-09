@@ -61,6 +61,23 @@ describe("review loop", () => {
     assert.match((await tree()).description ?? "", /0\/5 reviewed/);
   });
 
+  it("warns that no change has a briefing, and marks each one's row", async () => {
+    const warnings = await waitFor("the briefing warning", async () => {
+      const shown = await probe<string[]>("briefings.warnings");
+      return shown.length ? shown : undefined;
+    });
+    assert.match(warnings[0] ?? "", /5 of 5 changes have no up-to-date briefing/);
+    assert.match(warnings[0] ?? "", /use the prep-review skill/);
+    // One per installed assistant (Claude Code, Cline), or a copy when neither is.
+    const buttons = await probe<string[]>("briefings.buttons");
+    assert.ok(buttons.length && buttons.every((b) => /^Brief in |^Copy Instruction$/.test(b)), buttons.join(", "));
+    const rows = (await tree()).files.flatMap((f) => f.hunks ?? []);
+    assert.ok(
+      rows.every((h) => /not briefed/.test(h.description ?? "")),
+      "every row is marked",
+    );
+  });
+
   it("opens the first hunk as a diff with its added line highlighted", async () => {
     const h = await goTo(0, "calc.py");
     assert.ok(h.uri.startsWith("file:"), "added lines are highlighted on the working-file side");

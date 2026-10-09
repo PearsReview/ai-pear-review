@@ -103,6 +103,7 @@ this table and the registry disagree.
 | `context_too_large` | `handlers/narration.py`, `handlers/explore.py` |
 | `service_status` | many — any handler that learns a service is up or down |
 | `notice` | many — non-fatal, informational |
+| `prep_status` | `app/server.py` on connect and `handlers/review_flow.py` after a diff refresh (`total`; `out_of_date`: hunk indices with no up-to-date prep-review briefing, none in a PR review; `changed`; `stale_context`; `latest_change`, `latest_briefing`: ISO times or null; `message`: the warning to show, or null) |
 | `error` | `web/runtime.py` |
 
 ## Fields shared across messages

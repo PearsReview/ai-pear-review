@@ -119,6 +119,10 @@ export class PythonBackend implements Backend, vscode.Disposable {
     try {
       const apiKey = await this.secrets.get("pearReview.anthropicApiKey");
       const openaiKey = await this.secrets.get("pearReview.openaiApiKey");
+      // The coding agent's key. The backend passes CLINE_API_KEY to Cline ahead of the
+      // key `cline auth` saved (harness_service.resolve_agent_env), which the Cline
+      // extension's own settings never reach.
+      const agentKey = await this.secrets.get("pearReview.agentApiKey");
       this.port = await proc.start({
         python: resolvePython(this.extensionPath),
         extensionPath: this.extensionPath,
@@ -126,6 +130,7 @@ export class PythonBackend implements Backend, vscode.Disposable {
         env: {
           ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}),
           ...(openaiKey ? { OPENAI_API_KEY: openaiKey } : {}),
+          ...(agentKey ? { CLINE_API_KEY: agentKey } : {}),
           ...backendEnv(repoPath),
         },
       });
