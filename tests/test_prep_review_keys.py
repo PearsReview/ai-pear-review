@@ -169,7 +169,14 @@ def test_scan_reports_state_transitions(repo: Path):
     path = writer.briefing_path(str(repo), target["file_path"], target["header"])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        __import__("json").dumps({"content_hash": target["content_hash"], "intent": "recorded", "confidence": "high"}),
+        __import__("json").dumps(
+            {
+                "content_hash": target["content_hash"],
+                "intent": "recorded",
+                "confidence": "high",
+                "source": "prep-review-skill",  # what write_briefing.py writes; the app's own don't count
+            }
+        ),
         encoding="utf-8",
     )
     assert _find(scanner.scan(str(repo)), "pkg/nested.py")["state"] == "fresh"

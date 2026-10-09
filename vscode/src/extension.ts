@@ -8,6 +8,7 @@ import { output } from "./log.ts";
 import { readingPlugin, type MarkdownItLike } from "./review/markdownReading.ts";
 import { read, testMode } from "./testProbe.ts";
 import * as actNow from "./ui/actNow.ts";
+import * as briefingsUi from "./ui/briefings.ts";
 import * as chatPanel from "./ui/chatPanel.ts";
 import * as commands from "./ui/commands.ts";
 import * as comments from "./ui/comments.ts";
@@ -48,6 +49,7 @@ export function activate(context: vscode.ExtensionContext): {
   const reading = readingHighlight.register(backend);
   const reader = readAloud.register(context, backend, reading.highlight, speaking);
   const review = comments.register(backend, selection.selection);
+  const briefings = briefingsUi.register(backend);
   const recorder = voice.register({
     backend,
     selection: selection.selection,
@@ -62,9 +64,10 @@ export function activate(context: vscode.ExtensionContext): {
     ...statusBar.register(backend),
     ...notices.register(backend),
     ...review.disposables,
+    ...briefings.disposables,
     ...repos.disposables,
     ...pythonSetup.register(context),
-    ...hunkTree.register(backend, review.comments, reader.reader, repos.repos),
+    ...hunkTree.register(backend, review.comments, reader.reader, repos.repos, briefings.briefings),
     ...diffView.register(backend),
     ...selection.disposables,
     ...agent.disposables,

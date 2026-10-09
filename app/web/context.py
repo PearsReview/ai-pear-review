@@ -23,7 +23,6 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ..services.briefing_service import Briefing, ChangeContext, RelatedHunk
-from ..services.call_map import call_map_prompt_block
 from ..services.changeset import theme
 from ..services.diff_service import Hunk
 from ..services.editor_service import code_fence, hunk_line_range
@@ -57,8 +56,12 @@ def context_scale(session: Session) -> int:
 
 def build_project_context(session: Session, hunk: Hunk) -> str | None:
     """The repo-level background for one hunk's opening narration turn:
-    what the project is, what this file is for, and who calls the code
-    being changed.
+    what the project is, what this file is for, and where this hunk sits
+    in the change.
+
+    The call-map skill's callers block is no longer included: the map only
+    covers Python, and callers are to come from the coding agent instead
+    (see vscode/TODO.md).
 
     Assembled here rather than inside ConversationClient because every
     piece of it comes from a file some .claude/ skill wrote — the app
@@ -66,9 +69,7 @@ def build_project_context(session: Session, hunk: Hunk) -> str | None:
     the app never drives a CLI itself). Both blocks are already sliced and
     budget-capped by their own modules; this only decides the order.
 
-    Order is deliberate: the overview frames what the call map means. A
-    reviewer told "charge() is called by checkout()" first and "this is a
-    payments service" second has to re-read the first line.
+    Order is deliberate: the overview frames everything after it.
 
     Returns None when no skill has run, which is the common case and is
     exactly the pre-skill behaviour.
@@ -76,7 +77,6 @@ def build_project_context(session: Session, hunk: Hunk) -> str | None:
     scale = context_scale(session)
     blocks = [
         overview_prompt_block(session.repo_path, hunk.file_path, scale),
-        call_map_prompt_block(session.repo_path, hunk.file_path, hunk.diff_context, scale),
         change_shape_block(session.hunks, hunk),
     ]
     present = [block for block in blocks if block]
@@ -100,8 +100,7 @@ def change_shape_block(hunks: list[Hunk], hunk: Hunk) -> str | None:
 
     Facts only, and an explicit instruction not to speculate. Naming files
     the model cannot see is an invitation to invent relationships between
-    them, which is the same failure mode the call map avoids by never
-    claiming an absence.
+    them.
     """
     if len(hunks) <= 1:
         return None  # a single-hunk change has no shape to describe

@@ -9,7 +9,6 @@ from fastapi import WebSocket
 
 from ..providers import REGISTRY as PROVIDERS
 from ..providers.base import DEFAULT_PROVIDER, Capability, ConversationError
-from ..services.call_map import call_map_status
 from ..services.changeset import changeset_status
 from ..services.diff_service import get_head_sha
 from ..services.project_overview import overview_status
@@ -99,16 +98,15 @@ def context_status(repo_path: str) -> dict:
     app never invokes a CLI agent itself (see briefing_service.py).
 
     Runs off-thread: it shells out to git for HEAD. Also called by
-    review_flow at review start, to warn when a prep file has drifted."""
+    review_flow at review start, to warn when a prep file has drifted.
+
+    The call map is left out on purpose: narration no longer reads it, so
+    the reviewer isn't asked to build or refresh it (see vscode/TODO.md)."""
     head = get_head_sha(repo_path)
     return {
         "project_overview": {
             **overview_status(repo_path, head),
             "refresh_hint": "Ask Claude Code: use the project-overview skill",
-        },
-        "call_map": {
-            **call_map_status(repo_path, head),
-            "refresh_hint": "Ask Claude Code: use the call-map skill",
         },
         "changeset": {
             **changeset_status(repo_path, head),

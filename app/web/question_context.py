@@ -2,13 +2,16 @@
 the question asks — rather than injected into every prompt.
 
 A small model on CPU pays for every token in the window, and a narration
-already carries project context, the call map and the briefing. So the
-facts below are fetched only when a reply's question makes them relevant:
+already carries project context and the briefing. So the facts below are
+fetched only when a reply's question makes them relevant:
 
-    "is this tested?"          -> direct test calls (call map)
-    "who calls this?"          -> callers (call map), unless already in history
     "why was this changed?"    -> commit subjects for these lines, when no briefing says why
     "what does `foo` do?"      -> foo's definition, for identifiers the hunk mentions
+
+"Who calls this?" and "is this tested?" used to be answered from the
+call-map skill's .context/call_map.json. That is switched off: the map
+only covers Python, and these questions are to move to the coding agent
+(see vscode/TODO.md). Until then they get no extra context.
 
 Routing is keyword matching, deliberately not a model call: classifying
 the question with the same CPU model would double the wait for a reply.
@@ -25,7 +28,6 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..services.call_map import call_map_prompt_block, coverage_prompt_block
 from ..services.code_search import Definition, DefinitionNotFound, find_definition
 from ..services.diff_service import Hunk, line_history
 from ..services.editor_service import code_fence
@@ -34,17 +36,11 @@ from .session import Session
 
 # Total characters added to one reply's prompt, all routes together
 # (~225 tokens). A block that doesn't fit whole is skipped, not truncated:
-# half a definition or half a caller list misleads more than none.
+# half a definition misleads more than none.
 _MAX_CHARS = 900
 _MAX_DEFINITIONS = 2
 _DEFINITION_CONTEXT_LINES = 3
 
-_TESTS_RE = re.compile(r"\b(tests?|tested|testing|coverage|covered)\b", re.IGNORECASE)
-_CALLERS_RE = re.compile(
-    r"\b(callers?|called\s+(?:by|from)|who\s+(?:calls|uses)|used\s+by|depends?\s+on|dependents?|"
-    r"break|breaks|impact|affects?)\b",
-    re.IGNORECASE,
-)
 _WHY_RE = re.compile(r"\b(why|reason|reasons|motivation|history|when\s+was)\b", re.IGNORECASE)
 _BACKTICKED_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*)(?:\(\))?`")
 _CODE_LIKE_RE = re.compile(
@@ -64,10 +60,6 @@ class QuestionContext:
 def routes_for(question: str) -> list[str]:
     """Which lookups a question calls for, in the order they're added."""
     found = []
-    if _TESTS_RE.search(question):
-        found.append("tests")
-    if _CALLERS_RE.search(question):
-        found.append("callers")
     if _WHY_RE.search(question):
         found.append("why")
     if _identifiers(question):
@@ -104,16 +96,7 @@ def question_context(
     scale = context_scale(session)
     blocks: list[tuple[str, str]] = []
     for route in routes_for(question):
-        if route == "tests":
-            block = coverage_prompt_block(session.repo_path, hunk.file_path, hunk.diff_context)
-            if block:
-                blocks.append((route, block))
-        elif route == "callers":
-            block = call_map_prompt_block(session.repo_path, hunk.file_path, hunk.diff_context, scale)
-            # Narration's opening prompt already carries this; don't send it twice.
-            if block and not any(block in (m.get("content") or "") for m in history):
-                blocks.append((route, block))
-        elif route == "why" and not briefing_explains_why:
+        if route == "why" and not briefing_explains_why:
             commits = history_lookup(session.repo_path, hunk)
             if commits:
                 blocks.append(

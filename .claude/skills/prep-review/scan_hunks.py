@@ -33,6 +33,9 @@ from pathlib import Path
 HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _DIFF_GIT_RE = re.compile(r"^diff --git a/(.*) b/(.*)$")
 _GIT_TIMEOUT_SECONDS = 15
+# Briefings that count as done: this skill's (write_briefing.py). A copy of
+# briefing_service.SOURCE_SKILL, kept standalone like the rest of this file.
+SOURCE_SKILL = "prep-review-skill"
 
 
 def _git(repo: str, *args: str) -> str:
@@ -158,17 +161,22 @@ def scan(repo: str) -> list[dict]:
 
 
 def _existing_state(path: Path, diff_context: str) -> str:
-    """fresh   — a usable briefing already matches this exact diff
+    """fresh   — an investigated briefing already matches this exact diff
     stale   — one exists but the code changed under it (app ignores it)
-    missing — nothing written yet
+    missing — nothing investigated written yet
     Mirrors _load_cached's own checks, including its "empty intent means
-    an unfilled skeleton, treat as unusable" rule."""
+    an unfilled skeleton, treat as unusable" rule. The app's own quick
+    briefing ("source": "generated") lands in the same file but is a guess
+    from the diff, so it counts as missing: otherwise every hunk the
+    reviewer has looked at would read as briefed."""
     if not path.exists():
         return "missing"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return "stale"
+    if data.get("source") != SOURCE_SKILL:
+        return "missing"
     if data.get("content_hash") != content_hash(diff_context):
         return "stale"
     return "fresh" if data.get("intent") else "missing"

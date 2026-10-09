@@ -39,6 +39,7 @@ from fastapi.staticfiles import StaticFiles
 from .handlers import dispatch
 from .handlers.comments import pending_comments_payload
 from .handlers.narration import present_current_hunk
+from .handlers.prep import send_prep_status
 from .services.conversation_service import ConversationClient, ConversationError
 from .services.diff_service import DiffError, get_review_hunks
 from .services.session_store import load_persisted_state, reconcile_reviewed
@@ -157,8 +158,12 @@ async def websocket_endpoint(ws: WebSocket) -> None:
         # just without persona narration or replies.
         log.info("Conversation agent unavailable for this connection: %s", exc)
         conversation = None
+        conversation_error = str(exc)
+    else:
+        conversation_error = None
 
     session = Session(hunks, conversation, repo_path)
+    session.conversation_error = conversation_error
     # Read from the URL, not a message: the first hunk is presented below
     # before any message from the client could be handled, and it must not
     # be narrated if the reviewer turned automatic explanations off.
@@ -200,6 +205,10 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     # empty-on-connect and relying solely on the incremental
     # review_comment_queued/_updated/_removed events.
     await send_json(ws, "review_comments_sync", {"comments": pending_comments_payload(session)})
+    # Every time the review is opened: whether the briefings still describe
+    # the code (see handlers/prep.py). Narration is only as good as they are.
+    if hunks:
+        await send_prep_status(ws, session)
 
     if not hunks:
         await send_error(ws, "No changes found to review. Make some changes to tracked files and reconnect.")

@@ -163,7 +163,7 @@ const TOUR_STEPS = [
   {
     selector: ".toolbar .controls",
     title: "Moving through the diff",
-    body: "Prev / Next step through one hunk — one block of changed lines — at a time. Once the review has started, Mark as reviewed, Review all and End Review appear here too — reviewing every hunk, or ending early, takes you to a summary. The Explain button asks the AI to explain the change you're on — nothing is explained until you click it. To have every change explained as you move to it instead, set Explain changes to Automatically in the chat's settings.",
+    body: "Prev / Next step through one hunk — one block of changed lines — at a time. Once the review has started, Mark as reviewed, Review all and End Review appear here too — reviewing every hunk, or ending early, takes you to a summary. After that you can still browse and ask questions, and Reopen review picks the review back up with its marks and comments. The Explain button asks the AI to explain the change you're on — nothing is explained until you click it. To have every change explained as you move to it instead, set Explain changes to Automatically in the chat's settings.",
   },
   {
     // #file-list, not #file-sidebar-tab (the small expand/collapse arrow)

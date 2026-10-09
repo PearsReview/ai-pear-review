@@ -28,6 +28,12 @@
 - [ ] A 128×128 PNG icon (`icon` in package.json), and the `PearsReview` publisher
       created on the Marketplace, with a PAT for `vsce login`.
 - [ ] The backend's 22 mypy errors (all pre-existing): its CI runs mypy.
+- [ ] **Refresh the Python environment on upgrade.** `pythonSetup.ts` installs
+      `backend/requirements.txt` only when the reviewer runs Set Up Python
+      Environment, so a package a release adds stays missing: `openai` did,
+      and the OpenAI-compatible provider failed until the command was rerun.
+      Store a hash of the requirements file in the venv and reinstall when it
+      changes. The main blocker for dropping the beta label.
 
 ## Not yet verified
 
@@ -47,6 +53,50 @@
 - [x] Type `context_too_large` in `protocol.ts` (the chat reads it; it's still
       `Unknown`).
 - [x] Run ruff on `python/` and `test/python/` in CI, with the backend's settings.
+- [ ] **Callers and tests from the coding agent.** The call map is switched
+      off: narration and replies no longer read `.context/call_map.json`, and
+      it's left out of Review context and the out-of-date notice. It was Python
+      only. When a question asks who calls the code or whether it's tested
+      (the old keyword routes, `_CALLERS_RE` / `_TESTS_RE`, in git history of
+      `app/web/question_context.py`) and an agent is set, run Look deeper with
+      a focused, read-only prompt: list every caller and test as `file:line`.
+      Check each cited line names the symbol before showing it. With no agent,
+      say nothing. Then delete `.claude/skills/call-map`,
+      `app/services/call_map.py`, their tests, the skipped live dependency
+      checks, and the call map's entries in `install_skills.py` and the docs.
+- [ ] **The PR's own text as the "why" in PR reviews.** A PR review asks for no
+      briefings (`prep_status` counts none as out of date when
+      `REVIEW_BASE_SHA` is set), so its hunks are explained from the diff
+      alone. `pullRequests.ts` already calls `github.getPull()`, which returns
+      the body; keep it beside the title and pass both to the backend (with
+      `protocol.ts`, `backend.ts`, `docs/wire-protocol.md`). The backend gets
+      commit subjects itself with `git log --format=%s <base>..HEAD`. Put them
+      in the narration prompt in words as the author's claims ("The author
+      says: …"): a PR body is untrusted text. Cap it at about 1–2k characters
+      and drop empty or template-only bodies.
+- [ ] **Brief PR changes from the Jira ticket, the plan and CLAUDE.md.** Run
+      the prep-review skill on a PR too, in investigation mode, with the
+      ticket, the `plan.md` the author worked from and the repo's `CLAUDE.md`
+      as evidence. Not straight into every explanation: they're long and
+      drift from the code, and explanations are kept to about 60 words. Needs
+      `scan_hunks.py --base <sha>`, so the scanner sees exactly the hunks a
+      PR review shows (`get_review_hunks` with `REVIEW_BASE_SHA`); the
+      briefing keys and hashes then work as they do today.
+- [ ] **What the skill does with that context.** Read it from a folder such as
+      `.review/pr_context/` (`jira.md`, `plan.md`), plus `CLAUDE.md` and the
+      PR's title, body and commit subjects. Write the theme from the ticket,
+      explain hunks from the plan, check each claim against the code, record
+      mismatches as `risk_notes` ("plan says retry 3 times; code retries
+      once"), and say which source a reason came from: this is
+      investigation, not the author's own account. In a PR review, bring
+      back the "not briefed" warning and its Brief in Claude Code / Cline
+      buttons (off now when `REVIEW_BASE_SHA` is set), with a way to add the
+      ticket and plan.
+- [ ] **Open questions on PR reviews.** How the ticket is fetched (Claude
+      Code's Atlassian connection from a key, or pasted/exported text);
+      where `plan.md` lives (committed in the PR branch, or a local file from
+      the author's session); what `CLAUDE.md` should add beyond the project
+      overview; and anything else unsettled about PR reviews.
 
 ## Docs and comments
 

@@ -55,11 +55,11 @@ def test_judge_live_review_is_not_installed(target_repo: Path):
 
 
 def test_pycache_is_not_copied(target_repo: Path):
-    cache = SOURCE_DIR / "call-map" / "__pycache__"
+    cache = SOURCE_DIR / "prep-review" / "__pycache__"
     if not cache.exists():
         pytest.skip("no __pycache__ in the source tree to exclude")
     install(target_repo)
-    assert not (target_repo / ".claude" / "skills" / "call-map" / "__pycache__").exists()
+    assert not (target_repo / ".claude" / "skills" / "prep-review" / "__pycache__").exists()
 
 
 def test_rerun_writes_nothing(target_repo: Path):
@@ -128,7 +128,7 @@ def test_cli_reports_the_destination(target_repo: Path):
     )
     assert result.returncode == 0, result.stderr
     assert ".claude" in result.stdout
-    assert (target_repo / ".claude" / "skills" / "call-map" / "scan_calls.py").is_file()
+    assert (target_repo / ".claude" / "skills" / "prep-review" / "scan_hunks.py").is_file()
 
 
 def test_cli_refuses_a_non_repo_with_a_clear_message(tmp_path: Path):
@@ -315,7 +315,7 @@ def test_repos_file_installs_into_each_repo_and_reports_failures(tmp_path: Path)
 
     assert result.returncode == 0, result.stderr
     for repo in good:
-        assert (repo / ".claude" / "skills" / "call-map" / "SKILL.md").is_file()
+        assert (repo / ".claude" / "skills" / "prep-review" / "SKILL.md").is_file()
     assert "[FAIL]" in result.stdout
     assert str(not_a_repo) in result.stdout
 
@@ -347,3 +347,29 @@ def test_a_missing_repos_file_is_a_clear_error(tmp_path: Path):
     result = _run_cli("--check-repos", str(tmp_path / "nope.txt"))
     assert result.returncode != 0
     assert "Could not read" in result.stderr
+
+
+def test_auto_brief_registers_the_blocking_hook_in_place_of_the_reminder(target_repo: Path):
+    install(target_repo, with_reminders=True)
+    lines = install(target_repo, auto_brief=True)
+    assert _stop_commands(target_repo) == [install_skills.AUTO_BRIEF_HOOK_COMMAND]
+    assert any("replacing the reminder hook" in line for line in lines)
+    assert (target_repo / ".claude" / "hooks" / "briefing_reminder.py").is_file()
+    assert (target_repo / ".clinerules" / "prep-review-reminder.md").is_file()
+
+    install(target_repo, with_reminders=True)  # and back again
+    assert _stop_commands(target_repo) == [install_skills.HOOK_COMMAND]
+
+
+def test_reminder_files_stay_out_of_the_review_too(target_repo: Path):
+    """A real --with-auto-brief run listed the installed hook and Cline rule
+    as unbriefed changes: they weren't excluded like the skills are."""
+    install(target_repo, auto_brief=True)
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all"],
+        cwd=target_repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert status.stdout.strip() == "", status.stdout

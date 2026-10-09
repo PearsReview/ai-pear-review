@@ -310,10 +310,9 @@ def test_status_reports_head_drift_without_discarding(tmp_path: Path):
     assert call_map_status(str(tmp_path), "abc123")["head_moved"] is False
 
 
-def test_build_project_context_orders_overview_before_call_map(tmp_path: Path):
-    """The other half of the contract: both blocks have to reach the same
-    prompt, in an order where the project framing lands before the caller
-    detail it gives meaning to."""
+def test_build_project_context_leaves_out_the_call_map(tmp_path: Path):
+    """The call map is switched off for narration (Python only; callers are
+    to come from the coding agent), even when the repo has one on disk."""
     from app.services.diff_service import Hunk
     from app.services.project_overview import overview_path
     from app.web.context import build_project_context
@@ -328,8 +327,9 @@ def test_build_project_context_orders_overview_before_call_map(tmp_path: Path):
     session = type("S", (), {"repo_path": str(tmp_path), "hunks": [hunk]})()
 
     context = build_project_context(session, hunk)
-    assert context.index("A payments service.") < context.index("Who calls the code")
-    assert "checkout (flow.py)" in context
+    assert "A payments service." in context
+    assert "Who calls the code" not in context
+    assert "checkout (flow.py)" not in context
 
 
 def test_build_project_context_is_none_when_no_skill_has_run(tmp_path: Path):

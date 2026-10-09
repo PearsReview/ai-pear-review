@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- When a review opens with changes that have no up-to-date briefing, a
+  warning says so and offers **Brief in Claude Code** / **Brief in Cline**:
+  it copies the prep-review instruction and opens that assistant's chat.
+  Such changes read "not briefed" in the Changes view. Pull request reviews
+  don't ask.
+- **Get Started** has a new step for reading markdown aloud, and the review
+  step says how ending and reopening a review work.
 - **Reopen Review** (↻ on the Changes view, and on the end-of-review
   notification) picks an ended review back up with its marks and comments.
   An ended review says so at the top of the Changes view and in the chat's

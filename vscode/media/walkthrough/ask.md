@@ -8,4 +8,4 @@ again to send. 🔊 reads a reply aloud. **Look deeper** has your coding agent
 read the repository for a more thorough answer.
 
 Right-click any file and choose **Ask Pear About This File** to ask about code
-that hasn't changed. On a markdown file, **Read Aloud** reads it to you.
+that hasn't changed.

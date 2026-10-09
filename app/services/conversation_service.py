@@ -453,7 +453,10 @@ class ConversationClient:
             parts.extend([project_context, ""])
         parts.extend([f"File: {hunk.file_path}", "", f"Diff hunk:\n```\n{hunk.diff_context}\n```"])
         parts.extend(_briefing_lines(briefing, change_context))
-        parts.append("\nPresent this hunk now.")
+        # Repeated here, last, because the system prompt's length rule alone
+        # was overrun (~110 words against "about 60") once a briefing and a
+        # theme gave the model plenty to retell.
+        parts.append("\nPresent this hunk now, in two or three short sentences.")
         return "\n".join(parts)
 
     def present_from_briefing(

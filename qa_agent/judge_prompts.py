@@ -206,7 +206,7 @@ Is everything it asserts about the code supported by the code above?
 
 # Form, not content. The app's own prompts mandate this ("Reply with ONLY
 # the spoken text: no preamble, no labels, no markdown", 2-4 sentences for
-# narration, 1-3 for a reply) — and a narration this suite recorded began
+# narration (2-3 for frontier models), 1-3 for a reply) — and a narration this suite recorded began
 # `Sure, here's the hunk: ``` @@ -1,2 +1,5 @@`, breaking all three at once.
 STYLE_JUDGE_SYSTEM = """\
 You are checking whether a spoken-aloud code review remark follows its

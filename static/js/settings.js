@@ -224,7 +224,6 @@ export function onSettings(payload) {
 
 const CONTEXT_FILE_LABELS = {
   project_overview: "Project overview",
-  call_map: "Call map",
   changeset: "Change themes",
 };
 

@@ -21,8 +21,15 @@ none of them run, `python run.py` behaves exactly as it always has.
 | Skill | Answers | Writes | Rerun when |
 |---|---|---|---|
 | **project-overview** | What is this project, what is this file for, what are the house rules? | `.context/project_overview.{json,md}` | the architecture moves |
-| **call-map** | Who calls the code in this hunk? | `.context/call_map.{json,md}` | HEAD moves (it's a one-second scan) |
+| **call-map** *(switched off)* | Who calls the code in this hunk? | `.context/call_map.{json,md}` | — |
 | **prep-review** | Why was *this hunk* written this way? | `.briefing/*.json` | the diff changes |
+
+> **The call map is switched off for now.** The app no longer reads
+> `call_map.json`, the installer no longer copies the skill, and you don't
+> need to run it. It only covered Python; "who calls this?" and "is this
+> tested?" are to be answered by the coding agent instead (see
+> [vscode/TODO.md](../vscode/TODO.md)). The sections below that mention it
+> describe how it worked.
 
 ### Installing them into the repo you're reviewing
 
@@ -37,7 +44,7 @@ python /path/to/this/app/install_skills.py --repo .
 They land in `.claude/skills/`, which **both supported agents discover on
 their own** — Claude Code reads it, and so does Cline (which also accepts
 `.cline/skills/`, so one copy serves both). Open your agent in that repo
-and the three skills are available by name.
+and the skills are available by name.
 
 Rerun the installer after updating this app: files that already match are
 left alone, and a skill you've edited yourself is reported and kept unless
@@ -51,7 +58,7 @@ line; blank lines and `#` comments ignored), and `--check-repos repos.txt`
 reports which of them have missing or out-of-date skills — handy after
 updating this app — without writing anything.
 
-The copies are ordinary files in that repo. The installer adds the three
+The copies are ordinary files in that repo. The installer adds the
 skill directories to the repo's `.git/info/exclude`, so a fresh install
 doesn't show up as untracked changes in your first review. That exclude is
 local and uncommitted, so committing the skills (shared prep for your team)
@@ -60,6 +67,27 @@ Whether to commit what they *write* is a separate decision: `.context/` is
 repo-level and worth sharing, while `.briefing/` and
 `.review/` are about one in-progress change (the app keeps those three out
 of the review itself).
+
+### Out-of-date briefings
+
+Each time a review opens, and after the diff is refreshed, the app checks
+which changes have a briefing that matches their code exactly. If some
+don't, it says how many, how many changed after they were briefed, and
+when the code and the newest briefing were last written. Only briefings
+from the skill count. The app's own quick briefing is a guess from the diff
+and never does.
+
+A pull request review skips all this: nobody is expected to brief a PR's
+hunks, so none are counted as out of date.
+
+In VS Code, such a change is marked "not briefed" in the Changes tree. The
+warning has a button for each assistant installed in VS Code, **Brief in
+Claude Code** and **Brief in Cline**. It copies what to type (`/prep-review`
+for Claude Code, "use the prep-review skill" for Cline) and opens that
+assistant's chat for you to paste it into. With neither installed, the
+button is **Copy Instruction**. Best done in the session that made the
+changes, since that one knows why; to have Claude Code do it before it
+stops, see [Briefing automatically](#briefing-automatically-in-claude-code).
 
 ### Reminders (optional)
 
@@ -78,12 +106,45 @@ while the agent still knows *why* each change was made:
   alone. The hook only shows a message, never blocks, and stays silent if
   anything goes wrong.
 - **Cline:** a rule, `.clinerules/prep-review-reminder.md`, asking the agent
-  to check for unbriefed hunks before finishing and offer to run
-  prep-review. If your `.clinerules` is a single file rather than a folder,
-  the rule is skipped, since adding it would mean editing your file.
+  to check for unbriefed hunks before finishing and brief the ones in files
+  it edited in that task. If your `.clinerules` is a single file rather
+  than a folder, the rule is skipped, since adding it would mean editing
+  your file.
 
 It's opt-in because it changes how your agent behaves in that repo, not
 just which skills it can be asked to run.
+
+A briefing the app wrote itself, its quick guess from the diff alone,
+doesn't count as briefed: `scan_hunks.py` reports those hunks as `missing`,
+and prep-review replaces them.
+
+#### Briefing automatically in Claude Code
+
+```
+python /path/to/this/app/install_skills.py --repo . --with-auto-brief
+```
+
+installs the same files but registers the Stop hook in its blocking mode
+(it replaces the reminder hook, and `--with-reminders` swaps it back). When
+a session is about to stop with unbriefed hunks **in files it edited** (its
+Edit and Write calls, read from the session transcript), the hook stops it
+from stopping and asks it to run prep-review in author-session mode for
+those hunks, while it still knows why it made them. Then it stops.
+
+- Other people's uncommitted changes are left alone, even in a file the
+  session edited: Claude is told to skip hunks it didn't write rather than
+  guess at them.
+- Edits made through shell commands or subagents don't show up as Edit or
+  Write calls, so they aren't listed; Claude is told to brief those too if
+  it made them.
+- At most 15 hunks per stop, most recently edited first; the rest are
+  named for you to brief later.
+- It asks once per set of unbriefed hunks, so if Claude can't brief them it
+  isn't asked again on every turn, and it never blocks a stop that a Stop
+  hook already continued.
+
+It costs time: roughly 14 seconds a hunk at the end of the turn that made
+the change.
 
 ### Running them without installing
 
@@ -91,7 +152,6 @@ The scripts all take `--repo`, so for a one-off review of a repo you'd
 rather not add files to, run them from this app's folder instead:
 
 ```
-python .claude/skills/call-map/scan_calls.py --repo ~/your-project
 python .claude/skills/prep-review/scan_hunks.py --repo ~/your-project --todo-only
 ```
 

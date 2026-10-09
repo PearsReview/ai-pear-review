@@ -162,7 +162,7 @@ async def handle_explore_reply(ws: WebSocket, session: Session, payload: dict) -
         return
 
     if session.conversation is None:
-        await send_error(ws, "Conversation agent unavailable — check it's configured correctly to enable replies.")
+        await send_error(ws, session.conversation_unavailable("replies"))
         return
 
     human_text = payload.get("text")

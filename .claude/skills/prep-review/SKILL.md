@@ -55,7 +55,7 @@ Every hunk the app will review, each with its `diff`, its
 
 | state | meaning |
 |---|---|
-| `missing` | no briefing yet |
+| `missing` | no briefing yet — or only the app's own quick guess from the diff, which yours replaces |
 | `stale` | one exists but the code changed under it — the app is ignoring it |
 | `fresh` | already briefed for this exact diff; skip it |
 

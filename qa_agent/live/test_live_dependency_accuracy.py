@@ -29,6 +29,11 @@ from .test_live_review import (
     narrated_walk,  # noqa: F401 — re-exported as a fixture, see module docstring below
 )
 
+# The app no longer hands the call map to the model (Python only; callers
+# are to come from the coding agent — see vscode/TODO.md), so there is no
+# recorded fact for the reply to repeat.
+pytestmark = pytest.mark.skip(reason="call map is switched off in the app; see vscode/TODO.md")
+
 REPLY_TIMEOUT_MS = 60_000
 
 # k=1, not judge_and_record's own k=3 default — see test_live_review.py's

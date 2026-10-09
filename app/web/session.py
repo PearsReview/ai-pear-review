@@ -27,6 +27,9 @@ class Session:
     def __init__(self, hunks: list[Hunk], conversation: ConversationClient | None, repo_path: str) -> None:
         self.hunks = hunks
         self.repo_path = repo_path  # so any handler can persist state without re-reading CONFIG itself
+        # Why conversation is None, when it is: the ConversationError from
+        # connecting, which already says what to fix for the provider in use.
+        self.conversation_error: str | None = None
         self.index = -1
         self.transcript: list[dict] = []  # [{"role": "presenter"|"reviewer", "text": ...}]
         self.briefings: dict[int, Briefing] = {}  # hunk index -> Briefing, cached across Prev/Next
@@ -97,6 +100,13 @@ class Session:
         # themselves ("start_recording"/"stop_recording"). Idle until used;
         # cancelled when the socket closes.
         self.recorder = Recorder()
+
+    def conversation_unavailable(self, feature: str) -> str:
+        """Why `feature` ("explanations", "replies") can't run with no
+        conversation: the connect error when there was one, since it names
+        the provider and the fix."""
+        reason = self.conversation_error or "Check the model provider in Pear's settings."
+        return f"The model isn't available, so there are no {feature}: {reason}"
 
     @property
     def current_hunk(self) -> Hunk | None:
