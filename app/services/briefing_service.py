@@ -263,8 +263,8 @@ def briefing_states(repo_path: str, hunks: list[Hunk]) -> list[str]:
 
     states = []
     for hunk in hunks:
-        data = _read_json(_pregenerated_briefing_path(repo_path, hunk))
-        investigated = bool(data) and data.get("source") == SOURCE_SKILL
+        data = _read_json(_pregenerated_briefing_path(repo_path, hunk)) or {}
+        investigated = data.get("source") == SOURCE_SKILL
         if investigated and data.get("content_hash") == _hunk_content_hash(hunk.diff_context) and data.get("intent"):
             states.append("current")
         elif investigated or hunk.file_path in outdated_files:
