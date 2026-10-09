@@ -1,11 +1,22 @@
 [project]
 name = "ai-pear-review"
 version = "0.0.2"
-description = "A local web app that walks you through your own uncommitted git changes one hunk at a time, with an AI persona narrating each change."
+description = "AI code review for VS Code and the browser: walk through git diffs and GitHub pull requests one hunk at a time with an AI reviewer you can talk to."
 readme = "README.md"
 license = { file = "LICENSE" }
 # 3.10 for the `X | Y` annotations used throughout; developed against 3.13.
 requires-python = ">=3.10"
+keywords = ["code review", "ai code review", "git diff", "pull request", "llm", "ollama", "claude", "openai", "vscode", "voice"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Version Control :: Git",
+]
 # Kept in step with requirements.txt, which is what the README tells people
 # to install — this block is metadata for anyone reading the repo, not a
 # second source of truth to update separately.
@@ -19,6 +30,12 @@ dependencies = [
     "openai>=1.0,<3.0",
     "python-dotenv>=1.0,<2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/PearsReview/ai-pear-review"
+Repository = "https://github.com/PearsReview/ai-pear-review"
+Issues = "https://github.com/PearsReview/ai-pear-review/issues"
+Changelog = "https://github.com/PearsReview/ai-pear-review/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

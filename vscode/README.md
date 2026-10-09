@@ -2,13 +2,14 @@
 
 > **Early development (0.0.x).** The review loop works end to end: the
 > Changes tree, the native diff, the chat with voice, Look deeper, inline
-> comments, Create Plan and Act Now, plus questions about any file and
-> markdown read aloud. Expect rough edges, and settings may change between
-> releases.
+> comments, Create Plan and Act Now, plus pull request reviews, questions about
+> any file and markdown read aloud. Expect rough edges, and settings may change
+> between releases.
 
-A VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
-It walks you through your uncommitted git changes one hunk at a time, with an AI
-reviewer you can talk to. The Python backend is the same one the web app uses,
+The VS Code front end for [AI Pear Review](https://github.com/PearsReview/ai-pear-review).
+It walks you through your uncommitted git changes, or a GitHub pull request, one
+hunk at a time, with an AI reviewer you can talk to, and reads any markdown file
+aloud. The Python backend is the same one the web app uses,
 lives in this repo's root (`app/`, `static/`, `run.py`); the extension is this
 `vscode/` folder, and the `.vsix` carries a copy of the backend. The web app is
 unaffected and still works on its own.
@@ -208,8 +209,8 @@ settings as the web app's panel:
 - **Coding agent**: Cline, or none. Act Now and Look deeper need one. The agent
   uses the model you set up in Cline itself (`cline auth`), which may be a paid
   API.
-- **Review context**: whether the prep files (project overview, call map,
-  change briefings) are present and up to date, and how to refresh them.
+- **Review context**: whether the prep files (project overview, change
+  briefings) are present and up to date, and how to refresh them.
 
 Model, speech and agent settings are saved per repository, in the same place
 the web app keeps them.

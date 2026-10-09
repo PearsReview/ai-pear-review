@@ -21,7 +21,15 @@
     "ai",
     "voice",
     "ollama",
-    "claude"
+    "claude",
+    "ai code review",
+    "pull request",
+    "github",
+    "llm",
+    "openai",
+    "diff",
+    "code reviewer",
+    "local llm"
   ],
   "galleryBanner": {
     "color": "#4d7c0f",
@@ -31,6 +39,8 @@
     "vscode": "^1.106.0"
   },
   "categories": [
+    "AI",
+    "Chat",
     "Other"
   ],
   "extensionKind": [
@@ -98,6 +108,11 @@
       {
         "command": "pearReview.setOpenaiApiKey",
         "title": "Set OpenAI-compatible API Key",
+        "category": "Pear Review"
+      },
+      {
+        "command": "pearReview.setAgentApiKey",
+        "title": "Set Coding Agent API Key",
         "category": "Pear Review"
       },
       {
@@ -602,6 +617,10 @@
           "when": "false"
         },
         {
+          "command": "pearReview.setAgentApiKey",
+          "when": "false"
+        },
+        {
           "command": "pearReview.openPlan",
           "when": "false"
         },
@@ -882,6 +901,17 @@
             },
             "completionEvents": [
               "onView:pearReview.chat"
+            ]
+          },
+          {
+            "id": "readAloud",
+            "title": "Read markdown aloud",
+            "description": "Have any markdown file read to you: a plan, a doc, an agent's notes.\n[Read Aloud](command:pearReview.readAloud)",
+            "media": {
+              "markdown": "media/walkthrough/read.md"
+            },
+            "completionEvents": [
+              "onCommand:pearReview.readAloud"
             ]
           },
           {
