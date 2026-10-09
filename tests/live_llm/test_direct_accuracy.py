@@ -39,6 +39,8 @@ from qa_agent.llm_client import LLMClient
 
 from .conftest import RESULTS_DIR, project_context_for
 
+_ASK_DEPENDENCY = False
+
 JUDGE_VOTES = 1  # see qa_agent/live/test_live_review.py's JUDGE_VOTES for the full reasoning
 
 
@@ -181,7 +183,9 @@ def direct_walk(hunks, conversation, briefing_client, target_repo, call_map_data
         # have injected the same fact). Continues the same conversation
         # (history already has narration+reply in it) as a natural third
         # turn, rather than starting fresh.
-        symbol = _matching_symbol(call_map_data, hunk) if call_map_data else None
+        # Off while the app doesn't hand the call map to the model (see
+        # vscode/TODO.md): the reply would have no recorded fact to repeat.
+        symbol = _matching_symbol(call_map_data, hunk) if call_map_data and _ASK_DEPENDENCY else None
         if symbol:
             question = f"What else in this codebase calls `{symbol['name']}`?"
             t0 = time.time()

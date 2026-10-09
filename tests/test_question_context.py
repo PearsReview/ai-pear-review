@@ -28,13 +28,13 @@ HUNK = Hunk(
 @pytest.mark.parametrize(
     "question,expected",
     [
-        ("Is this tested?", ["tests"]),
-        ("what's the test coverage like", ["tests"]),
-        ("Who calls this?", ["callers"]),
-        ("What could this break?", ["callers"]),
+        # Callers and tests aren't looked up here any more (see the module
+        # docstring); they're due to come from the coding agent.
+        ("Is this tested?", []),
+        ("Who calls this?", []),
         ("Why was this changed?", ["why"]),
         ("What does `validate_amount` do?", ["definition"]),
-        ("is validate_amount tested?", ["tests", "definition"]),
+        ("is validate_amount tested?", ["definition"]),
         ("I detest this naming", []),
         ("Looks good to me", []),
     ],
@@ -58,21 +58,13 @@ def _no_history(repo, hunk):
     raise AssertionError("history lookup should not run")
 
 
-def test_tests_route_adds_coverage(tmp_path):
+def test_a_call_map_on_disk_is_not_used(tmp_path):
+    """The call-map skill's output is switched off for now, even when a
+    repo still has one."""
     _write_map(tmp_path, test_caller_count=2, test_files=["tests/test_billing.py"])
-    found = question_context(_session(tmp_path), HUNK, "Is this tested?", [], False, history_lookup=_no_history)
-    assert found.routes == ("tests",)
-    assert "called directly by 2 test call site(s)" in found.text
-
-
-def test_callers_are_not_repeated_when_narration_already_sent_them(tmp_path):
-    _write_map(tmp_path)
     session = _session(tmp_path)
-    fresh = question_context(session, HUNK, "who calls this?", [], False)
-    assert fresh.routes == ("callers",)
-    caller_block = fresh.text.split("\n\n", 1)[1]
-    history = [{"role": "user", "content": f"project context\n{caller_block}\ndiff"}]
-    assert question_context(session, HUNK, "who calls this?", history, False) is None
+    assert question_context(session, HUNK, "Is this tested?", [], False, history_lookup=_no_history) is None
+    assert question_context(session, HUNK, "Who calls this?", [], False, history_lookup=_no_history) is None
 
 
 def test_why_uses_line_history_only_without_a_briefing(tmp_path):
@@ -160,17 +152,21 @@ class _Socket:
 
 
 def test_reply_prompt_carries_the_looked_up_facts(tmp_path, monkeypatch):
+    import subprocess
+
     monkeypatch.setattr(narration.BRIEFING, "load_cached", lambda hunk: None)
-    _write_map(tmp_path, test_caller_count=2, test_files=["tests/test_billing.py"])
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True, capture_output=True)
+    (tmp_path / "checks.py").write_text("def validate_amount(amount):\n    return amount\n", encoding="utf-8")
     conversation = _Conversation()
     session = Session([HUNK], conversation, str(tmp_path))
     session.index = 0
     session.tts_enabled = False
 
-    asyncio.run(narration.handle_reply(_Socket(), session, {"text": "Is this tested?"}))
+    question = "What does `validate_amount` do?"
+    asyncio.run(narration.handle_reply(_Socket(), session, {"text": question}))
 
     sent = conversation.sent[0]
-    assert sent.index("called directly by 2 test call site(s)") < sent.index("Is this tested?")
+    assert sent.index("Where validate_amount is defined (checks.py:1)") < sent.index(question)
     assert "+    return validate_amount(amount)" in sent  # the diff is still there
     # A cached "unavailable" would stop narration generating a briefing later.
     assert 0 not in session.briefings
